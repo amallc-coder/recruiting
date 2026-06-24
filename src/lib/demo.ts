@@ -228,14 +228,99 @@ export const demoClient = {
 }
 
 // ---- Seed data --------------------------------------------------------------
+// The local workspace starts pre-loaded with the real facility list + a coverage
+// baseline (matching supabase/seed.sql + seed_coverage.sql), and a clean slate
+// for candidates — you add your real ones, then Export to Supabase when ready.
+
+// [name, division, region, census] — census null where unknown.
+const FACILITY_SEED: [string, string, string, number | null][] = [
+  // Missouri / Kansas
+  ['Bridgewood Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 137],
+  ['Edgewood Manor Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 47],
+  ['Gregory Ridge Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 104],
+  ['Nicks Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 66],
+  ['Odessa Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 9],
+  ['Parkway Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 58],
+  ['Eastview Manor Care Center', 'Missouri / Kansas', 'North Central', 80],
+  ['Milan Health Care Center', 'Missouri / Kansas', 'North Central', 23],
+  ['Brookfield Health Care Center', 'Missouri / Kansas', 'North Central', 4],
+  ['Brunswick Health Care Center', 'Missouri / Kansas', 'North Central', 7],
+  ['Wellsville Health Care Center', 'Missouri / Kansas', 'North Central', 67],
+  ['Westview Nursing Home', 'Missouri / Kansas', 'North Central', 52],
+  ['Easton Health Care Center (Kansas)', 'Missouri / Kansas', 'KC Kansas', 2],
+  ['Holton Health Care Center (Kansas)', 'Missouri / Kansas', 'KC Kansas', 0],
+  ['Nortonville (Kansas)', 'Missouri / Kansas', 'KC Kansas', 0],
+  ['St Elizabeth Health Care Center', 'Missouri / Kansas', 'Middle South MO', 59],
+  ['Chariton Park Health Care Center', 'Missouri / Kansas', 'Moberly', 114],
+  ['North Village Park', 'Missouri / Kansas', 'Moberly', 172],
+  ['Levering (RCF) Salt River (Shelbina)', 'Missouri / Kansas', 'North Central', 17],
+  ['Cedargate Health Care Center', 'Missouri / Kansas', 'SE MO', 11],
+  ['Greenville Health Care Center', 'Missouri / Kansas', 'SE MO', 14],
+  ['Portageville Healthcare Center', 'Missouri / Kansas', 'SE MO', 57],
+  ['Stonecrest Healthcare', 'Missouri / Kansas', 'SE MO', 56],
+  ['Fair View Health Care Center', 'Missouri / Kansas', 'Sedalia', 63],
+  ['Four Seasons Living Center', 'Missouri / Kansas', 'Sedalia', 224],
+  ['Legendary Health Care Center', 'Missouri / Kansas', 'Sedalia', 18],
+  ['Pettis County Assisted Living', 'Missouri / Kansas', 'Sedalia', 111],
+  ['Rest Haven Health Care Center', 'Missouri / Kansas', 'Sedalia', 61],
+  ['Bernard Care Center (STL)', 'Missouri / Kansas', 'St Louis', 89],
+  ['Carrie Ellingson Geitner Health Care (STL)', 'Missouri / Kansas', 'St Louis', 31],
+  ['Crestwood Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 88],
+  ['Grand Manor Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 52],
+  ['Heritage Care Center of Berkeley (STL)', 'Missouri / Kansas', 'St Louis', 67],
+  ['Hidden Lake Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 6],
+  ['Hillside Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 0],
+  ['South County Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 25],
+  ['Cassville Health Care Center', 'Missouri / Kansas', 'West Rural MO', 0],
+  ['Nathan Richard Health Care Center', 'Missouri / Kansas', 'West Rural MO', 59],
+  ['Sarcoxie Health Care Center', 'Missouri / Kansas', 'West Rural MO', 35],
+  // Ohio
+  ['Parkside', 'Ohio', 'Southern', 72],
+  ['Carlisle Manor', 'Ohio', 'Southern', 44],
+  ['Lebanon', 'Ohio', 'Southern', 59],
+  ['Springfield', 'Ohio', 'Southern', 50],
+  ['Woodview', 'Ohio', 'Columbus', 63],
+  ['Winchester', 'Ohio', 'Columbus', 88],
+  ['Pickerington', 'Ohio', 'Columbus', 68],
+  ['Forest Hills', 'Ohio', 'Columbus', 66],
+  ['Cambridge', 'Ohio', 'West Columbus', 72],
+  ['Grande Oaks', 'Ohio', 'East Cleveland', 36],
+  ['Grande Pavilion', 'Ohio', 'East Cleveland', 35],
+  ['Madison Healthcare', 'Ohio', 'East Cleveland', 101],
+  ['Valley View', 'Ohio', 'Central Southern', 44],
+  ['Logan', 'Ohio', 'Central Southern', 95],
+  ['Longmeadow', 'Ohio', 'NE Ohio', 54],
+  ['Autumnwood', 'Ohio', 'NE Ohio', 56],
+  ['Shady Lawn', 'Ohio', 'NE Ohio', 73],
+  ['Shady Lawn ALF', 'Ohio', 'NE Ohio', 52],
+  ['Oak Hills', 'Ohio', 'West Cleveland', 62],
+  ['Rockport', 'Ohio', 'Northern Cleveland', 98],
+  ['Richmond Hts SNF and AL', 'Ohio', 'Northern Cleveland', 70],
+  ['Royal Oak', 'Ohio', 'Northern Cleveland', 63],
+  ['Seasons (behaviors)', 'Ohio', 'Cleveland', 46],
+  ['Stow (AL)', 'Ohio', 'Cleveland', 64],
+  ['Willard ALF', 'Ohio', 'Central', 2],
+  ['Willard SNF', 'Ohio', 'Central', 55],
+  ['Crystal Care', 'Ohio', 'Central', 62],
+  ['Willard Detox Center', 'Ohio', 'Central', null],
+  ['Swanton', 'Ohio', 'Toledo', 59],
+  ['Fostoria', 'Ohio', 'Toledo', 40],
+  ['Fostoria AL', 'Ohio', 'Toledo', null],
+]
+
+// Facilities with an explicitly flagged NP gap (premium) in the source sheets.
+const NP_GAP_FACILITIES = new Set([
+  'Cambridge', 'Valley View', 'Logan', 'Willard SNF', 'Willard ALF',
+  'Willard Detox Center', 'Crystal Care', 'Fostoria', 'Fostoria AL',
+])
 
 function seedIfNeeded() {
   if (localStorage.getItem(SEEDED) === '1') return
 
   save('profiles', [
-    { id: DEMO_USER.id, full_name: 'You (Demo Admin)', email: DEMO_USER.email, role: 'admin', active: true, created_at: nowIso(), updated_at: nowIso() },
-    { id: 'rec-alex', full_name: 'Alexandra Chisholm', email: 'alexandra@demo', role: 'recruiter', active: true, created_at: nowIso(), updated_at: nowIso() },
-    { id: 'rec-hannah', full_name: 'Hannah McCartney Walsh', email: 'hannah@demo', role: 'recruiter', active: true, created_at: nowIso(), updated_at: nowIso() },
+    { id: DEMO_USER.id, full_name: 'You (Admin)', email: DEMO_USER.email, role: 'admin', active: true, created_at: nowIso(), updated_at: nowIso() },
+    { id: 'rec-alex', full_name: 'Alexandra Chisholm', email: 'alexandra@local', role: 'recruiter', active: true, created_at: nowIso(), updated_at: nowIso() },
+    { id: 'rec-hannah', full_name: 'Hannah McCartney Walsh', email: 'hannah@local', role: 'recruiter', active: true, created_at: nowIso(), updated_at: nowIso() },
   ])
 
   save('recruiter_regions', [
@@ -245,57 +330,90 @@ function seedIfNeeded() {
     { recruiter_id: 'rec-hannah', region: 'SE MO' },
   ])
 
-  const F = (id: string, name: string, division: string, region: string, portfolio: string, census: number, city: string, state: string): Row => ({
-    id, name, division, region, portfolio, census, city, state, active: true, created_at: nowIso(), updated_at: nowIso(),
+  const facilities: Row[] = []
+  const coverage: Row[] = []
+  FACILITY_SEED.forEach(([name, division, region, census], i) => {
+    const id = `f${i + 1}`
+    facilities.push({ id, name, division, region, portfolio: division === 'Missouri / Kansas' ? 'Reliant Homes' : null, census, active: true, created_at: nowIso(), updated_at: nowIso() })
+    // LPN need = 1 baseline at every facility (verify & adjust in-app).
+    coverage.push({ id: uuid(), facility_id: id, role: 'lpn', have_count: 0, need_count: 1, priority: 'standard', current_provider: null, created_at: nowIso(), updated_at: nowIso() })
+    if (NP_GAP_FACILITIES.has(name)) {
+      coverage.push({ id: uuid(), facility_id: id, role: 'np', have_count: 0, need_count: 1, priority: 'premium', current_provider: null, created_at: nowIso(), updated_at: nowIso() })
+    }
   })
-  save('facilities', [
-    F('f1', 'Bridgewood Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 'Reliant Homes', 137, 'Kansas City', 'MO'),
-    F('f2', 'Parkway Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 'Reliant Homes', 58, 'Kansas City', 'MO'),
-    F('f3', 'Gregory Ridge Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 'Reliant Homes', 104, 'Kansas City', 'MO'),
-    F('f4', 'Four Seasons Living Center', 'Missouri / Kansas', 'Sedalia', 'Reliant Homes', 224, 'Sedalia', 'MO'),
-    F('f5', 'Pettis County Assisted Living', 'Missouri / Kansas', 'Sedalia', 'Reliant Homes', 111, 'Sedalia', 'MO'),
-    F('f6', 'Bernard Care Center (STL)', 'Missouri / Kansas', 'St Louis', 'Reliant Homes', 89, 'St Louis', 'MO'),
-    F('f7', 'Crestwood Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 'Reliant Homes', 88, 'St Louis', 'MO'),
-    F('f8', 'Cedargate Health Care Center', 'Missouri / Kansas', 'SE MO', 'Reliant Homes', 11, 'Cape Girardeau', 'MO'),
-    F('f9', 'Cambridge', 'Ohio', 'West Columbus', 'Embassy', 72, 'Cambridge', 'OH'),
-    F('f10', 'Logan', 'Ohio', 'Central Southern', 'Embassy', 95, 'Logan', 'OH'),
-  ])
-
-  const CN = (facility_id: string, role: string, have: number, need: number, priority: string, current?: string): Row => ({
-    id: uuid(), facility_id, role, have_count: have, need_count: need, priority, current_provider: current ?? null, created_at: nowIso(), updated_at: nowIso(),
-  })
-  save('coverage_needs', [
-    CN('f1', 'lpn', 0, 1, 'standard'),
-    CN('f1', 'np', 1, 0, 'standard', 'Sara Koenemann'),
-    CN('f2', 'lpn', 0, 1, 'standard'),
-    CN('f3', 'lpn', 1, 0, 'standard'),
-    CN('f3', 'np', 1, 0, 'standard', 'Dr. Sutherland'),
-    CN('f4', 'lpn', 0, 2, 'premium'),
-    CN('f5', 'lpn', 0, 1, 'standard'),
-    CN('f6', 'lpn', 0, 1, 'standard'),
-    CN('f6', 'np', 1, 0, 'standard', 'Candace Kirkpatrick'),
-    CN('f8', 'lpn', 0, 1, 'standard'),
-    CN('f9', 'np', 0, 1, 'premium'),
-    CN('f10', 'np', 0, 1, 'premium'),
-    CN('f10', 'lpn', 0, 1, 'standard'),
-  ])
-
-  const C = (full_name: string, role: string, facility_id: string, recruiter_id: string, stage: string, checklist: Row, extra: Row = {}): Row =>
-    stampInsert('candidates', {
-      full_name, role, facility_id, recruiter_id, current_stage: stage, checklist,
-      email: full_name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
-      source: 'Indeed', ...extra,
-    })
-  save('candidates', [
-    C('Xaviera Roberts', 'lpn', 'f1', 'rec-alex', 'accepted', { offer: true, background: true }, { phone: '816-807-2867', start_date: '2026-05-20', background_sent_date: '2026-04-21', background_cleared_date: '2026-04-28' }),
-    C('Rebeca Sousley', 'lpn', 'f2', 'rec-alex', 'background', { offer: true, background: true }, { start_date: '2026-06-08', background_sent_date: '2026-05-30' }),
-    C('Carlene Merritt', 'lpn', 'f3', 'rec-alex', 'welcome_call', { offer: true, background: true, onboarding: true, groupchat: true }, { start_date: '2026-06-29' }),
-    C('Chelsea Wiseman', 'lpn', 'f4', 'rec-alex', 'active', { offer: true, background: true, onboarding: true, groupchat: true, welcome_call: true, loop_team: true }, { start_date: '2026-06-08', welcome_call_done: true, rating: 5 }),
-    C('Bianca Howard', 'lpn', 'f6', 'rec-hannah', 'offer', { offer: true }, { start_date: '2026-06-15' }),
-    C('Erika Lavington-Foster', 'lpn', 'f7', 'rec-hannah', 'interview', {}, { phone: '314-406-3988' }),
-    C('Sarah Brooks', 'np', 'f9', 'rec-hannah', 'sourced', { screen_summary: true }, {}),
-    C('Tabatha Peters', 'np', 'f10', 'rec-hannah', 'declined', {}, { notes: 'Declined offer — comp.' }),
-  ])
+  save('facilities', facilities)
+  save('coverage_needs', coverage)
+  save('candidates', []) // clean slate — add your real candidates
 
   localStorage.setItem(SEEDED, '1')
+}
+
+// ---- Export to Supabase -----------------------------------------------------
+// Turns the current local data into a SQL script to run in the Supabase SQL
+// Editor (after schema.sql). Includes facilities, coverage needs, and candidates
+// with their relationships intact. Recruiter assignments are left blank because
+// real recruiters are your Supabase users — reassign them on the Team screen.
+
+function sql(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'null'
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (typeof value === 'object') return `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`
+  return `'${String(value).replace(/'/g, "''")}'`
+}
+
+function insertBlock(table: string, cols: string[], rows: Row[]): string {
+  if (rows.length === 0) return `-- (no ${table} to import)\n`
+  const values = rows
+    .map((r) => '  (' + cols.map((c) => sql(r[c])).join(', ') + ')')
+    .join(',\n')
+  return (
+    `insert into public.${table} (${cols.join(', ')}) values\n${values}\n` +
+    `on conflict (id) do nothing;\n`
+  )
+}
+
+export function buildSupabaseSql(): string {
+  const facilities = load('facilities')
+  const coverage = load('coverage_needs')
+  const candidates = load('candidates')
+
+  const header =
+    `-- Recruiting Tracker — data export from local workspace\n` +
+    `-- Run this in Supabase -> SQL Editor AFTER running schema.sql.\n` +
+    `-- Do NOT also run seed.sql / seed_coverage.sql — this file already\n` +
+    `-- contains your facilities and coverage. Candidates import with no\n` +
+    `-- recruiter assigned; set recruiters on the Team/Candidates screen.\n\n` +
+    `begin;\n\n`
+
+  const fac = insertBlock(
+    'facilities',
+    ['id', 'name', 'division', 'region', 'portfolio', 'city', 'state', 'zip', 'address', 'phone', 'fax', 'census', 'capacity', 'active', 'notes'],
+    facilities,
+  )
+  const cov = insertBlock(
+    'coverage_needs',
+    ['id', 'facility_id', 'role', 'have_count', 'need_count', 'priority', 'current_provider', 'notes'],
+    coverage,
+  )
+  const cand = insertBlock(
+    'candidates',
+    ['id', 'full_name', 'role', 'email', 'phone', 'source', 'facility_id', 'region', 'current_stage', 'background_sent_date', 'background_cleared_date', 'welcome_call_done', 'start_date', 'checklist', 'rating', 'notes'],
+    candidates,
+  )
+
+  return header + fac + '\n' + cov + '\n' + cand + '\ncommit;\n'
+}
+
+export function downloadSupabaseSql() {
+  const text = buildSupabaseSql()
+  const blob = new Blob([text], { type: 'text/sql;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'recruiting-data-for-supabase.sql'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

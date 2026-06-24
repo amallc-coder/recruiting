@@ -50,7 +50,24 @@ valid login.
 
 ---
 
-## One-time setup
+## Try it now — local workspace (no setup)
+
+On the login screen, click **"Start in local mode."** The **full app** runs in
+your browser with the real facility list and a coverage baseline preloaded, and a
+clean slate for candidates. Everything you enter saves to this browser.
+
+When you're ready to go live, click **"Export to Supabase"** in the top banner —
+it downloads a `.sql` file with all your facilities, coverage needs, and
+candidates. After you create your Supabase project and run `schema.sql`, run that
+exported file in the SQL Editor and your data is in the cloud. (Don't also run
+`seed.sql` — the export already contains your facilities.)
+
+> Local mode lives only on one device and isn't shared or backed up — it's for
+> getting started. Supabase is what makes it a shared, multi-user, cloud system.
+
+---
+
+## One-time setup (go live with Supabase)
 
 ### 1. Create the Supabase project
 Go to <https://supabase.com> → sign up (free) → **New project**. Set a strong

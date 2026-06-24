@@ -91,10 +91,11 @@ export function Login() {
           </div>
 
           <button type="button" className="btn-secondary w-full" onClick={startDemo}>
-            Explore the demo (no setup) →
+            Start in local mode (no setup yet) →
           </button>
           <p className="text-center text-xs text-gray-400">
-            Loads sample facilities &amp; candidates in your browser. Nothing leaves this device.
+            Use the full app now with your facilities preloaded. Data saves in this
+            browser; export it to Supabase anytime to go live.
           </p>
         </form>
 

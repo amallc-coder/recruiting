@@ -3,24 +3,30 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Building2, Users, UserCog, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
-import { disableDemo, resetDemo } from '../lib/demo'
+import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 
 function DemoBanner() {
   if (!demoMode) return null
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-white">
-      <span>🧪 Demo mode — sample data stored only in this browser.</span>
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-brand-600 px-4 py-1.5 text-center text-xs font-medium text-white">
+      <span>💾 Local workspace — saved in this browser only (not yet shared/cloud).</span>
+      <button
+        className="rounded bg-white/20 px-2 py-0.5 font-semibold hover:bg-white/30"
+        onClick={downloadSupabaseSql}
+      >
+        ⬇ Export to Supabase
+      </button>
       <button
         className="underline underline-offset-2 hover:opacity-80"
-        onClick={() => { resetDemo(); window.location.reload() }}
+        onClick={() => { if (confirm('Reset the local workspace back to the starting facilities and clear your candidates?')) { resetDemo(); window.location.reload() } }}
       >
-        Reset data
+        Reset
       </button>
       <button
         className="underline underline-offset-2 hover:opacity-80"
         onClick={() => { disableDemo(); window.location.hash = '#/login'; window.location.reload() }}
       >
-        Exit demo
+        Exit
       </button>
     </div>
   )
