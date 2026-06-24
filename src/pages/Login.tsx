@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { enableDemo } from '../lib/demo'
+
+function startDemo() {
+  enableDemo()
+  window.location.hash = '#/'
+  window.location.reload()
+}
 
 export function Login() {
   const { session, signIn, loading } = useAuth()
@@ -77,6 +84,18 @@ export function Login() {
           <button type="submit" className="btn-primary w-full" disabled={submitting}>
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
+
+          <div className="relative py-1 text-center">
+            <span className="bg-white px-2 text-xs text-gray-400">or</span>
+            <div className="absolute inset-x-0 top-1/2 -z-10 border-t border-gray-100" />
+          </div>
+
+          <button type="button" className="btn-secondary w-full" onClick={startDemo}>
+            Explore the demo (no setup) →
+          </button>
+          <p className="text-center text-xs text-gray-400">
+            Loads sample facilities &amp; candidates in your browser. Nothing leaves this device.
+          </p>
         </form>
 
         <p className="mt-4 text-center text-xs text-gray-400">

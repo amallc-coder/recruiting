@@ -2,6 +2,29 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Building2, Users, UserCog, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { demoMode } from '../lib/supabase'
+import { disableDemo, resetDemo } from '../lib/demo'
+
+function DemoBanner() {
+  if (!demoMode) return null
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-xs font-medium text-white">
+      <span>🧪 Demo mode — sample data stored only in this browser.</span>
+      <button
+        className="underline underline-offset-2 hover:opacity-80"
+        onClick={() => { resetDemo(); window.location.reload() }}
+      >
+        Reset data
+      </button>
+      <button
+        className="underline underline-offset-2 hover:opacity-80"
+        onClick={() => { disableDemo(); window.location.hash = '#/login'; window.location.reload() }}
+      >
+        Exit demo
+      </button>
+    </div>
+  )
+}
 
 const navItem = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors'
 
@@ -12,6 +35,12 @@ export function Layout() {
 
   async function handleSignOut() {
     await signOut()
+    if (demoMode) {
+      // Re-init the app on the real client after leaving the demo.
+      window.location.hash = '#/login'
+      window.location.reload()
+      return
+    }
     navigate('/login')
   }
 
@@ -72,6 +101,7 @@ export function Layout() {
       {open && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <DemoBanner />
         <header className="flex h-16 items-center gap-3 border-b border-gray-200 bg-white px-4 lg:hidden">
           <button onClick={() => setOpen((v) => !v)} className="text-gray-600">
             {open ? <X size={22} /> : <Menu size={22} />}
