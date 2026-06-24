@@ -76,6 +76,7 @@ export interface Candidate {
   background_cleared_date: string | null
   welcome_call_done: boolean
   start_date: string | null
+  checklist: Record<string, boolean>
   rating: number | null
   notes: string | null
   created_by: string | null
@@ -175,4 +176,36 @@ export const SOURCE_SUGGESTIONS = [
 
 export function isActivePipeline(stage: Stage): boolean {
   return !['active', 'declined', 'no_response'].includes(stage)
+}
+
+// ---- Hiring-handoff checklists (from the team's documented flows) ------------
+
+export interface ChecklistStep {
+  key: string
+  label: string
+  owner: string // who is responsible for this step
+}
+
+// LPN / MA onboarding handoff
+export const LPN_FLOW: ChecklistStep[] = [
+  { key: 'offer', label: 'Post, recruit, interview, and make offer', owner: 'Recruiter' },
+  { key: 'background', label: 'Send background to candidate; once received, send background consent form', owner: 'Recruiter' },
+  { key: 'onboarding', label: 'Launch electronic onboarding to candidate (except OH until set up)', owner: 'Tonja' },
+  { key: 'groupchat', label: 'Post candidate details in group chat for Corby', owner: 'Recruiter' },
+  { key: 'welcome_call', label: 'Schedule welcome call: program details + orientation date', owner: 'Corby' },
+  { key: 'loop_team', label: 'Loop in Amber and the team on status', owner: 'Corby' },
+]
+
+// NP / PA / Physician onboarding handoff
+export const NP_PA_FLOW: ChecklistStep[] = [
+  { key: 'screen_summary', label: 'Post, recruit, screen; send bullet summary to Corby and schedule with Corby', owner: 'Recruiter' },
+  { key: 'packet_kiyara', label: 'Email candidate details, resume, and new-hire packet to Kiyara (cc Rob)', owner: 'Recruiter' },
+  { key: 'startdate_corby', label: 'Email candidate details and start date to Corby (cc Rob) for welcome call', owner: 'Recruiter' },
+  { key: 'loop_team', label: 'Loop in Amber and the team on status', owner: 'Corby' },
+  { key: 'welcome_call', label: 'Schedule welcome call: program details + orientation date', owner: 'Corby' },
+]
+
+// Which flow applies to a given clinical role.
+export function checklistForRole(role: ClinicalRole): ChecklistStep[] {
+  return role === 'lpn' || role === 'ma' ? LPN_FLOW : NP_PA_FLOW
 }

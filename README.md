@@ -61,7 +61,9 @@ In Supabase: **SQL Editor → New query**, paste all of
 [`supabase/schema.sql`](supabase/schema.sql), and **Run**. (Safe to re-run.)
 
 *(Optional, recommended)* Then run [`supabase/seed.sql`](supabase/seed.sql) to
-pre-load the facilities/regions/census pulled from the existing spreadsheets.
+pre-load the facilities/regions/census from the existing spreadsheets, and
+[`supabase/seed_coverage.sql`](supabase/seed_coverage.sql) for an approximate
+Have/Need starting baseline (verify and adjust in the app).
 
 ### 3. Get your API keys
 Supabase → **Project Settings → API**: copy the **Project URL** and the
@@ -107,12 +109,17 @@ npm run dev               # http://localhost:5173
 | **Dashboard** | KPIs for their territory: open needs, premium gaps, pipeline, hires; charts | Team-wide: needs by role/region, **pipeline by recruiter** |
 | **Facilities & Needs** | Facilities in their regions; edit Have/Need coverage by role | All facilities; create/delete |
 | **Facility detail** | Coverage editor (Have/Need/priority/current provider) + candidates there | same |
-| **Candidates** | Their territory's pipeline; stages + onboarding fields | All candidates; reassign recruiter |
+| **Candidates** | Their territory's pipeline; stages, onboarding fields, **hiring-handoff checklist** | All candidates; reassign recruiter |
 | **Team** | — | Manage roles + assign recruiter regions |
 | **Export** | CSV of their data | CSV of everything |
 
 Every candidate stage change is logged automatically in `candidate_stage_history`
 for audit and time-in-stage reporting.
+
+**Hiring-handoff checklists** are built into each candidate, following the team's
+documented flows — LPN/MA (Recruiter → Tonja onboarding → Corby welcome call →
+loop Amber) and NP/PA (Recruiter screen → packet to Kiyara cc Rob → start date to
+Corby → welcome call). The candidate list shows each person's checklist progress.
 
 ---
 
@@ -139,7 +146,6 @@ for audit and time-in-stage reporting.
 
 ## Roadmap / open items
 
-- Refine portfolio mapping and seed coverage needs from the latest sheets.
+- Refine portfolio mapping and verify the seeded Have/Need numbers.
 - Optional: Microsoft 365 SSO, resume/document uploads (Supabase Storage),
-  the documented LPN vs NP/PA hiring-handoff checklists (Tonja/Corby/Kiyara steps),
   email notifications, and time-to-fill / time-in-stage reporting.

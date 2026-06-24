@@ -11,6 +11,7 @@ import {
   SOURCE_SUGGESTIONS,
   STAGES,
   STAGE_LABELS,
+  checklistForRole,
   type Candidate,
   type ClinicalRole,
   type Stage,
@@ -23,6 +24,13 @@ const EMPTY: Partial<Candidate> = {
   source: 'Indeed',
   current_stage: 'sourced',
   welcome_call_done: false,
+  checklist: {},
+}
+
+function checklistProgress(c: Candidate): { done: number; total: number } {
+  const steps = checklistForRole(c.role)
+  const done = steps.filter((s) => c.checklist?.[s.key]).length
+  return { done, total: steps.length }
 }
 
 export function Candidates() {
@@ -153,6 +161,7 @@ export function Candidates() {
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Facility</th>
                   <th className="px-4 py-3">Stage</th>
+                  <th className="px-4 py-3">Checklist</th>
                   {isAdmin && <th className="px-4 py-3">Recruiter</th>}
                   <th className="px-4 py-3">Start</th>
                   <th className="px-4 py-3"></th>
@@ -177,6 +186,21 @@ export function Candidates() {
                           <option key={s} value={s}>{STAGE_LABELS[s]}</option>
                         ))}
                       </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const { done, total } = checklistProgress(c)
+                        const complete = done === total
+                        return (
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              complete ? 'bg-green-100 text-green-700' : done > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {done}/{total}
+                          </span>
+                        )
+                      })()}
                     </td>
                     {isAdmin && <td className="px-4 py-3 text-gray-600">{byId(c.recruiter_id)?.full_name ?? '—'}</td>}
                     <td className="px-4 py-3 text-gray-500">{c.start_date ?? '—'}</td>
@@ -254,6 +278,7 @@ function CandidateForm({
       background_cleared_date: form.background_cleared_date || null,
       welcome_call_done: !!form.welcome_call_done,
       start_date: form.start_date || null,
+      checklist: form.checklist ?? {},
       rating: form.rating ? Number(form.rating) : null,
       notes: form.notes || null,
       recruiter_id: isAdmin ? form.recruiter_id ?? currentUserId : currentUserId,
@@ -341,6 +366,41 @@ function CandidateForm({
             />
             Welcome call completed
           </label>
+        </div>
+
+        <div className="sm:col-span-2 mt-1 border-t border-gray-100 pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Hiring handoff checklist
+            </span>
+            <span className="text-xs text-gray-400">
+              {checklistForRole(form.role ?? 'lpn').filter((s) => form.checklist?.[s.key]).length}
+              /{checklistForRole(form.role ?? 'lpn').length} done · {form.role === 'lpn' || form.role === 'ma' ? 'LPN/MA flow' : 'NP/PA flow'}
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {checklistForRole(form.role ?? 'lpn').map((step, i) => (
+              <label
+                key={step.key}
+                className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  checked={!!form.checklist?.[step.key]}
+                  onChange={(e) =>
+                    set('checklist', { ...(form.checklist ?? {}), [step.key]: e.target.checked })
+                  }
+                />
+                <span className="text-sm leading-tight text-gray-700">
+                  <span className="text-gray-400">{i + 1}.</span> {step.label}
+                  <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                    {step.owner}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {isAdmin && (

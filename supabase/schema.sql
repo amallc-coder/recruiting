@@ -104,6 +104,9 @@ create table if not exists public.candidates (
   background_cleared_date date,
   welcome_call_done       boolean not null default false,
   start_date              date,
+  -- per-candidate hiring-handoff checklist; keys map to steps defined in the app
+  -- (LPN flow vs NP/PA flow). Stored as { "<step_key>": true } for completed steps.
+  checklist     jsonb not null default '{}'::jsonb,
   rating        int check (rating between 1 and 5),
   notes         text,
   created_by    uuid references public.profiles(id) on delete set null,
@@ -114,6 +117,9 @@ create index if not exists idx_candidates_recruiter on public.candidates(recruit
 create index if not exists idx_candidates_region    on public.candidates(region);
 create index if not exists idx_candidates_facility  on public.candidates(facility_id);
 create index if not exists idx_candidates_stage     on public.candidates(current_stage);
+
+-- For databases created before the checklist column existed.
+alter table public.candidates add column if not exists checklist jsonb not null default '{}'::jsonb;
 
 -- ---------------------------------------------------------------------------
 -- STAGE HISTORY — audit trail of pipeline moves (auto-written by trigger)
