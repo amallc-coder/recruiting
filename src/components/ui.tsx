@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { STAGE_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '../lib/types'
-import type { Stage, OpeningStatus, Priority } from '../lib/types'
+import { STAGE_LABELS, PRIORITY_LABELS, ROLE_LABELS } from '../lib/types'
+import type { Stage, Priority, ClinicalRole } from '../lib/types'
 
 export function Spinner({ label }: { label?: string }) {
   return (
@@ -15,28 +15,36 @@ export function StatCard({
   label,
   value,
   hint,
+  tone,
 }: {
   label: string
   value: ReactNode
   hint?: string
+  tone?: 'default' | 'warn' | 'good'
 }) {
+  const valueColor =
+    tone === 'warn' ? 'text-amber-600' : tone === 'good' ? 'text-green-600' : 'text-gray-900'
   return (
     <div className="card p-5">
       <div className="text-sm font-medium text-gray-500">{label}</div>
-      <div className="mt-1 text-3xl font-semibold text-gray-900">{value}</div>
+      <div className={`mt-1 text-3xl font-semibold ${valueColor}`}>{value}</div>
       {hint && <div className="mt-1 text-xs text-gray-400">{hint}</div>}
     </div>
   )
 }
 
 const STAGE_COLORS: Record<Stage, string> = {
-  applied: 'bg-gray-100 text-gray-700',
-  screening: 'bg-blue-100 text-blue-700',
-  interview: 'bg-indigo-100 text-indigo-700',
-  offer: 'bg-amber-100 text-amber-700',
-  hired: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-  withdrawn: 'bg-gray-100 text-gray-500',
+  sourced: 'bg-gray-100 text-gray-700',
+  interview: 'bg-blue-100 text-blue-700',
+  offer: 'bg-indigo-100 text-indigo-700',
+  accepted: 'bg-violet-100 text-violet-700',
+  background: 'bg-amber-100 text-amber-700',
+  cleared: 'bg-teal-100 text-teal-700',
+  welcome_call: 'bg-cyan-100 text-cyan-700',
+  training: 'bg-lime-100 text-lime-700',
+  active: 'bg-green-100 text-green-700',
+  declined: 'bg-red-100 text-red-700',
+  no_response: 'bg-gray-100 text-gray-500',
 }
 
 export function StageBadge({ stage }: { stage: Stage }) {
@@ -47,26 +55,9 @@ export function StageBadge({ stage }: { stage: Stage }) {
   )
 }
 
-const STATUS_COLORS: Record<OpeningStatus, string> = {
-  open: 'bg-green-100 text-green-700',
-  on_hold: 'bg-amber-100 text-amber-700',
-  filled: 'bg-blue-100 text-blue-700',
-  closed: 'bg-gray-100 text-gray-600',
-  cancelled: 'bg-red-100 text-red-700',
-}
-
-export function StatusBadge({ status }: { status: OpeningStatus }) {
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status]}`}>
-      {STATUS_LABELS[status]}
-    </span>
-  )
-}
-
 const PRIORITY_COLORS: Record<Priority, string> = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high: 'bg-amber-100 text-amber-700',
+  standard: 'bg-gray-100 text-gray-600',
+  premium: 'bg-amber-100 text-amber-700',
   urgent: 'bg-red-100 text-red-700',
 }
 
@@ -74,6 +65,14 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${PRIORITY_COLORS[priority]}`}>
       {PRIORITY_LABELS[priority]}
+    </span>
+  )
+}
+
+export function RoleBadge({ role }: { role: ClinicalRole }) {
+  return (
+    <span className="inline-flex rounded-md bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">
+      {ROLE_LABELS[role]}
     </span>
   )
 }

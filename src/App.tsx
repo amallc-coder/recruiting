@@ -4,12 +4,12 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
-import { Openings } from './pages/Openings'
+import { Facilities } from './pages/Facilities'
+import { FacilityDetail } from './pages/FacilityDetail'
 import { Candidates } from './pages/Candidates'
 import { Team } from './pages/Team'
 
-// HashRouter keeps deep links (e.g. /#/openings) working on GitHub Pages,
-// which can't do server-side routing for a static site.
+// HashRouter keeps deep links working on GitHub Pages (no server-side routing).
 export default function App() {
   return (
     <AuthProvider>
@@ -24,7 +24,8 @@ export default function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
-            <Route path="/openings" element={<Openings />} />
+            <Route path="/facilities" element={<Facilities />} />
+            <Route path="/facilities/:id" element={<FacilityDetail />} />
             <Route path="/candidates" element={<Candidates />} />
             <Route
               path="/team"

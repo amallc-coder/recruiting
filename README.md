@@ -1,10 +1,13 @@
 # Recruiting Tracker
 
-An internal platform for the recruiting team to track job openings and candidates.
-Each recruiter signs in and sees **only their own** openings and candidates;
-**admins** see everything with full dashboards. All data lives in the cloud
-(Supabase) — nothing critical is stored in the browser — with built-in CSV
-export so you always have an independent backup.
+An internal platform for the recruiting team to track **clinical/provider staffing
+across skilled-nursing facilities** — facility coverage needs (Have/Need by role)
+and the candidate recruiting + onboarding pipeline.
+
+Each recruiter signs in and sees **only the facilities, needs, and candidates in
+their assigned regions**; **admins** see everything with full dashboards. All data
+lives in the cloud (Supabase) — nothing critical is stored in the browser — with
+backups and built-in CSV export.
 
 - **Frontend:** React + TypeScript + Tailwind, hosted free on **GitHub Pages**.
 - **Backend:** **Supabase** (Postgres database + authentication + Row Level Security).
@@ -12,71 +15,88 @@ export so you always have an independent backup.
 
 ---
 
+## The model (learned from the team's spreadsheets)
+
+```
+Facility (region, portfolio, census)
+   └── Coverage Needs   →  Have / Need per role (LPN, MA, NP, PA, MD, Psych NP, Wound)
+   └── Candidates       →  pipeline: Sourced → Interview → Offer → Accepted →
+                           Background Sent → Cleared → Welcome Call →
+                           Onboarding/Training → Active  (+ Declined / No Response)
+```
+
+- **Facilities** are grouped by **division** (Missouri / Kansas, Ohio), **region**,
+  and **portfolio** (Embassy, AMA LTC, Divine, Lions 10, Tranquility, Reliant Homes).
+- **Recruiters are assigned regions**; they only see data inside their territory.
+- Candidates carry the **onboarding detail** the team tracks today: background
+  sent/cleared dates, welcome-call completion, and start date.
+
+---
+
 ## How segmentation works (the important part)
 
 A GitHub Pages site is static — its *code* is public, but your *data* is not.
-Data is protected by Supabase **Row Level Security (RLS)**: every query the app
-makes is filtered by the database based on who is logged in.
+Data is protected by Supabase **Row Level Security (RLS)**: every query is filtered
+by the database based on who is logged in.
 
-- **Recruiters** can read/write only the openings and candidates assigned to them.
-- **Admins** can see and manage everything, and get team-wide dashboards.
+- **Recruiters** see/edit facilities, needs, and candidates **in their assigned
+  regions** (plus any candidate assigned directly to them).
+- **Admins** see and manage everything, and get team-wide dashboards.
 
-Because this is enforced in the database, a recruiter cannot see another
-recruiter's data even if they tamper with the browser. The two Supabase values
-shipped in the frontend (`URL` + `anon key`) are **designed to be public** — they
-grant nothing on their own without a valid login.
+Enforced in the database, so a recruiter cannot see another region's data even by
+tampering with the browser. The two Supabase values shipped in the frontend
+(`URL` + `anon key`) are **designed to be public** — they grant nothing without a
+valid login.
 
 ---
 
 ## One-time setup
 
 ### 1. Create the Supabase project
-1. Go to <https://supabase.com> → sign up (free) → **New project**.
-2. Pick a name and a strong database password. Wait ~2 minutes for it to provision.
+Go to <https://supabase.com> → sign up (free) → **New project**. Set a strong
+database password and wait ~2 minutes.
 
-### 2. Create the database tables
-1. In Supabase: **SQL Editor → New query**.
-2. Open [`supabase/schema.sql`](supabase/schema.sql) from this repo, copy all of it,
-   paste, and click **Run**. This creates the tables, the access rules, and the
-   automatic history/audit triggers. It's safe to re-run.
+### 2. Create the database
+In Supabase: **SQL Editor → New query**, paste all of
+[`supabase/schema.sql`](supabase/schema.sql), and **Run**. (Safe to re-run.)
+
+*(Optional, recommended)* Then run [`supabase/seed.sql`](supabase/seed.sql) to
+pre-load the facilities/regions/census pulled from the existing spreadsheets.
 
 ### 3. Get your API keys
-1. Supabase: **Project Settings → API**.
-2. Copy the **Project URL** and the **anon / public** key.
+Supabase → **Project Settings → API**: copy the **Project URL** and the
+**anon / public** key.
 
 ### 4. Connect the deployed site (GitHub Pages)
-1. In this GitHub repo: **Settings → Secrets and variables → Actions → Variables tab → New repository variable**. Add two **variables** (not secrets):
+1. GitHub repo → **Settings → Secrets and variables → Actions → Variables tab →
+   New repository variable**. Add two **variables** (not secrets):
    - `VITE_SUPABASE_URL` = your Project URL
    - `VITE_SUPABASE_ANON_KEY` = your anon public key
-2. In this repo: **Settings → Pages → Build and deployment → Source = GitHub Actions**.
-3. The site deploys automatically on every push to `main` (see
-   `.github/workflows/deploy.yml`). The URL will be
+2. Repo → **Settings → Pages → Build and deployment → Source = GitHub Actions**.
+3. Pushes to `main` auto-deploy (see `.github/workflows/deploy.yml`). Site URL:
    `https://<your-org>.github.io/recruiting/`.
 
-> If your repo isn't named `recruiting`, set a `VITE_BASE` variable to
+> If the repo isn't named `recruiting`, set a `VITE_BASE` variable to
 > `/<repo-name>/`, or change `base` in `vite.config.ts`.
 
-### 5. Create user accounts
-1. Supabase: **Authentication → Users → Add user**. Enter email + a temporary
-   password and check **Auto Confirm User**.
-2. The **first** person to sign in automatically becomes an **admin**.
-3. Everyone else starts as a **recruiter**. Promote/demote and enable/disable
-   people from the in-app **Team** screen (admins only).
-
-That's it — share the site URL with the team and they sign in with their email
-and password.
+### 5. Create users & assign regions
+1. Supabase → **Authentication → Users → Add user** (email + temp password,
+   check **Auto Confirm User**).
+2. The **first** sign-in becomes **admin** automatically; others start as recruiters.
+3. On the in-app **Team** screen (admins only): set roles and **assign each
+   recruiter the regions they cover**.
 
 ---
 
-## Running locally (for development)
+## Running locally
 
 ```bash
 npm install
-cp .env.example .env      # then fill in your Supabase URL + anon key
+cp .env.example .env      # fill in your Supabase URL + anon key
 npm run dev               # http://localhost:5173
 ```
 
-`npm run build` produces the production bundle in `dist/`. `npm run lint` type-checks.
+`npm run build` produces the production bundle in `dist/`; `npm run lint` type-checks.
 
 ---
 
@@ -84,46 +104,42 @@ npm run dev               # http://localhost:5173
 
 | Area | Recruiter | Admin |
 |------|-----------|-------|
-| **Dashboard** | Their own KPIs + pipeline chart | Team-wide KPIs, pipeline, openings-by-status, **workload by recruiter** |
-| **Job Openings** | Their assigned openings (add/edit) | All openings, assign to any recruiter, delete |
-| **Candidates** | Their candidates, move through stages | All candidates, reassign, delete |
-| **Team** | — | Manage roles & access for the whole team |
+| **Dashboard** | KPIs for their territory: open needs, premium gaps, pipeline, hires; charts | Team-wide: needs by role/region, **pipeline by recruiter** |
+| **Facilities & Needs** | Facilities in their regions; edit Have/Need coverage by role | All facilities; create/delete |
+| **Facility detail** | Coverage editor (Have/Need/priority/current provider) + candidates there | same |
+| **Candidates** | Their territory's pipeline; stages + onboarding fields | All candidates; reassign recruiter |
+| **Team** | — | Manage roles + assign recruiter regions |
 | **Export** | CSV of their data | CSV of everything |
 
-**Pipeline stages:** Applied → Screening → Interview → Offer → Hired
-(plus Rejected / Withdrawn). Every stage change is recorded automatically in
-`candidate_stage_history` for audit and time-in-stage reporting.
+Every candidate stage change is logged automatically in `candidate_stage_history`
+for audit and time-in-stage reporting.
 
 ---
 
 ## Data redundancy / backups
 
-- **Primary store:** Supabase Postgres (durable, in the cloud — not the browser).
-- **Point-in-time / daily backups:** available in Supabase (Database → Backups).
-- **Independent copies:** every list in the app has an **Export** button that
-  downloads a CSV — a portable snapshot you can keep outside the system.
-- **History table:** pipeline movements are logged automatically, so candidate
-  progression is never lost even if a record is later edited.
+- **Primary store:** Supabase Postgres (durable, cloud — not the browser).
+- **Backups:** Supabase Database → Backups (point-in-time / daily).
+- **Independent copies:** every list has an **Export** button (CSV snapshot).
+- **History table:** pipeline moves are logged automatically.
 
 ---
 
-## Data model (current default)
+## Data model
 
-This is a sensible recruiting model that will be **refined to match the team's
-two existing spreadsheets** once those are available — field names and dropdown
-options can be adjusted without changing the architecture.
-
-- `profiles` — every user, with `role` (admin/recruiter) and active flag.
-- `job_openings` — title, client/department, location, status, priority, seats,
-  hiring manager, salary range, assigned recruiter, key dates.
-- `candidates` — name, contact, source, current stage, rating, linked opening,
-  assigned recruiter.
+- `profiles` — users (admin/recruiter) + active flag.
+- `recruiter_regions` — which regions each recruiter covers (drives segmentation).
+- `facilities` — name, division, region, portfolio, location, census, contact.
+- `coverage_needs` — Have/Need per role per facility, priority, current provider.
+- `candidates` — name, role, contact, target facility/region, recruiter, stage,
+  background sent/cleared, welcome call, start date.
 - `candidate_stage_history` — automatic audit trail of pipeline moves.
 
 ---
 
 ## Roadmap / open items
 
-- Tailor fields and dropdowns to the team's two Excel sheets (pending the files).
-- Optional: Microsoft 365 single sign-on, file/resume uploads to Supabase Storage,
-  email notifications, and time-to-fill reporting.
+- Refine portfolio mapping and seed coverage needs from the latest sheets.
+- Optional: Microsoft 365 SSO, resume/document uploads (Supabase Storage),
+  the documented LPN vs NP/PA hiring-handoff checklists (Tonja/Corby/Kiyara steps),
+  email notifications, and time-to-fill / time-in-stage reporting.

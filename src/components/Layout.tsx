@@ -1,18 +1,9 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Briefcase,
-  Users,
-  UserCog,
-  LogOut,
-  Menu,
-  X,
-} from 'lucide-react'
+import { LayoutDashboard, Building2, Users, UserCog, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
-const navItem =
-  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors'
+const navItem = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors'
 
 export function Layout() {
   const { profile, isAdmin, signOut } = useAuth()
@@ -26,14 +17,13 @@ export function Layout() {
 
   const links = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/openings', label: 'Job Openings', icon: Briefcase },
+    { to: '/facilities', label: 'Facilities & Needs', icon: Building2 },
     { to: '/candidates', label: 'Candidates', icon: Users },
     ...(isAdmin ? [{ to: '/team', label: 'Team', icon: UserCog }] : []),
   ]
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white shadow-lg ring-1 ring-gray-200 transition-transform lg:static lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
@@ -79,11 +69,8 @@ export function Layout() {
         </div>
       </aside>
 
-      {open && (
-        <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />
-      )}
+      {open && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} />}
 
-      {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 items-center gap-3 border-b border-gray-200 bg-white px-4 lg:hidden">
           <button onClick={() => setOpen((v) => !v)} className="text-gray-600">
