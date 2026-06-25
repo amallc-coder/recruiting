@@ -32,11 +32,11 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-paper p-4 text-ink">
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-ink">
-            <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
-              <rect x="6" y="17" width="4" height="9" rx="1.4" fill="#6e9a6a" />
-              <rect x="14" y="11" width="4" height="15" rx="1.4" fill="#cd7c4f" />
-              <rect x="22" y="7" width="4" height="19" rx="1.4" fill="#f4f1ea" />
+          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white ring-1 ring-line">
+            <svg width="30" height="25" viewBox="0 0 24 20" aria-hidden>
+              <rect x="3" y="2.5" width="11" height="3.6" rx="1.8" fill="#d2774a" />
+              <rect x="3" y="8.2" width="18" height="3.6" rx="1.8" fill="#26221f" />
+              <rect x="3" y="13.9" width="14" height="3.6" rx="1.8" fill="#26221f" />
             </svg>
           </span>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">

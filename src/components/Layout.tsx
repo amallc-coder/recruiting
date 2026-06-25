@@ -8,12 +8,14 @@ import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 function Wordmark() {
   return (
     <div className="flex items-center gap-2.5">
-      {/* Three stacked terracotta bars — the Clinilytics mark. */}
-      <svg width="24" height="20" viewBox="0 0 24 20" aria-hidden className="shrink-0">
-        <rect x="1.5" y="2.2" width="11" height="3.4" rx="1.7" fill="#c96f43" />
-        <rect x="1.5" y="8.3" width="21" height="3.4" rx="1.7" fill="#c96f43" />
-        <rect x="1.5" y="14.4" width="15" height="3.4" rx="1.7" fill="#c96f43" />
-      </svg>
+      {/* Clinilytics mark: white tile, three stacked bars (top terracotta, rest charcoal). */}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-line">
+        <svg width="20" height="17" viewBox="0 0 24 20" aria-hidden>
+          <rect x="3" y="2.5" width="11" height="3.6" rx="1.8" fill="#d2774a" />
+          <rect x="3" y="8.2" width="18" height="3.6" rx="1.8" fill="#26221f" />
+          <rect x="3" y="13.9" width="14" height="3.6" rx="1.8" fill="#26221f" />
+        </svg>
+      </span>
       <span className="text-[18px] font-bold lowercase tracking-tight text-ink">clinilytics</span>
       <span className="rounded-full bg-sage-50 px-2.5 py-0.5 text-xs font-medium text-sage-700 ring-1 ring-inset ring-sage-100">
         ATS
