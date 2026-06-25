@@ -1,4 +1,4 @@
-# Recruiting Tracker
+# Clinilytics ATS
 
 An internal platform for the recruiting team to track **clinical/provider staffing
 across skilled-nursing facilities** — facility coverage needs (Have/Need by role)
