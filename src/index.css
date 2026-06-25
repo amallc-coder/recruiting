@@ -8,31 +8,46 @@ html, body, #root {
 
 body {
   margin: 0;
-  background-color: #f6f7fb;
-  color: #1f2430;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #f4f1ea;
+  color: #1f1d1a;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Tabular figures for data-dense numbers. */
+.tnum { font-variant-numeric: tabular-nums; }
 
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
+  /* Primary = charcoal ink, like the reference's dark active controls. */
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-ink text-paper hover:bg-brand-500;
   }
   .btn-secondary {
-    @apply btn bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50;
+    @apply btn bg-surface text-ink ring-1 ring-inset ring-line hover:bg-brand-50;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply btn bg-rust-500 text-white hover:bg-rust-600;
   }
   .input {
-    @apply w-full rounded-lg border-0 px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-brand-500;
+    @apply w-full rounded-lg border-0 bg-surface px-3 py-2 text-sm text-ink ring-1 ring-inset ring-line placeholder:text-muted/60 focus:ring-2 focus:ring-inset focus:ring-ink/40;
   }
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply mb-1 block text-xs font-medium text-muted;
+  }
+  /* Uppercase mono micro-label — the signature Clinilytics caption style. */
+  .stat-label {
+    @apply font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-muted;
   }
   .card {
-    @apply rounded-xl bg-white shadow-sm ring-1 ring-gray-200;
+    @apply rounded-xl bg-surface ring-1 ring-line shadow-card;
   }
+  /* Small dark/active pill used for segmented toggles. */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors;
+  }
+  .pill-active { @apply bg-ink text-paper; }
+  .pill-idle { @apply text-muted hover:bg-brand-50 hover:text-ink; }
 }

@@ -10,7 +10,8 @@ import {
 } from '../lib/types'
 import { Spinner, StatCard } from '../components/ui'
 
-const BAR_COLORS = ['#3563ff', '#6366f1', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ef4444']
+// Warm Clinilytics data palette: sage, clay, rust, and muted neutrals.
+const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
 
 export function Dashboard() {
   const { profile, isAdmin } = useAuth()
@@ -96,8 +97,8 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">{isAdmin ? 'Team Dashboard' : 'My Dashboard'}</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-semibold text-ink">{isAdmin ? 'Team Dashboard' : 'My Dashboard'}</h1>
+        <p className="text-sm text-muted">
           {isAdmin ? 'Coverage and pipeline across all regions.' : `Welcome back, ${profile?.full_name || profile?.email}. Your territory at a glance.`}
         </p>
       </div>
@@ -112,11 +113,11 @@ export function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Pipeline funnel">
           <BarChart data={funnel}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
             <XAxis dataKey="stage" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={60} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
             <Tooltip />
-            <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+            <Bar isAnimationActive={false} dataKey="count" radius={[6, 6, 0, 0]}>
               {funnel.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
             </Bar>
           </BarChart>
@@ -124,11 +125,11 @@ export function Dashboard() {
 
         <ChartCard title="Open needs by role" empty={needsByRole.length === 0 ? 'No open needs 🎉' : undefined}>
           <BarChart data={needsByRole}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f4" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
             <XAxis dataKey="role" tick={{ fontSize: 12 }} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
             <Tooltip />
-            <Bar dataKey="need" radius={[6, 6, 0, 0]}>
+            <Bar isAnimationActive={false} dataKey="need" radius={[6, 6, 0, 0]}>
               {needsByRole.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
             </Bar>
           </BarChart>
@@ -142,11 +143,11 @@ export function Dashboard() {
           empty={needsByRegion.length === 0 ? 'No open needs' : undefined}
         >
           <BarChart data={needsByRegion} layout="vertical" margin={{ left: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef0f4" />
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
             <YAxis type="category" dataKey="region" width={120} tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Bar dataKey="need" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+            <Bar isAnimationActive={false} dataKey="need" fill="#cd7c4f" radius={[0, 6, 6, 0]} />
           </BarChart>
         </ChartCard>
 
@@ -157,11 +158,11 @@ export function Dashboard() {
             empty={workload.length === 0 ? 'No active candidates' : undefined}
           >
             <BarChart data={workload} layout="vertical" margin={{ left: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef0f4" />
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
               <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="candidates" fill="#3563ff" radius={[0, 6, 6, 0]} />
+              <Bar isAnimationActive={false} dataKey="candidates" fill="#6e9a6a" radius={[0, 6, 6, 0]} />
             </BarChart>
           </ChartCard>
         )}
@@ -183,9 +184,9 @@ function ChartCard({
 }) {
   return (
     <div className="card p-5">
-      <h2 className="mb-4 text-sm font-semibold text-gray-700">{title}</h2>
+      <h2 className="mb-4 text-sm font-semibold text-ink">{title}</h2>
       {empty ? (
-        <div className="flex items-center justify-center text-sm text-gray-400" style={{ height }}>
+        <div className="flex items-center justify-center text-sm text-muted" style={{ height }}>
           {empty}
         </div>
       ) : (

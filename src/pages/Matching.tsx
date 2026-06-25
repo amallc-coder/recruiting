@@ -90,10 +90,10 @@ export function Matching() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold text-ink">
           <Sparkles size={22} className="text-brand-600" /> AI Matching
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted">
           Pick an open position, describe what it needs, and rank candidates by fit.
         </p>
       </div>
@@ -149,11 +149,11 @@ export function Matching() {
       {results && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">
+            <h2 className="text-sm font-semibold text-ink">
               Ranked candidates ({results.length})
             </h2>
             {results[0] && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted">
                 {results[0].method === 'ai' ? '✨ Scored by Claude' : 'Scored locally (connect Supabase + Anthropic key for AI scoring)'}
               </span>
             )}
@@ -168,34 +168,34 @@ export function Matching() {
                 <div key={r.candidateId} className="card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{c.full_name}</span>
+                      <span className="font-medium text-ink">{c.full_name}</span>
                       <RoleBadge role={c.role} />
                       <StageBadge stage={c.current_stage} />
                     </div>
                     <ScorePill score={r.score} />
                   </div>
                   <div className="mt-2">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-brand-50">
                       <div
                         className={`h-full rounded-full ${scoreColor(r.score)}`}
                         style={{ width: `${r.score}%` }}
                       />
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600">{r.summary}</p>
+                  <p className="mt-2 text-sm text-muted">{r.summary}</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {r.strengths.length > 0 && (
                       <div className="text-xs">
-                        <div className="font-semibold uppercase tracking-wide text-green-700">Strengths</div>
-                        <ul className="mt-0.5 list-disc pl-4 text-gray-600">
+                        <div className="font-semibold uppercase tracking-wide text-sage-700">Strengths</div>
+                        <ul className="mt-0.5 list-disc pl-4 text-muted">
                           {r.strengths.slice(0, 4).map((s, i) => <li key={i}>{s}</li>)}
                         </ul>
                       </div>
                     )}
                     {r.gaps.length > 0 && (
                       <div className="text-xs">
-                        <div className="font-semibold uppercase tracking-wide text-amber-700">Gaps</div>
-                        <ul className="mt-0.5 list-disc pl-4 text-gray-600">
+                        <div className="font-semibold uppercase tracking-wide text-clay-600">Gaps</div>
+                        <ul className="mt-0.5 list-disc pl-4 text-muted">
                           {r.gaps.slice(0, 4).map((s, i) => <li key={i}>{s}</li>)}
                         </ul>
                       </div>
@@ -212,13 +212,13 @@ export function Matching() {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 70) return 'bg-green-500'
-  if (score >= 45) return 'bg-amber-500'
+  if (score >= 70) return 'bg-sage-500'
+  if (score >= 45) return 'bg-clay-500'
   return 'bg-gray-400'
 }
 
 function ScorePill({ score }: { score: number }) {
   const tone =
-    score >= 70 ? 'bg-green-100 text-green-700' : score >= 45 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+    score >= 70 ? 'bg-sage-100 text-sage-700' : score >= 45 ? 'bg-clay-100 text-clay-600' : 'bg-brand-50 text-muted'
   return <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${tone}`}>{score}</span>
 }

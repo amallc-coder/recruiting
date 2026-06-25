@@ -171,8 +171,8 @@ export function Import() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Import from Excel</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-semibold text-ink">Import from Excel</h1>
+        <p className="text-sm text-muted">
           Upload a spreadsheet (.xlsx or .csv). It’s parsed right here in your browser — every tab is
           read, columns are auto-detected, and rows import as candidates. One tab per recruiter works:
           the tab name becomes the recruiter.
@@ -180,10 +180,10 @@ export function Import() {
       </div>
 
       {!sheets && (
-        <label className="card flex cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 p-10 text-center hover:border-brand-300 hover:bg-brand-50/40">
+        <label className="card flex cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed border-line p-10 text-center hover:border-brand-300 hover:bg-brand-50/40">
           {busy ? <Loader2 className="animate-spin text-brand-500" /> : <Upload className="text-brand-500" />}
-          <div className="text-sm font-medium text-gray-700">Click to choose a file, or drop it here</div>
-          <div className="text-xs text-gray-400">.xlsx, .xlsm, or .csv — handled entirely in-browser</div>
+          <div className="text-sm font-medium text-ink">Click to choose a file, or drop it here</div>
+          <div className="text-xs text-muted">.xlsx, .xlsm, or .csv — handled entirely in-browser</div>
           <input
             type="file" accept=".xlsx,.xlsm,.csv" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f) }}
@@ -192,13 +192,13 @@ export function Import() {
       )}
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-start gap-2 rounded-lg bg-rust-50 px-4 py-3 text-sm text-rust-500">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
         </div>
       )}
 
       {result && (
-        <div className="flex items-start gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="flex items-start gap-2 rounded-lg bg-sage-50 px-4 py-3 text-sm text-sage-700">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           <div>
             Imported <strong>{result.imported}</strong> candidates ({result.facMatched} matched to a facility
@@ -214,28 +214,28 @@ export function Import() {
           <div className="card p-4">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <FileSpreadsheet size={18} className="text-brand-600" />
-              <span className="font-medium text-gray-800">{sheets.length} tab{sheets.length !== 1 ? 's' : ''}</span>
-              <span className="text-gray-400">·</span>
-              <span className="text-gray-600">{mapped.length} candidate rows detected</span>
+              <span className="font-medium text-ink">{sheets.length} tab{sheets.length !== 1 ? 's' : ''}</span>
+              <span className="text-muted">·</span>
+              <span className="text-muted">{mapped.length} candidate rows detected</span>
               <button className="btn-secondary ml-auto py-1" onClick={() => { setSheets(null); setMapping({}) }}>Choose a different file</button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {sheets.map((s) => (
-                <span key={s.name} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
-                  {s.name} <span className="text-gray-400">{s.rows.length}</span>
+                <span key={s.name} className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-muted">
+                  {s.name} <span className="text-muted">{s.rows.length}</span>
                 </span>
               ))}
             </div>
           </div>
 
           <div className="card p-4">
-            <div className="mb-3 text-sm font-semibold text-gray-800">Column mapping</div>
+            <div className="mb-3 text-sm font-semibold text-ink">Column mapping</div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {allHeaders.map((h) => (
                 <div key={h} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-xs text-gray-600" title={h}>{h}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted" title={h}>{h}</span>
                   <select
-                    className="rounded-md border-0 bg-white py-1 text-xs text-gray-700 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                    className="rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
                     value={mapping[h] ?? 'ignore'}
                     onChange={(e) => setMapping((m) => ({ ...m, [h]: e.target.value as Field }))}
                   >
@@ -244,7 +244,7 @@ export function Import() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
               <label className="flex items-center gap-1.5"><input type="checkbox" checked={dedup} onChange={(e) => setDedup(e.target.checked)} /> Skip duplicates (name + email)</label>
               {demoMode && <label className="flex items-center gap-1.5"><input type="checkbox" checked={createRecruiters} onChange={(e) => setCreateRecruiters(e.target.checked)} /> Create a recruiter for each new name</label>}
             </div>
@@ -252,36 +252,36 @@ export function Import() {
 
           {hasName ? (
             <div className="card overflow-hidden">
-              <div className="border-b border-gray-100 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-400">Preview (first 25)</div>
+              <div className="border-b border-line px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted">Preview (first 25)</div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-xs text-gray-500">
+                  <thead className="bg-paper text-left text-xs text-muted">
                     <tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Recruiter</th><th className="px-3 py-2">Facility</th><th className="px-3 py-2">Email</th><th className="px-3 py-2">Start</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-line">
                     {mapped.slice(0, 25).map((m, i) => (
                       <tr key={i}>
-                        <td className="px-3 py-1.5 font-medium text-gray-800">{m.full_name}</td>
-                        <td className="px-3 py-1.5 text-gray-500">{ROLE_LABELS[m.role]}</td>
-                        <td className="px-3 py-1.5 text-gray-500">{STAGE_LABELS[m.current_stage]}</td>
-                        <td className="px-3 py-1.5 text-gray-500">{m.recruiter ?? '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-500">{m.facilityText ?? '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-400">{m.email ?? '—'}</td>
-                        <td className="px-3 py-1.5 text-gray-400">{m.start_date ?? '—'}</td>
+                        <td className="px-3 py-1.5 font-medium text-ink">{m.full_name}</td>
+                        <td className="px-3 py-1.5 text-muted">{ROLE_LABELS[m.role]}</td>
+                        <td className="px-3 py-1.5 text-muted">{STAGE_LABELS[m.current_stage]}</td>
+                        <td className="px-3 py-1.5 text-muted">{m.recruiter ?? '—'}</td>
+                        <td className="px-3 py-1.5 text-muted">{m.facilityText ?? '—'}</td>
+                        <td className="px-3 py-1.5 text-muted">{m.email ?? '—'}</td>
+                        <td className="px-3 py-1.5 text-muted">{m.start_date ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-4 py-3">
-                <span className="text-sm text-gray-500">Ready to import <strong>{mapped.length}</strong> candidates.</span>
+              <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+                <span className="text-sm text-muted">Ready to import <strong>{mapped.length}</strong> candidates.</span>
                 <button className="btn-primary" onClick={runImport} disabled={busy}>
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Import {mapped.length}
                 </button>
               </div>
             </div>
           ) : (
-            <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="rounded-lg bg-clay-50 px-4 py-3 text-sm text-clay-600">
               No “Name” column detected. Use the mapping above to point a column at <strong>Name</strong>.
             </div>
           )}

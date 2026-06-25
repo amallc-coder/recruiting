@@ -91,7 +91,7 @@ export function FacilityDetail() {
         <Link to="/facilities" className="inline-flex items-center gap-1 text-sm text-brand-700">
           <ArrowLeft size={16} /> Back to facilities
         </Link>
-        <div className="text-gray-500">Facility not found or not in your territory.</div>
+        <div className="text-muted">Facility not found or not in your territory.</div>
       </div>
     )
 
@@ -102,28 +102,28 @@ export function FacilityDetail() {
       </Link>
 
       <div className="card p-6">
-        <h1 className="text-2xl font-semibold text-gray-900">{facility.name}</h1>
-        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
-          {facility.region && <span><span className="text-gray-400">Region:</span> {facility.region}</span>}
-          {facility.portfolio && <span><span className="text-gray-400">Portfolio:</span> {facility.portfolio}</span>}
-          {facility.census != null && <span><span className="text-gray-400">Census:</span> {facility.census}</span>}
+        <h1 className="text-2xl font-semibold text-ink">{facility.name}</h1>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted">
+          {facility.region && <span><span className="text-muted">Region:</span> {facility.region}</span>}
+          {facility.portfolio && <span><span className="text-muted">Portfolio:</span> {facility.portfolio}</span>}
+          {facility.census != null && <span><span className="text-muted">Census:</span> {facility.census}</span>}
           {(facility.city || facility.state) && (
-            <span><span className="text-gray-400">Location:</span> {[facility.city, facility.state].filter(Boolean).join(', ')}</span>
+            <span><span className="text-muted">Location:</span> {[facility.city, facility.state].filter(Boolean).join(', ')}</span>
           )}
-          {facility.phone && <span><span className="text-gray-400">Phone:</span> {facility.phone}</span>}
+          {facility.phone && <span><span className="text-muted">Phone:</span> {facility.phone}</span>}
         </div>
-        {facility.address && <div className="mt-1 text-sm text-gray-400">{facility.address}</div>}
+        {facility.address && <div className="mt-1 text-sm text-muted">{facility.address}</div>}
       </div>
 
       {/* Coverage needs */}
       <div className="card overflow-hidden">
-        <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-700">Coverage by role (Have / Need)</h2>
-          <p className="text-xs text-gray-400">Edit a row and click save. Set Need &gt; 0 to flag an open gap.</p>
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">Coverage by role (Have / Need)</h2>
+          <p className="text-xs text-muted">Edit a row and click save. Set Need &gt; 0 to flag an open gap.</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <table className="min-w-full divide-y divide-line text-sm">
+            <thead className="bg-paper text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3 w-24">Have</th>
@@ -133,9 +133,9 @@ export function FacilityDetail() {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {rows.map((r) => (
-                <tr key={r.role} className={r.need_count > 0 ? 'bg-amber-50/40' : ''}>
+                <tr key={r.role} className={r.need_count > 0 ? 'bg-clay-50/40' : ''}>
                   <td className="px-4 py-2"><RoleBadge role={r.role} /></td>
                   <td className="px-4 py-2">
                     <input
@@ -190,15 +190,15 @@ export function FacilityDetail() {
 
       {/* Candidates at this facility */}
       <div className="card overflow-hidden">
-        <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-700">Candidates targeting this facility</h2>
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">Candidates targeting this facility</h2>
         </div>
         {candidates.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">No candidates yet.</div>
+          <div className="px-5 py-8 text-center text-sm text-muted">No candidates yet.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-paper text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-4 py-3">Candidate</th>
                   <th className="px-4 py-3">Role</th>
@@ -206,13 +206,13 @@ export function FacilityDetail() {
                   <th className="px-4 py-3">Start date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {candidates.map((c) => (
                   <tr key={c.id}>
-                    <td className="px-4 py-3 font-medium text-gray-900">{c.full_name}</td>
+                    <td className="px-4 py-3 font-medium text-ink">{c.full_name}</td>
                     <td className="px-4 py-3"><RoleBadge role={c.role} /></td>
                     <td className="px-4 py-3"><StageBadge stage={c.current_stage} /></td>
-                    <td className="px-4 py-3 text-gray-500">{c.start_date ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted">{c.start_date ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

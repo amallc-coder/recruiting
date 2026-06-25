@@ -36,8 +36,8 @@ export function Setup() {
   if (demoMode) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-gray-900">Cloud setup</h1>
-        <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <h1 className="text-2xl font-semibold text-ink">Cloud setup</h1>
+        <div className="rounded-lg bg-clay-50 px-4 py-3 text-sm text-clay-600">
           You’re in <strong>local mode</strong>. Cloud setup applies to the connected Supabase project —
           sign out of local mode and sign in with your Supabase account to use it.
         </div>
@@ -52,29 +52,29 @@ export function Setup() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Cloud setup</h1>
-        <p className="text-sm text-gray-500">Connected to your Supabase project. Load the starter data, then invite your team.</p>
+        <h1 className="text-2xl font-semibold text-ink">Cloud setup</h1>
+        <p className="text-sm text-muted">Connected to your Supabase project. Load the starter data, then invite your team.</p>
       </div>
 
       <div className="card flex items-center gap-3 p-4 text-sm">
-        <Database size={18} className="text-green-600" />
-        <span className="font-medium text-gray-800">Connected</span>
-        <span className="text-gray-400">·</span>
-        <code className="text-xs text-gray-500">pcpkhdfgmjrzvwfkcznn.supabase.co</code>
+        <Database size={18} className="text-sage-600" />
+        <span className="font-medium text-ink">Connected</span>
+        <span className="text-muted">·</span>
+        <code className="text-xs text-muted">pcpkhdfgmjrzvwfkcznn.supabase.co</code>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {Object.keys(label).map((t) => (
           <div key={t} className="card p-3 text-center">
-            <div className="text-2xl font-semibold text-gray-900">{counts[t] ?? '—'}</div>
-            <div className="text-xs text-gray-500">{label[t]}</div>
+            <div className="text-2xl font-semibold text-ink">{counts[t] ?? '—'}</div>
+            <div className="text-xs text-muted">{label[t]}</div>
           </div>
         ))}
       </div>
 
       <div className="card space-y-3 p-4">
-        <div className="font-medium text-gray-900">Load starter data</div>
-        <p className="text-sm text-gray-500">
+        <div className="font-medium text-ink">Load starter data</div>
+        <p className="text-sm text-muted">
           Seeds the <strong>95 facilities</strong>, the <strong>open requisitions</strong> as coverage needs, and the
           <strong> 160-role position catalog</strong> from the master workbook. Safe to run once — it skips any table
           that already has data. Candidates come from the <a href="#/import" className="underline">Import</a> screen.
@@ -85,7 +85,7 @@ export function Setup() {
         </button>
 
         {result && (
-          <div className="flex items-start gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          <div className="flex items-start gap-2 rounded-lg bg-sage-50 px-4 py-3 text-sm text-sage-700">
             <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
             <div>
               Loaded {result.facilities} facilities, {result.coverage} coverage needs, {result.positions} positions.
@@ -94,7 +94,7 @@ export function Setup() {
           </div>
         )}
         {error && (
-          <div className="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-start gap-2 rounded-lg bg-rust-50 px-4 py-3 text-sm text-rust-500">
             <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {error}
           </div>
         )}

@@ -96,8 +96,8 @@ export function Facilities() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Facilities &amp; Needs</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink">Facilities &amp; Needs</h1>
+          <p className="text-sm text-muted">
             {isAdmin ? 'All facilities.' : 'Facilities in your territory.'} Open a facility to manage
             Have/Need coverage by role.
           </p>
@@ -116,7 +116,7 @@ export function Facilities() {
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-2.5 text-muted" />
           <input
             className="input pl-9"
             placeholder="Search facility, region, portfolio…"
@@ -148,8 +148,8 @@ export function Facilities() {
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-paper text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-4 py-3">Facility</th>
                   <th className="px-4 py-3">Region</th>
@@ -159,38 +159,38 @@ export function Facilities() {
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {filtered.map((f) => {
                   const need = needByFacility.get(f.id)
                   return (
-                    <tr key={f.id} className="hover:bg-gray-50">
+                    <tr key={f.id} className="hover:bg-paper">
                       <td className="px-4 py-3">
                         <Link to={`/facilities/${f.id}`} className="font-medium text-brand-700 hover:underline">
                           {f.name}
                         </Link>
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-muted">
                           {[f.city, f.state].filter(Boolean).join(', ')}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{f.region ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{f.portfolio ?? '—'}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{f.census ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted">{f.region ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted">{f.portfolio ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-muted">{f.census ?? '—'}</td>
                       <td className="px-4 py-3 text-right">
                         {need && need.open > 0 ? (
-                          <span className="font-semibold text-amber-600">
+                          <span className="font-semibold text-clay-600">
                             {need.open}
                             {need.premium > 0 && (
-                              <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                              <span className="ml-1 rounded bg-clay-100 px-1.5 py-0.5 text-[10px] font-medium text-clay-600">
                                 {need.premium} premium
                               </span>
                             )}
                           </span>
                         ) : (
-                          <span className="text-green-600">Covered</span>
+                          <span className="text-sage-600">Covered</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link to={`/facilities/${f.id}`} className="text-gray-400 hover:text-gray-700">
+                        <Link to={`/facilities/${f.id}`} className="text-muted hover:text-ink">
                           <ChevronRight size={18} />
                         </Link>
                       </td>
@@ -321,7 +321,7 @@ function FacilityForm({
         </div>
       </div>
 
-      {error && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-3 rounded-lg bg-rust-50 px-3 py-2 text-sm text-rust-500">{error}</div>}
 
       <div className="mt-5 flex justify-end gap-2">
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
