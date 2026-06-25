@@ -61,8 +61,8 @@ export function Positions() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Positions Repository</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink">Positions Repository</h1>
+          <p className="text-sm text-muted">
             Every role a practice, LTC/SNF, management company, lab, or hospital may hire — with
             AI-generated responsibilities. {positions.length} positions.
           </p>
@@ -103,7 +103,7 @@ export function Positions() {
             className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors ${
               org === o.key
                 ? 'bg-brand-600 text-white ring-brand-600'
-                : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'
+                : 'bg-surface text-muted ring-line hover:bg-paper'
             }`}
           >
             {'label' in o ? o.label : ''} <span className="opacity-70">{orgCounts[o.key] ?? 0}</span>
@@ -112,7 +112,7 @@ export function Positions() {
       </div>
 
       <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+        <Search size={16} className="absolute left-3 top-2.5 text-muted" />
         <input
           className="input pl-9"
           placeholder="Search title, category, or keyword…"
@@ -129,8 +129,8 @@ export function Positions() {
         <div className="space-y-6">
           {byCategory.map(([cat, list]) => (
             <div key={cat}>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                <Briefcase size={13} /> {cat} <span className="text-gray-300">· {list.length}</span>
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                <Briefcase size={13} /> {cat} <span className="text-line">· {list.length}</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {list.map((p) => (
@@ -140,12 +140,12 @@ export function Positions() {
                     className="card group p-4 text-left transition-shadow hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-medium text-gray-900">{p.title}</div>
+                      <div className="font-medium text-ink">{p.title}</div>
                       <span className="shrink-0 text-xs font-medium text-brand-600">{formatRate(p)}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(p.org_types ?? []).map((o) => (
-                        <span key={o} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                        <span key={o} className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-muted">
                           {ORG_TYPES.find((x) => x.key === o)?.short}
                         </span>
                       ))}
@@ -155,13 +155,13 @@ export function Positions() {
                         </span>
                       )}
                     </div>
-                    <ul className="mt-2 space-y-0.5 text-xs text-gray-500">
+                    <ul className="mt-2 space-y-0.5 text-xs text-muted">
                       {(p.responsibilities ?? []).slice(0, 3).map((r, i) => (
                         <li key={i} className="line-clamp-1">• {r}</li>
                       ))}
                     </ul>
                     {isAdmin && (
-                      <div className="mt-2 inline-flex items-center gap-1 text-xs text-gray-400 group-hover:text-brand-600">
+                      <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted group-hover:text-brand-600">
                         <Pencil size={11} /> Edit
                       </div>
                     )}
@@ -267,7 +267,7 @@ function PositionModal({
               </button>
             )}
           </div>
-          {aiNote && <p className="mt-1 text-xs text-gray-500">{aiNote}</p>}
+          {aiNote && <p className="mt-1 text-xs text-muted">{aiNote}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -281,7 +281,7 @@ function PositionModal({
             <label className="label">Pay range</label>
             <div className="flex items-center gap-1">
               <input className="input" type="number" value={rateMin} disabled={readOnly} onChange={(e) => setRateMin(e.target.value)} placeholder="min" />
-              <span className="text-gray-400">–</span>
+              <span className="text-muted">–</span>
               <input className="input" type="number" value={rateMax} disabled={readOnly} onChange={(e) => setRateMax(e.target.value)} placeholder="max" />
               <select className="input w-28" value={rateUnit} disabled={readOnly} onChange={(e) => setRateUnit(e.target.value as Position['rate_unit'])}>
                 <option>Hourly</option><option>Annual</option><option value="NA">NA</option>
@@ -299,7 +299,7 @@ function PositionModal({
                 disabled={readOnly}
                 onClick={() => toggleOrg(o.key)}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-                  orgTypes.includes(o.key) ? 'bg-brand-50 text-brand-700 ring-brand-200' : 'bg-white text-gray-500 ring-gray-200'
+                  orgTypes.includes(o.key) ? 'bg-brand-50 text-brand-700 ring-brand-200' : 'bg-surface text-muted ring-line'
                 }`}
               >
                 {o.label}
@@ -309,15 +309,15 @@ function PositionModal({
         </div>
 
         <div>
-          <label className="label">Responsibilities <span className="font-normal text-gray-400">(one per line)</span></label>
+          <label className="label">Responsibilities <span className="font-normal text-muted">(one per line)</span></label>
           <textarea className="input min-h-[120px]" value={resp} disabled={readOnly} onChange={(e) => setResp(e.target.value)} />
         </div>
         <div>
-          <label className="label">Requirements <span className="font-normal text-gray-400">(one per line)</span></label>
+          <label className="label">Requirements <span className="font-normal text-muted">(one per line)</span></label>
           <textarea className="input min-h-[80px]" value={reqs} disabled={readOnly} onChange={(e) => setReqs(e.target.value)} />
         </div>
         <div>
-          <label className="label">Keywords <span className="font-normal text-gray-400">(comma-separated)</span></label>
+          <label className="label">Keywords <span className="font-normal text-muted">(comma-separated)</span></label>
           <input className="input" value={keywords} disabled={readOnly} onChange={(e) => setKeywords(e.target.value)} />
         </div>
 

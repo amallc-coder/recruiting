@@ -91,12 +91,12 @@ export function Combobox({
       {open && results.length > 0 && (
         <ul
           id={listId}
-          className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-lg"
         >
           {results.map((r, i) => (
             <li
               key={r.value + i}
-              className={`cursor-pointer px-3 py-1.5 text-sm ${i === active ? 'bg-brand-50 text-brand-700' : 'text-gray-700 hover:bg-gray-50'}`}
+              className={`cursor-pointer px-3 py-1.5 text-sm ${i === active ? 'bg-brand-50 text-brand-700' : 'text-ink hover:bg-paper'}`}
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => { e.preventDefault(); commit(r.value) }}
             >

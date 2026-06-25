@@ -473,7 +473,7 @@ export function buildSupabaseSql(): string {
   const candidates = load('candidates')
 
   const header =
-    `-- Recruiting Tracker — data export from local workspace\n` +
+    `-- Clinilytics ATS — data export from local workspace\n` +
     `-- Run this in Supabase -> SQL Editor AFTER running schema.sql.\n` +
     `-- Do NOT also run seed.sql / seed_coverage.sql — this file already\n` +
     `-- contains your facilities and coverage. Candidates import with no\n` +

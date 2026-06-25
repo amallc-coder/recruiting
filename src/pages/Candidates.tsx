@@ -128,8 +128,8 @@ export function Candidates() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Candidates</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-semibold text-ink">Candidates</h1>
+          <p className="text-sm text-muted">
             {isAdmin ? 'All candidates across the team.' : 'Candidates in your territory.'}
           </p>
         </div>
@@ -150,12 +150,12 @@ export function Candidates() {
       </div>
 
       {syncMsg && (
-        <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">{syncMsg}</div>
+        <div className="rounded-lg bg-sage-50 px-3 py-2 text-sm text-sage-700">{syncMsg}</div>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-2.5 text-muted" />
           <input
             className="input pl-9"
             placeholder="Search name, email, region…"
@@ -176,15 +176,15 @@ export function Candidates() {
             <option key={s} value={s}>{STAGE_LABELS[s]}</option>
           ))}
         </select>
-        <div className="inline-flex overflow-hidden rounded-lg ring-1 ring-inset ring-gray-300">
+        <div className="inline-flex overflow-hidden rounded-lg ring-1 ring-inset ring-line">
           <button
-            className={`px-3 py-2 text-sm font-medium ${view === 'table' ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 py-2 text-sm font-medium ${view === 'table' ? 'bg-brand-600 text-white' : 'bg-surface text-muted hover:bg-paper'}`}
             onClick={() => setView('table')}
           >
             Table
           </button>
           <button
-            className={`px-3 py-2 text-sm font-medium ${view === 'board' ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 py-2 text-sm font-medium ${view === 'board' ? 'bg-brand-600 text-white' : 'bg-surface text-muted hover:bg-paper'}`}
             onClick={() => setView('board')}
           >
             Board
@@ -206,8 +206,8 @@ export function Candidates() {
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-paper text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-4 py-3">Candidate</th>
                   <th className="px-4 py-3">Role</th>
@@ -219,20 +219,20 @@ export function Candidates() {
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50">
+                  <tr key={c.id} className="hover:bg-paper">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{c.full_name}</div>
-                      <div className="text-xs text-gray-400">{c.email || c.phone}</div>
+                      <div className="font-medium text-ink">{c.full_name}</div>
+                      <div className="text-xs text-muted">{c.email || c.phone}</div>
                     </td>
                     <td className="px-4 py-3"><RoleBadge role={c.role} /></td>
-                    <td className="px-4 py-3 text-gray-600">{facilityById(c.facility_id)?.name ?? c.region ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted">{facilityById(c.facility_id)?.name ?? c.region ?? '—'}</td>
                     <td className="px-4 py-3">
                       <select
                         value={c.current_stage}
                         onChange={(e) => quickStage(c, e.target.value as Stage)}
-                        className="rounded-md border-0 bg-transparent text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                        className="rounded-md border-0 bg-transparent text-xs font-medium text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
                       >
                         {STAGES.map((s) => (
                           <option key={s} value={s}>{STAGE_LABELS[s]}</option>
@@ -246,7 +246,7 @@ export function Candidates() {
                         return (
                           <span
                             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                              complete ? 'bg-green-100 text-green-700' : done > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                              complete ? 'bg-sage-100 text-sage-700' : done > 0 ? 'bg-clay-100 text-clay-600' : 'bg-brand-50 text-muted'
                             }`}
                           >
                             {done}/{total}
@@ -254,14 +254,14 @@ export function Candidates() {
                         )
                       })()}
                     </td>
-                    {isAdmin && <td className="px-4 py-3 text-gray-600">{byId(c.recruiter_id)?.full_name ?? '—'}</td>}
-                    <td className="px-4 py-3 text-gray-500">{c.start_date ?? '—'}</td>
+                    {isAdmin && <td className="px-4 py-3 text-muted">{byId(c.recruiter_id)?.full_name ?? '—'}</td>}
+                    <td className="px-4 py-3 text-muted">{c.start_date ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <button className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" onClick={() => setEditing(c)} aria-label="Edit">
+                        <button className="rounded p-1.5 text-muted hover:bg-brand-50 hover:text-ink" onClick={() => setEditing(c)} aria-label="Edit">
                           <Pencil size={16} />
                         </button>
-                        <button className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600" onClick={() => handleDelete(c)} aria-label="Delete">
+                        <button className="rounded p-1.5 text-muted hover:bg-rust-50 hover:text-rust-500" onClick={() => handleDelete(c)} aria-label="Delete">
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -307,25 +307,25 @@ function BoardView({
         return (
           <div key={stage} className="w-64 flex-shrink-0">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                 {STAGE_LABELS[stage]}
               </span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{cards.length}</span>
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-muted">{cards.length}</span>
             </div>
-            <div className="space-y-2 rounded-xl bg-gray-100/70 p-2">
-              {cards.length === 0 && <div className="px-2 py-3 text-center text-xs text-gray-400">—</div>}
+            <div className="space-y-2 rounded-xl bg-brand-50/70 p-2">
+              {cards.length === 0 && <div className="px-2 py-3 text-center text-xs text-muted">—</div>}
               {cards.map((c) => (
                 <div key={c.id} className="card cursor-pointer p-3 hover:ring-brand-300" onClick={() => onEdit(c)}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-gray-900">{c.full_name}</span>
+                    <span className="truncate text-sm font-medium text-ink">{c.full_name}</span>
                     <RoleBadge role={c.role} />
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-gray-400">{facilityName(c.facility_id) ?? c.region ?? '—'}</div>
+                  <div className="mt-0.5 truncate text-xs text-muted">{facilityName(c.facility_id) ?? c.region ?? '—'}</div>
                   <select
                     value={c.current_stage}
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => onStage(c, e.target.value as Stage)}
-                    className="mt-2 w-full rounded-md border-0 bg-white py-1 text-xs text-gray-700 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                    className="mt-2 w-full rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
                   >
                     {STAGES.map((s) => (
                       <option key={s} value={s}>{STAGE_LABELS[s]}</option>
@@ -446,7 +446,7 @@ function CandidateForm({
           <input type="number" min={1} max={5} className="input" value={form.rating ?? ''} onChange={(e) => set('rating', Number(e.target.value))} />
         </div>
 
-        <div className="sm:col-span-2 mt-1 border-t border-gray-100 pt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <div className="sm:col-span-2 mt-1 border-t border-line pt-3 text-xs font-semibold uppercase tracking-wide text-muted">
           Onboarding
         </div>
         <div>
@@ -462,10 +462,10 @@ function CandidateForm({
           <input type="date" className="input" value={form.start_date ?? ''} onChange={(e) => set('start_date', e.target.value)} />
         </div>
         <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              className="h-4 w-4 rounded border-line text-brand-600 focus:ring-brand-500"
               checked={!!form.welcome_call_done}
               onChange={(e) => set('welcome_call_done', e.target.checked)}
             />
@@ -473,12 +473,12 @@ function CandidateForm({
           </label>
         </div>
 
-        <div className="sm:col-span-2 mt-1 border-t border-gray-100 pt-3">
+        <div className="sm:col-span-2 mt-1 border-t border-line pt-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">
               Hiring handoff checklist
             </span>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted">
               {checklistForRole(form.role ?? 'lpn').filter((s) => form.checklist?.[s.key]).length}
               /{checklistForRole(form.role ?? 'lpn').length} done · {form.role === 'lpn' || form.role === 'ma' ? 'LPN/MA flow' : 'NP/PA flow'}
             </span>
@@ -487,19 +487,19 @@ function CandidateForm({
             {checklistForRole(form.role ?? 'lpn').map((step, i) => (
               <label
                 key={step.key}
-                className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-gray-50"
+                className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-paper"
               >
                 <input
                   type="checkbox"
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  className="mt-0.5 h-4 w-4 rounded border-line text-brand-600 focus:ring-brand-500"
                   checked={!!form.checklist?.[step.key]}
                   onChange={(e) =>
                     set('checklist', { ...(form.checklist ?? {}), [step.key]: e.target.checked })
                   }
                 />
-                <span className="text-sm leading-tight text-gray-700">
-                  <span className="text-gray-400">{i + 1}.</span> {step.label}
-                  <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                <span className="text-sm leading-tight text-ink">
+                  <span className="text-muted">{i + 1}.</span> {step.label}
+                  <span className="ml-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-muted">
                     {step.owner}
                   </span>
                 </span>
@@ -519,7 +519,7 @@ function CandidateForm({
           </div>
         )}
         <div className="sm:col-span-2">
-          <label className="label">Résumé / profile text <span className="font-normal text-gray-400">(used for AI matching)</span></label>
+          <label className="label">Résumé / profile text <span className="font-normal text-muted">(used for AI matching)</span></label>
           <textarea
             className="input min-h-[90px]"
             placeholder="Paste the candidate's résumé or a profile summary — licenses, experience, locations, availability…"
@@ -533,7 +533,7 @@ function CandidateForm({
         </div>
       </div>
 
-      {error && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-3 rounded-lg bg-rust-50 px-3 py-2 text-sm text-rust-500">{error}</div>}
 
       <div className="mt-5 flex justify-end gap-2">
         <button className="btn-secondary" onClick={onClose}>Cancel</button>

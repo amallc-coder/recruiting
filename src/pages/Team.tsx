@@ -74,8 +74,8 @@ export function Team() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
-          <p className="text-sm text-gray-500">Manage roles and assign each recruiter's regions/territory.</p>
+          <h1 className="text-2xl font-semibold text-ink">Team</h1>
+          <p className="text-sm text-muted">Manage roles and assign each recruiter's regions/territory.</p>
         </div>
         <button className="btn-primary" onClick={() => setInviting(true)}>
           <UserPlus size={16} /> Invite teammate
@@ -100,7 +100,7 @@ export function Team() {
         </button>
       </div>
 
-      <div className="card border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+      <div className="card border-sage-100 bg-sage-50 p-4 text-sm text-sage-700">
         <strong>Adding people:</strong> create their account in Supabase → Authentication → Users →
         <em> Add user</em> (email + password, mark confirmed). They appear here on first sign-in. Then
         set their role and assign the regions they cover — recruiters only see facilities, needs, and
@@ -124,18 +124,18 @@ export function Team() {
                     {p.role === 'admin' ? (
                       <ShieldCheck size={18} className="text-brand-600" />
                     ) : (
-                      <UserIcon size={18} className="text-gray-400" />
+                      <UserIcon size={18} className="text-muted" />
                     )}
                     <div>
-                      <div className="font-medium text-gray-900">
-                        {p.full_name || '—'} {isSelf && <span className="text-xs text-gray-400">(you)</span>}
+                      <div className="font-medium text-ink">
+                        {p.full_name || '—'} {isSelf && <span className="text-xs text-muted">(you)</span>}
                       </div>
-                      <div className="text-xs text-gray-400">{p.email}</div>
+                      <div className="text-xs text-muted">{p.email}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
-                      className="rounded-md border-0 bg-transparent text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                      className="rounded-md border-0 bg-transparent text-xs font-medium text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                       value={p.role}
                       disabled={isSelf || savingId === p.id}
                       onChange={(e) => updateProfile(p.id, { role: e.target.value as Role })}
@@ -145,7 +145,7 @@ export function Team() {
                     </select>
                     <span
                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        p.active ? 'bg-sage-100 text-sage-700' : 'bg-brand-50 text-muted'
                       }`}
                     >
                       {p.active ? 'Active' : 'Disabled'}
@@ -160,13 +160,13 @@ export function Team() {
 
                 {/* Territory assignment (admins see everything, so only show for recruiters) */}
                 {p.role === 'recruiter' && (
-                  <div className="mt-3 border-t border-gray-100 pt-3">
-                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  <div className="mt-3 border-t border-line pt-3">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
                       Regions covered
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {assigned.length === 0 && (
-                        <span className="text-xs text-gray-400">No regions assigned — this recruiter sees nothing yet.</span>
+                        <span className="text-xs text-muted">No regions assigned — this recruiter sees nothing yet.</span>
                       )}
                       {assigned.map((region) => (
                         <span key={region} className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
@@ -177,7 +177,7 @@ export function Team() {
                         </span>
                       ))}
                       <select
-                        className="rounded-md border-0 bg-white py-1 text-xs text-gray-600 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                        className="rounded-md border-0 bg-surface py-1 text-xs text-muted ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
                         value=""
                         disabled={savingId === p.id}
                         onChange={(e) => addRegion(p.id, e.target.value)}
@@ -243,7 +243,7 @@ function InviteModal({
     <Modal title="Invite teammate" onClose={onClose}>
       {done ? (
         <div className="space-y-4">
-          <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          <div className="rounded-lg bg-sage-50 px-4 py-3 text-sm text-sage-700">
             Invite sent to <strong>{email}</strong>. They’ll get an email with a link to set their
             own password, then appear here.
           </div>
@@ -253,7 +253,7 @@ function InviteModal({
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             Sends a secure sign-up link. The teammate sets their own password — you never handle it.
           </p>
           <div>
@@ -284,7 +284,7 @@ function InviteModal({
                   </span>
                 ))}
                 <select
-                  className="rounded-md border-0 bg-white py-1 text-xs text-gray-600 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                  className="rounded-md border-0 bg-surface py-1 text-xs text-muted ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
                   value=""
                   onChange={(e) => { if (e.target.value) setRegions((rs) => [...rs, e.target.value]) }}
                 >
@@ -297,7 +297,7 @@ function InviteModal({
             </div>
           )}
 
-          {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-lg bg-rust-50 px-3 py-2 text-sm text-rust-500">{error}</div>}
 
           <div className="flex justify-end gap-2">
             <button className="btn-secondary" onClick={onClose}>Cancel</button>
