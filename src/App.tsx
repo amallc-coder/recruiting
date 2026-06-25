@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -9,6 +10,8 @@ import { FacilityDetail } from './pages/FacilityDetail'
 import { Candidates } from './pages/Candidates'
 import { Matching } from './pages/Matching'
 import { Positions } from './pages/Positions'
+// Lazy-loaded: pulls in the SheetJS parser only when the Import screen is opened.
+const Import = lazy(() => import('./pages/Import').then((m) => ({ default: m.Import })))
 import { Team } from './pages/Team'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -31,6 +34,16 @@ export default function App() {
             <Route path="/candidates" element={<Candidates />} />
             <Route path="/matching" element={<Matching />} />
             <Route path="/positions" element={<Positions />} />
+            <Route
+              path="/import"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading importer…</div>}>
+                    <Import />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/team"
               element={
