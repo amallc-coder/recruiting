@@ -67,7 +67,7 @@ create table if not exists public.coverage_needs (
   id                uuid primary key default gen_random_uuid(),
   facility_id       uuid not null references public.facilities(id) on delete cascade,
   role              text not null
-                      check (role in ('lpn','ma','np','pa','md','psych_np','wound')),
+                      check (role in ('lpn','ma','np','pa','md','psych_np','wound','rn','tech','admin','ops')),
   have_count        int not null default 0,
   need_count        int not null default 0,
   priority          text not null default 'standard'
@@ -88,7 +88,7 @@ create table if not exists public.candidates (
   id            uuid primary key default gen_random_uuid(),
   full_name     text not null,
   role          text not null default 'lpn'
-                  check (role in ('lpn','ma','np','pa','md','psych_np','wound')),
+                  check (role in ('lpn','ma','np','pa','md','psych_np','wound','rn','tech','admin','ops')),
   email         text,
   phone         text,
   source        text,
