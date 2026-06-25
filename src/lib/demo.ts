@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { POSITION_SEED } from './positionsSeed'
+import { MASTER_FACILITIES, MASTER_REQS, type MasterReq } from './masterData'
 
 type Row = Record<string, any>
 
@@ -235,87 +236,27 @@ export const demoClient = {
 // baseline (matching supabase/seed.sql + seed_coverage.sql), and a clean slate
 // for candidates — you add your real ones, then Export to Supabase when ready.
 
-// [name, division, region, census] — census null where unknown.
-const FACILITY_SEED: [string, string, string, number | null][] = [
-  // Missouri / Kansas
-  ['Bridgewood Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 137],
-  ['Edgewood Manor Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 47],
-  ['Gregory Ridge Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 104],
-  ['Nicks Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 66],
-  ['Odessa Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 9],
-  ['Parkway Health Care Center', 'Missouri / Kansas', 'Kansas City MO', 58],
-  ['Eastview Manor Care Center', 'Missouri / Kansas', 'North Central', 80],
-  ['Milan Health Care Center', 'Missouri / Kansas', 'North Central', 23],
-  ['Brookfield Health Care Center', 'Missouri / Kansas', 'North Central', 4],
-  ['Brunswick Health Care Center', 'Missouri / Kansas', 'North Central', 7],
-  ['Wellsville Health Care Center', 'Missouri / Kansas', 'North Central', 67],
-  ['Westview Nursing Home', 'Missouri / Kansas', 'North Central', 52],
-  ['Easton Health Care Center (Kansas)', 'Missouri / Kansas', 'KC Kansas', 2],
-  ['Holton Health Care Center (Kansas)', 'Missouri / Kansas', 'KC Kansas', 0],
-  ['Nortonville (Kansas)', 'Missouri / Kansas', 'KC Kansas', 0],
-  ['St Elizabeth Health Care Center', 'Missouri / Kansas', 'Middle South MO', 59],
-  ['Chariton Park Health Care Center', 'Missouri / Kansas', 'Moberly', 114],
-  ['North Village Park', 'Missouri / Kansas', 'Moberly', 172],
-  ['Levering (RCF) Salt River (Shelbina)', 'Missouri / Kansas', 'North Central', 17],
-  ['Cedargate Health Care Center', 'Missouri / Kansas', 'SE MO', 11],
-  ['Greenville Health Care Center', 'Missouri / Kansas', 'SE MO', 14],
-  ['Portageville Healthcare Center', 'Missouri / Kansas', 'SE MO', 57],
-  ['Stonecrest Healthcare', 'Missouri / Kansas', 'SE MO', 56],
-  ['Fair View Health Care Center', 'Missouri / Kansas', 'Sedalia', 63],
-  ['Four Seasons Living Center', 'Missouri / Kansas', 'Sedalia', 224],
-  ['Legendary Health Care Center', 'Missouri / Kansas', 'Sedalia', 18],
-  ['Pettis County Assisted Living', 'Missouri / Kansas', 'Sedalia', 111],
-  ['Rest Haven Health Care Center', 'Missouri / Kansas', 'Sedalia', 61],
-  ['Bernard Care Center (STL)', 'Missouri / Kansas', 'St Louis', 89],
-  ['Carrie Ellingson Geitner Health Care (STL)', 'Missouri / Kansas', 'St Louis', 31],
-  ['Crestwood Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 88],
-  ['Grand Manor Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 52],
-  ['Heritage Care Center of Berkeley (STL)', 'Missouri / Kansas', 'St Louis', 67],
-  ['Hidden Lake Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 6],
-  ['Hillside Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 0],
-  ['South County Health Care Center (STL)', 'Missouri / Kansas', 'St Louis', 25],
-  ['Cassville Health Care Center', 'Missouri / Kansas', 'West Rural MO', 0],
-  ['Nathan Richard Health Care Center', 'Missouri / Kansas', 'West Rural MO', 59],
-  ['Sarcoxie Health Care Center', 'Missouri / Kansas', 'West Rural MO', 35],
-  // Ohio
-  ['Parkside', 'Ohio', 'Southern', 72],
-  ['Carlisle Manor', 'Ohio', 'Southern', 44],
-  ['Lebanon', 'Ohio', 'Southern', 59],
-  ['Springfield', 'Ohio', 'Southern', 50],
-  ['Woodview', 'Ohio', 'Columbus', 63],
-  ['Winchester', 'Ohio', 'Columbus', 88],
-  ['Pickerington', 'Ohio', 'Columbus', 68],
-  ['Forest Hills', 'Ohio', 'Columbus', 66],
-  ['Cambridge', 'Ohio', 'West Columbus', 72],
-  ['Grande Oaks', 'Ohio', 'East Cleveland', 36],
-  ['Grande Pavilion', 'Ohio', 'East Cleveland', 35],
-  ['Madison Healthcare', 'Ohio', 'East Cleveland', 101],
-  ['Valley View', 'Ohio', 'Central Southern', 44],
-  ['Logan', 'Ohio', 'Central Southern', 95],
-  ['Longmeadow', 'Ohio', 'NE Ohio', 54],
-  ['Autumnwood', 'Ohio', 'NE Ohio', 56],
-  ['Shady Lawn', 'Ohio', 'NE Ohio', 73],
-  ['Shady Lawn ALF', 'Ohio', 'NE Ohio', 52],
-  ['Oak Hills', 'Ohio', 'West Cleveland', 62],
-  ['Rockport', 'Ohio', 'Northern Cleveland', 98],
-  ['Richmond Hts SNF and AL', 'Ohio', 'Northern Cleveland', 70],
-  ['Royal Oak', 'Ohio', 'Northern Cleveland', 63],
-  ['Seasons (behaviors)', 'Ohio', 'Cleveland', 46],
-  ['Stow (AL)', 'Ohio', 'Cleveland', 64],
-  ['Willard ALF', 'Ohio', 'Central', 2],
-  ['Willard SNF', 'Ohio', 'Central', 55],
-  ['Crystal Care', 'Ohio', 'Central', 62],
-  ['Willard Detox Center', 'Ohio', 'Central', null],
-  ['Swanton', 'Ohio', 'Toledo', 59],
-  ['Fostoria', 'Ohio', 'Toledo', 40],
-  ['Fostoria AL', 'Ohio', 'Toledo', null],
-]
+// Map a master requisition (position/category) to the app's role taxonomy.
+function reqRole(category: string, position: string): string {
+  const p = position.toLowerCase()
+  switch (category) {
+    case 'Clinical - MA': return 'ma'
+    case 'Provider - Advanced Practice': return 'np'
+    case 'Provider - Physician': return 'md'
+    case 'Clinical - Nursing': return p.includes('rn') && !p.includes('lpn') ? 'rn' : 'lpn'
+    case 'Clinical - Tech': return 'tech'
+    case 'Admin - Front Office': return 'admin'
+    case 'Operations - Leadership': return 'ops'
+    default: return 'admin'
+  }
+}
 
-// Facilities with an explicitly flagged NP gap (premium) in the source sheets.
-const NP_GAP_FACILITIES = new Set([
-  'Cambridge', 'Valley View', 'Logan', 'Willard SNF', 'Willard ALF',
-  'Willard Detox Center', 'Crystal Care', 'Fostoria', 'Fostoria AL',
-])
+// Master priority -> app priority.
+function reqPriority(p: string): string {
+  if (p === 'Critical') return 'urgent'
+  if (p === 'High') return 'premium'
+  return 'standard'
+}
 
 function seedIfNeeded() {
   if (localStorage.getItem(SEEDED) === '1') return
@@ -333,27 +274,56 @@ function seedIfNeeded() {
     { recruiter_id: 'rec-hannah', region: 'SE MO' },
   ])
 
-  const LPN_DESC =
-    'Full-time LPN for a skilled nursing facility (SNF/LTC). Active Missouri LPN license required. ' +
-    'Responsibilities: medication administration, wound care, vitals, and EHR charting (PointClickCare). ' +
-    '5 days/week, day shift. Long-term care experience preferred.'
-  const NP_DESC =
-    'Nurse Practitioner to provide primary care coverage at skilled nursing facilities. Active NP license; ' +
-    'geriatric / long-term care experience preferred. Rounding, chronic disease management, and ' +
-    'collaboration with the attending physician.'
+  // Facilities — the authoritative 95-facility master (SNF / clinic / lab /
+  // hospital / operations). `division` groups by facility type; `region` falls
+  // back to state for non-SNF sites so everything is filterable.
+  const facById = new Map(MASTER_FACILITIES.map((f) => [f.id, f]))
+  const facilities: Row[] = MASTER_FACILITIES.map((f) => ({
+    id: f.id,
+    name: f.name,
+    division: f.type,
+    region: f.region ?? f.state ?? null,
+    portfolio: f.network,
+    city: f.city,
+    state: f.state,
+    census: f.total_census ?? f.current_census,
+    entity: f.entity,
+    notes: [f.assigned_physician && `Physician: ${f.assigned_physician}`, f.assigned_np && `NP: ${f.assigned_np}`]
+      .filter(Boolean).join(' · ') || null,
+    active: true,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  }))
+  save('facilities', facilities)
 
-  const facilities: Row[] = []
-  const coverage: Row[] = []
-  FACILITY_SEED.forEach(([name, division, region, census], i) => {
-    const id = `f${i + 1}`
-    facilities.push({ id, name, division, region, portfolio: division === 'Missouri / Kansas' ? 'Reliant Homes' : null, census, active: true, created_at: nowIso(), updated_at: nowIso() })
-    // LPN need = 1 baseline at every facility (verify & adjust in-app).
-    coverage.push({ id: uuid(), facility_id: id, role: 'lpn', have_count: 0, need_count: 1, priority: 'standard', description: LPN_DESC, current_provider: null, created_at: nowIso(), updated_at: nowIso() })
-    if (NP_GAP_FACILITIES.has(name)) {
-      coverage.push({ id: uuid(), facility_id: id, role: 'np', have_count: 0, need_count: 1, priority: 'premium', description: NP_DESC, current_provider: null, created_at: nowIso(), updated_at: nowIso() })
+  // Coverage needs — one per open requisition in the master workbook (the real
+  // openings, with priority, recruiter, and pay range surfaced in the blurb).
+  const fmtRate = (r: MasterReq) =>
+    r.rate_min == null && r.rate_max == null ? '' :
+    r.rate_unit === 'Annual' ? ` Pay: $${Math.round((r.rate_min ?? r.rate_max!) / 1000)}k–$${Math.round((r.rate_max ?? r.rate_min!) / 1000)}k/yr.` :
+    ` Pay: $${r.rate_min ?? r.rate_max}–$${r.rate_max ?? r.rate_min}/hr.`
+  const coverage: Row[] = MASTER_REQS.map((r) => {
+    const role = reqRole(r.category, r.position)
+    const fac = facById.get(r.facility_id)
+    const desc =
+      `${r.position} — ${r.type} opening (${r.category}) at ${r.facility_name}` +
+      `${r.city ? `, ${r.city}` : ''}.${fmtRate(r)}` +
+      `${r.recruiter ? ` Recruiter: ${r.recruiter}.` : ''}` +
+      `${r.hiring_manager ? ` Hiring manager: ${r.hiring_manager}.` : ''}`
+    return {
+      id: uuid(),
+      facility_id: r.facility_id,
+      role,
+      have_count: 0,
+      need_count: Math.max(1, Math.ceil(r.openings_count)),
+      priority: reqPriority(r.priority),
+      description: desc,
+      current_provider: role === 'np' ? (fac?.assigned_np ?? null) : null,
+      source_req: r.req_id,
+      created_at: nowIso(),
+      updated_at: nowIso(),
     }
   })
-  save('facilities', facilities)
   save('coverage_needs', coverage)
 
   // Real LPN recruiting pipeline imported from the team's SharePoint workbook
@@ -418,55 +388,6 @@ function seedIfNeeded() {
     ['Alisha Milligan', 'milligan3158@gmail.com', 'rec-hannah', 'North Village Park', '2026-06-29', '660-651-0535', 'welcome_call'],
   ]
 
-  // Ohio LPN pipeline (Embassy / AMA LTC / Divine / Lions 10 homes). Recruiter
-  // left unassigned (Ohio desk) so it shows for admins; facility maps where the
-  // home exists in the seed list, otherwise stays unassigned.
-  // [name, email, facilityQuery, startISO|'', phone, stage]
-  const OHIO_LPN: [string, string, string, string, string, string][] = [
-    ['Stephanie Pacileo', 'stephaniepacileo@gmail.com', 'Madison', '', '440-251-9106', 'cleared'],
-    ['Candice Brown', 'Candicebrown2721@gmail.com', 'Parkside', '', '', 'cleared'],
-    ['Hope Kuruzovich', 'hkuruzovich@gmail.com', 'Springfield', '', '', 'cleared'],
-    ['Emily Shore', 'emilyshore3@gmail.com', 'Seasons', '', '330-842-0876', 'cleared'],
-    ['Michelle Smith', 'Michellesmith9521@outlook.com', 'Longmeadow', '', '330-607-0258', 'cleared'],
-    ['Aurelia Yoho', 'yohoaurelia@yahoo.com', 'Autumnwood', '', '724-718-3204', 'background'],
-    ['Tanisha Reeves', 'tanishareeves0@gmail.com', 'Forest Hills', '', '380-223-6727', 'cleared'],
-    ['Jeffery Carobert', 'carobertjeffery97@gmail.com', 'Winchester', '', '754-262-9125', 'cleared'],
-    ['Jeanenne Cheney', 'jlcheney73@gmail.com', 'Swanton', '', '567-294-1838', 'cleared'],
-    ['Lori Fyffe', '', 'Carlisle', '', '', 'sourced'],
-    ['Jessica Reffitt', 'Jessicarene10281@gmail.com', 'Lebanon', '', '513-689-0700', 'cleared'],
-    ['Elizabeth Brennan', 'elizabethwbrennan@gmail.com', 'Royal Oak', '', '216-600-8685', 'cleared'],
-    ['Arresa Ervin', 'aervin42024@gmail.com', 'Grande Pavilion', '', '', 'cleared'],
-    ['Shelby Elliott', '', 'Grande Oaks', '2026-07-06', '', 'background'],
-    ['Michelle Harvey', 'micheleharvey22@gmail.com', 'Willard SNF', '', '419-908-6289', 'cleared'],
-    ['Melissa Easterling', 'melissa448754@gmail.com', 'Crystal Care', '', '', 'cleared'],
-    ['Erica Steele', 'Erica.snyd3r@gmail.com', 'Fostoria', '2026-07-06', '419-889-2994', 'cleared'],
-    ['Dominque Campbell', 'Dominiquen8891@gmail.com', 'Richmond', '', '330-775-6525', 'cleared'],
-    ['Tonisha Stowers', 'tonishastowers@yahoo.com', 'Oak Hills', '', '419-239-3027', 'cleared'],
-    ['Jaime Baker', 'jbaker7804@yahoo.com', 'Cambridge', '', '740-630-8578', 'background'],
-    ['Charmarie Krouse', 'clkrouse@gmail.com', 'Logan', '', '740-497-5322', 'cleared'],
-    ['Jennifer Sciacca', 'jennifer.sciacca87@gmail.com', 'Cridersville', '', '740-206-3243', 'cleared'],
-    ['Amber Browning', '', 'Autumn Court', '', '', 'background'],
-    ['Tiffany Stevens', '', 'Valley View', '2026-06-29', '', 'background'],
-    ['Gloria Turner', '', 'Wapakoneta', '2026-06-29', '', 'background'],
-    ['Nikita Tumpkin', 'nikitatumpkin@yahoo.com', 'Oak Grove', '2026-07-07', '313-412-7856', 'cleared'],
-    ['Lynzee Williams', 'lynzeewilliams03@gmail.com', 'Stellar', '2026-07-13', '937-405-3878', 'background'],
-    ['James Collins', '', 'Celina', '2026-06-22', '', 'background'],
-    ['Mari Susan Jones', 'susanlpn6@gmail.com', 'Shane Hill', '2026-06-22', '419-204-3745', 'cleared'],
-    ['Shaunda Schnipke', '', 'Defiance', '2026-07-13', '', 'cleared'],
-    ['Elizabeth Stevens', '', 'New Philadelphia', '', '', 'background'],
-    ['Shana Golden', '', '', '', '', 'cleared'],
-    ['Amanda Pimpas', '', '', '2026-06-29', '', 'background'],
-    ['Marissa Gray', 'graymj09@icloud.com', '', '', '220-267-2030', 'cleared'],
-    ['Shakiyla Dixon', '', '', '', '', 'cleared'],
-    ['Amber Kuhn', 'kuhn998@gmail.com', '', '', '440-805-9729', 'cleared'],
-    ['Helan Calvert', 'Hcalvert731@gmail.com', '', '', '740-801-8166', 'cleared'],
-    ['Andrea Cline', 'andreacline1996@gmail.com', '', '', '937-218-2384', 'declined'],
-    ["Bre'an Williams", 'williamsbrean@yahoo.com', '', '', '614-200-4330', 'cleared'],
-    ['Chardai Howard', 'chardaih24@gmail.com', '', '', '216-801-5393', 'cleared'],
-    ['Nicole Raab', 'nicoleraab1977@gmail.com', '', '', '440-567-5870', 'cleared'],
-    ['Briann Woods', '', '', '', '', 'cleared'],
-  ]
-
   // Missouri MA (medical assistant) onboarding list.
   // [name, email, facilityQuery, startISO|'', phone, stage]
   const MO_MA: [string, string, string, string, string, string][] = [
@@ -478,23 +399,6 @@ function seedIfNeeded() {
     ['Sharanya Duvvuri', 'sharanya.duvvuri43@gmail.com', 'Bernard', '2026-06-01', '', 'background'],
     ['Brooke Poe', 'Brookelynnpoe@gmail.com', '', '2026-04-28', '816-509-2977', 'active'],
     ['Estephany Guerra', 'jassmin.e.melton@icloud.com', 'Brookfield', '2026-04-28', '858-413-4843', 'active'],
-  ]
-
-  // NP / PA / Psych provider candidates actively in recruiting.
-  // [name, role, facilityQuery, stage]
-  const PROVIDERS: [string, string, string, string][] = [
-    ['Kallie Bateman', 'np', '', 'accepted'],
-    ['Rebekah Graham', 'np', '', 'accepted'],
-    ['Julia Neubeck', 'np', 'Willard SNF', 'accepted'],
-    ['Antoinette Bequette', 'np', '', 'offer'],
-    ['Kaytlyn Ungerer', 'np', '', 'interview'],
-    ['Laura Schultz', 'np', '', 'interview'],
-    ['Tabatha Peters', 'np', 'Logan', 'sourced'],
-    ['Rebecca Dindenger', 'np', '', 'sourced'],
-    ['Angela Berry', 'psych_np', '', 'offer'],
-    ['Courtney Oyer', 'psych_np', 'Four Seasons', 'accepted'],
-    ['Uzma Nosheen', 'psych_np', '', 'sourced'],
-    ['Kerri Woodson', 'np', '', 'sourced'],
   ]
 
   const ROLE_NOUN: Record<string, string> = {
@@ -528,9 +432,7 @@ function seedIfNeeded() {
 
   const candidates: Row[] = [
     ...REAL.map(([n, e, r, f, s, p, st]) => mk(n, 'lpn', e, r, f, s, p, st)),
-    ...OHIO_LPN.map(([n, e, f, s, p, st]) => mk(n, 'lpn', e, null, f, s, p, st)),
     ...MO_MA.map(([n, e, f, s, p, st]) => mk(n, 'ma', e, null, f, s, p, st)),
-    ...PROVIDERS.map(([n, role, f, st]) => mk(n, role, '', null, f, '', '', st)),
   ]
   save('candidates', candidates)
 

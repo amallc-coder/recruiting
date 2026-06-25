@@ -1,6 +1,8 @@
 export type Role = 'admin' | 'recruiter'
 
-export type ClinicalRole = 'lpn' | 'ma' | 'np' | 'pa' | 'md' | 'psych_np' | 'wound'
+export type ClinicalRole =
+  | 'lpn' | 'ma' | 'np' | 'pa' | 'md' | 'psych_np' | 'wound'
+  | 'rn' | 'tech' | 'admin' | 'ops'
 
 export type Stage =
   | 'sourced'
@@ -97,7 +99,9 @@ export interface StageHistory {
 
 // ---- Reference data & labels -------------------------------------------------
 
-export const CLINICAL_ROLES: ClinicalRole[] = ['lpn', 'ma', 'np', 'pa', 'md', 'psych_np', 'wound']
+export const CLINICAL_ROLES: ClinicalRole[] = [
+  'lpn', 'ma', 'np', 'pa', 'md', 'psych_np', 'wound', 'rn', 'tech', 'admin', 'ops',
+]
 
 export const ROLE_LABELS: Record<ClinicalRole, string> = {
   lpn: 'LPN',
@@ -107,6 +111,10 @@ export const ROLE_LABELS: Record<ClinicalRole, string> = {
   md: 'Physician (MD)',
   psych_np: 'Psych NP',
   wound: 'Wound',
+  rn: 'RN',
+  tech: 'Tech / Imaging',
+  admin: 'Front Office',
+  ops: 'Operations',
 }
 
 export const STAGES: Stage[] = [
@@ -207,7 +215,8 @@ export const NP_PA_FLOW: ChecklistStep[] = [
   { key: 'welcome_call', label: 'Schedule welcome call: program details + orientation date', owner: 'Corby' },
 ]
 
-// Which flow applies to a given clinical role.
+// Which flow applies to a given clinical role. Providers (NP/PA/MD/Psych/Wound)
+// use the provider handoff; everyone else uses the LPN/MA-style flow.
 export function checklistForRole(role: ClinicalRole): ChecklistStep[] {
-  return role === 'lpn' || role === 'ma' ? LPN_FLOW : NP_PA_FLOW
+  return ['np', 'pa', 'md', 'psych_np', 'wound'].includes(role) ? NP_PA_FLOW : LPN_FLOW
 }
