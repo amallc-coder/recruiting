@@ -12,10 +12,28 @@
     <style>
       @keyframes rt-spin { to { transform: rotate(360deg); } }
     </style>
+    <script>
+      // Capture any resource-load / JS errors before the app starts, so the
+      // diagnostic below can report them.
+      (function () {
+        window.__be = [];
+        window.addEventListener('error', function (e) {
+          var t = e.target || {};
+          if (t.tagName === 'SCRIPT' || t.tagName === 'LINK') {
+            window.__be.push('LOAD-FAIL ' + (t.src || t.href || ''));
+          } else if (e.message) {
+            window.__be.push('JS-ERR ' + e.message);
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          window.__be.push('REJECT ' + ((e.reason && e.reason.message) || e.reason || ''));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root">
-      <div id="boot" style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#57606a">
+      <div id="boot" style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#57606a;padding:16px">
         <div style="text-align:center">
           <div style="width:40px;height:40px;border:3px solid #d0d7de;border-top-color:#1f43f5;border-radius:50%;margin:0 auto 14px;animation:rt-spin 1s linear infinite"></div>
           Loading Recruiting Tracker…
@@ -24,31 +42,40 @@
     </div>
 
     <script>
-      // Self-healing boot guard. If React hasn't taken over #root within 9s, the
-      // page is almost always a STALE CACHED shell whose hashed asset files no
-      // longer exist on the server (so the app's JS 404s and the screen is blank).
-      // Bust the cache once with a query param; if it still fails, show an
-      // actionable message instead of a white screen.
+      // If React hasn't taken over #root within 6s, gather a diagnostic and show
+      // it on screen (we can't read the server logs, so this surfaces the cause:
+      // a 404, a wrong content-type, a blocked file, or a JS error).
       (function () {
         setTimeout(function () {
-          if (!document.getElementById('boot')) return; // app mounted — all good
-          try {
-            if (!sessionStorage.getItem('rt_cachebust')) {
-              sessionStorage.setItem('rt_cachebust', '1');
-              location.replace(location.pathname + '?v=' + Date.now() + location.hash);
-              return;
-            }
-          } catch (e) { /* storage blocked — fall through to message */ }
-          var b = document.getElementById('boot');
-          if (b) {
+          if (!document.getElementById('boot')) return; // app mounted — healthy
+          var s = document.querySelector('script[type=module]');
+          var url = s ? s.src : '(no module script found)';
+          var errs = (window.__be || []).join('  |  ') || 'none';
+          var sheets = document.styleSheets.length;
+          function show(line) {
+            var b = document.getElementById('boot');
+            if (!b) return;
             b.innerHTML =
-              '<div style="text-align:center;max-width:430px;padding:24px;font-family:system-ui,sans-serif;color:#1f2328">' +
-              '<div style="font-size:17px;font-weight:600;margin-bottom:8px">Couldn’t load the app</div>' +
-              '<div style="font-size:14px;color:#57606a;line-height:1.55">This is usually a cached page. Do a <b>hard refresh</b> (Ctrl/Cmd&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R), or open it in a private/incognito window. If it keeps happening, your network may be blocking the app files.</div>' +
-              '<button onclick="try{sessionStorage.removeItem(\'rt_cachebust\')}catch(e){};location.replace(location.pathname+\'?v=\'+Date.now())" style="margin-top:16px;background:#1f43f5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer">Try again</button>' +
+              '<div style="text-align:left;max-width:560px;padding:22px;font-family:system-ui,sans-serif;color:#1f2328">' +
+              '<div style="font-size:17px;font-weight:600;margin-bottom:10px">App didn’t start — diagnostic</div>' +
+              '<div style="font-size:13px;color:#1f2328;line-height:1.6;word-break:break-all;background:#f6f8fa;border:1px solid #d0d7de;border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace">' +
+              line +
+              '<br>css-stylesheets: ' + sheets +
+              '<br>errors: ' + errs +
+              '<br>ua: ' + (navigator.userAgent || '').slice(0, 90) +
+              '</div>' +
+              '<div style="font-size:13px;color:#57606a;margin-top:10px">Please send this text to your administrator.</div>' +
+              '<button onclick="location.reload()" style="margin-top:14px;background:#1f43f5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer">Reload</button>' +
               '</div>';
           }
-        }, 9000);
+          fetch(url, { cache: 'no-store' })
+            .then(function (r) {
+              show('app-file: HTTP ' + r.status + '  ·  content-type: ' + (r.headers.get('content-type') || '(none)') + '  ·  url: ' + url);
+            })
+            .catch(function (err) {
+              show('app-file FETCH FAILED: ' + err + '  ·  url: ' + url);
+            });
+        }, 6000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
