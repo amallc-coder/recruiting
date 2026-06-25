@@ -13,9 +13,13 @@ if (!isSupabaseConfigured && !demoMode) {
   console.warn('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
 }
 
+// Use `||` (not `??`) so an EMPTY-STRING env var — which is what an unset
+// GitHub Actions repo variable injects at build time — falls back to the
+// placeholder instead of making createClient throw "supabaseUrl is required"
+// and crashing the whole app before it can render.
 const realClient = createClient(
-  url ?? 'https://placeholder.supabase.co',
-  anonKey ?? 'placeholder-anon-key',
+  url || 'https://placeholder.supabase.co',
+  anonKey || 'placeholder-anon-key',
   {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   },
