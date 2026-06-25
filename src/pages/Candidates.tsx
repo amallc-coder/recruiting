@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { Plus, Download, Pencil, Trash2, Search, RefreshCw } from 'lucide-react'
+import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useProfiles } from '../hooks/useProfiles'
 import { useFacilities } from '../hooks/useFacilities'
 import { downloadCsv } from '../lib/export'
 import {
   CLINICAL_ROLES,
+  PIPELINE_STAGES,
   ROLE_LABELS,
   SOURCE_SUGGESTIONS,
   STAGES,
@@ -43,6 +44,26 @@ export function Candidates() {
   const [stageFilter, setStageFilter] = useState<Stage | 'all' | 'active_pipeline'>('all')
   const [roleFilter, setRoleFilter] = useState<ClinicalRole | 'all'>('all')
   const [editing, setEditing] = useState<Partial<Candidate> | null>(null)
+  const [view, setView] = useState<'table' | 'board'>('table')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  async function syncSharePoint() {
+    setSyncMsg(null)
+    if (demoMode) {
+      setSyncMsg('SharePoint sync runs server-side — connect Supabase and configure the sync function first.')
+      return
+    }
+    setSyncing(true)
+    const { data, error } = await supabase.functions.invoke('sync-sharepoint', { body: {} })
+    setSyncing(false)
+    if (error || data?.error) {
+      setSyncMsg(`Sync failed: ${data?.error || error?.message}`)
+      return
+    }
+    setSyncMsg(`Synced: ${data.added} added, ${data.updated} updated, ${data.skipped} unchanged.`)
+    load()
+  }
 
   async function load() {
     setLoading(true)
@@ -113,6 +134,12 @@ export function Candidates() {
           </p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <button className="btn-secondary" onClick={syncSharePoint} disabled={syncing}>
+              <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing…' : 'Sync SharePoint'}
+            </button>
+          )}
           <button className="btn-secondary" onClick={exportCsv} disabled={filtered.length === 0}>
             <Download size={16} /> Export
           </button>
@@ -121,6 +148,10 @@ export function Candidates() {
           </button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">{syncMsg}</div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -145,12 +176,33 @@ export function Candidates() {
             <option key={s} value={s}>{STAGE_LABELS[s]}</option>
           ))}
         </select>
+        <div className="inline-flex overflow-hidden rounded-lg ring-1 ring-inset ring-gray-300">
+          <button
+            className={`px-3 py-2 text-sm font-medium ${view === 'table' ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            onClick={() => setView('table')}
+          >
+            Table
+          </button>
+          <button
+            className={`px-3 py-2 text-sm font-medium ${view === 'board' ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            onClick={() => setView('board')}
+          >
+            Board
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <Spinner label="Loading candidates…" />
       ) : filtered.length === 0 ? (
         <EmptyState title="No candidates yet" hint="Add candidates and move them through your pipeline." />
+      ) : view === 'board' ? (
+        <BoardView
+          candidates={filtered}
+          facilityName={(id) => facilityById(id)?.name ?? null}
+          onEdit={setEditing}
+          onStage={quickStage}
+        />
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -237,6 +289,58 @@ export function Candidates() {
   )
 }
 
+function BoardView({
+  candidates,
+  facilityName,
+  onEdit,
+  onStage,
+}: {
+  candidates: Candidate[]
+  facilityName: (id: string | null) => string | null
+  onEdit: (c: Candidate) => void
+  onStage: (c: Candidate, stage: Stage) => void
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {PIPELINE_STAGES.map((stage) => {
+        const cards = candidates.filter((c) => c.current_stage === stage)
+        return (
+          <div key={stage} className="w-64 flex-shrink-0">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {STAGE_LABELS[stage]}
+              </span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{cards.length}</span>
+            </div>
+            <div className="space-y-2 rounded-xl bg-gray-100/70 p-2">
+              {cards.length === 0 && <div className="px-2 py-3 text-center text-xs text-gray-400">—</div>}
+              {cards.map((c) => (
+                <div key={c.id} className="card cursor-pointer p-3 hover:ring-brand-300" onClick={() => onEdit(c)}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-gray-900">{c.full_name}</span>
+                    <RoleBadge role={c.role} />
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-gray-400">{facilityName(c.facility_id) ?? c.region ?? '—'}</div>
+                  <select
+                    value={c.current_stage}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => onStage(c, e.target.value as Stage)}
+                    className="mt-2 w-full rounded-md border-0 bg-white py-1 text-xs text-gray-700 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function CandidateForm({
   value,
   facilities,
@@ -278,6 +382,7 @@ function CandidateForm({
       background_cleared_date: form.background_cleared_date || null,
       welcome_call_done: !!form.welcome_call_done,
       start_date: form.start_date || null,
+      resume_text: form.resume_text || null,
       checklist: form.checklist ?? {},
       rating: form.rating ? Number(form.rating) : null,
       notes: form.notes || null,
@@ -413,6 +518,15 @@ function CandidateForm({
             </select>
           </div>
         )}
+        <div className="sm:col-span-2">
+          <label className="label">Résumé / profile text <span className="font-normal text-gray-400">(used for AI matching)</span></label>
+          <textarea
+            className="input min-h-[90px]"
+            placeholder="Paste the candidate's résumé or a profile summary — licenses, experience, locations, availability…"
+            value={form.resume_text ?? ''}
+            onChange={(e) => set('resume_text', e.target.value)}
+          />
+        </div>
         <div className="sm:col-span-2">
           <label className="label">Notes</label>
           <textarea className="input min-h-[70px]" value={form.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />

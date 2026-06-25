@@ -8,7 +8,7 @@
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v1'
+const SEEDED = 'demo_seeded_v2'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -330,20 +330,57 @@ function seedIfNeeded() {
     { recruiter_id: 'rec-hannah', region: 'SE MO' },
   ])
 
+  const LPN_DESC =
+    'Full-time LPN for a skilled nursing facility (SNF/LTC). Active Missouri LPN license required. ' +
+    'Responsibilities: medication administration, wound care, vitals, and EHR charting (PointClickCare). ' +
+    '5 days/week, day shift. Long-term care experience preferred.'
+  const NP_DESC =
+    'Nurse Practitioner to provide primary care coverage at skilled nursing facilities. Active NP license; ' +
+    'geriatric / long-term care experience preferred. Rounding, chronic disease management, and ' +
+    'collaboration with the attending physician.'
+
   const facilities: Row[] = []
   const coverage: Row[] = []
   FACILITY_SEED.forEach(([name, division, region, census], i) => {
     const id = `f${i + 1}`
     facilities.push({ id, name, division, region, portfolio: division === 'Missouri / Kansas' ? 'Reliant Homes' : null, census, active: true, created_at: nowIso(), updated_at: nowIso() })
     // LPN need = 1 baseline at every facility (verify & adjust in-app).
-    coverage.push({ id: uuid(), facility_id: id, role: 'lpn', have_count: 0, need_count: 1, priority: 'standard', current_provider: null, created_at: nowIso(), updated_at: nowIso() })
+    coverage.push({ id: uuid(), facility_id: id, role: 'lpn', have_count: 0, need_count: 1, priority: 'standard', description: LPN_DESC, current_provider: null, created_at: nowIso(), updated_at: nowIso() })
     if (NP_GAP_FACILITIES.has(name)) {
-      coverage.push({ id: uuid(), facility_id: id, role: 'np', have_count: 0, need_count: 1, priority: 'premium', current_provider: null, created_at: nowIso(), updated_at: nowIso() })
+      coverage.push({ id: uuid(), facility_id: id, role: 'np', have_count: 0, need_count: 1, priority: 'premium', description: NP_DESC, current_provider: null, created_at: nowIso(), updated_at: nowIso() })
     }
   })
   save('facilities', facilities)
   save('coverage_needs', coverage)
-  save('candidates', []) // clean slate — add your real candidates
+
+  // A few example candidates (with résumé text) so AI Matching and the board
+  // are populated. Delete them or hit "Reset" once you add your real ones.
+  const C = (full_name: string, facility_id: string, recruiter_id: string, stage: string, resume: string, role = 'lpn', extra: Row = {}): Row =>
+    stampInsert('candidates', {
+      full_name, role, facility_id, recruiter_id, current_stage: stage,
+      email: full_name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
+      source: 'Indeed', resume_text: resume, checklist: {}, ...extra,
+    })
+  save('candidates', [
+    C('Xaviera Roberts', 'f1', 'rec-alex', 'accepted',
+      'Licensed Practical Nurse with 6 years in skilled nursing / long-term care. Active Missouri LPN license. Skilled in medication administration, wound care, vitals, and EHR charting in PointClickCare. Available for 5 day/week day shift in the Kansas City area.',
+      'lpn', { rating: 5, start_date: '2026-07-06' }),
+    C('Erika Lavington-Foster', 'f31', 'rec-hannah', 'offer',
+      'Experienced LPN, 8 years in LTC and rehab. Charge nurse experience supervising CNAs. Strong wound care and medication administration; thorough EHR charting. St. Louis based.',
+      'lpn', { rating: 4 }),
+    C('Toshia Russell', 'f20', 'rec-hannah', 'interview',
+      'LPN with 3 years SNF experience. IV certified, wound care, BLS. Active Missouri license. Seeking full-time day shift.',
+      'lpn', {}),
+    C('Tamara Evans', 'f10', 'rec-hannah', 'background',
+      'LPN new graduate. Recent clinical rotations in long-term care. BLS certified, eager to build medication-administration experience.',
+      'lpn', {}),
+    C('Hope Amos', 'f28', 'rec-alex', 'sourced',
+      'LPN, 2 years assisted living. Medication pass, vitals, resident care. Looking to move into skilled nursing.',
+      'lpn', {}),
+    C('Sara Koenemann', 'f48', 'rec-hannah', 'interview',
+      'Nurse Practitioner with 5 years of geriatric primary care in skilled nursing facilities. Manages chronic conditions, rounds on residents, and collaborates with attending physicians. Active NP license.',
+      'np', {}),
+  ])
 
   localStorage.setItem(SEEDED, '1')
 }
@@ -393,12 +430,12 @@ export function buildSupabaseSql(): string {
   )
   const cov = insertBlock(
     'coverage_needs',
-    ['id', 'facility_id', 'role', 'have_count', 'need_count', 'priority', 'current_provider', 'notes'],
+    ['id', 'facility_id', 'role', 'have_count', 'need_count', 'priority', 'current_provider', 'description', 'notes'],
     coverage,
   )
   const cand = insertBlock(
     'candidates',
-    ['id', 'full_name', 'role', 'email', 'phone', 'source', 'facility_id', 'region', 'current_stage', 'background_sent_date', 'background_cleared_date', 'welcome_call_done', 'start_date', 'checklist', 'rating', 'notes'],
+    ['id', 'full_name', 'role', 'email', 'phone', 'source', 'facility_id', 'region', 'current_stage', 'background_sent_date', 'background_cleared_date', 'welcome_call_done', 'start_date', 'resume_text', 'checklist', 'rating', 'notes'],
     candidates,
   )
 

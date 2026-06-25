@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ShieldCheck, User as UserIcon, Download, X } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { ShieldCheck, User as UserIcon, Download, X, UserPlus } from 'lucide-react'
+import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { downloadCsv } from '../lib/export'
 import { REGION_SUGGESTIONS, type Profile, type Role } from '../lib/types'
-import { EmptyState, Spinner } from '../components/ui'
+import { EmptyState, Modal, Spinner } from '../components/ui'
 
 interface RecruiterRegion {
   recruiter_id: string
@@ -18,6 +18,7 @@ export function Team() {
   const [facilityRegions, setFacilityRegions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [inviting, setInviting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -76,6 +77,9 @@ export function Team() {
           <h1 className="text-2xl font-semibold text-gray-900">Team</h1>
           <p className="text-sm text-gray-500">Manage roles and assign each recruiter's regions/territory.</p>
         </div>
+        <button className="btn-primary" onClick={() => setInviting(true)}>
+          <UserPlus size={16} /> Invite teammate
+        </button>
         <button
           className="btn-secondary"
           onClick={() =>
@@ -191,6 +195,118 @@ export function Team() {
           })}
         </div>
       )}
+
+      {inviting && (
+        <InviteModal regionOptions={regionOptions} onClose={() => setInviting(false)} onInvited={load} />
+      )}
     </div>
+  )
+}
+
+function InviteModal({
+  regionOptions,
+  onClose,
+  onInvited,
+}: {
+  regionOptions: string[]
+  onClose: () => void
+  onInvited: () => void
+}) {
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [role, setRole] = useState<Role>('recruiter')
+  const [regions, setRegions] = useState<string[]>([])
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  async function send() {
+    setError(null)
+    if (demoMode) {
+      setError('Invites send real emails — connect Supabase first (local mode can’t send mail).')
+      return
+    }
+    setSending(true)
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { email: email.trim(), full_name: fullName.trim(), role, regions },
+    })
+    setSending(false)
+    if (error || (data && data.error)) {
+      setError((data && data.error) || error?.message || 'Could not send invite.')
+      return
+    }
+    setDone(true)
+    onInvited()
+  }
+
+  return (
+    <Modal title="Invite teammate" onClose={onClose}>
+      {done ? (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+            Invite sent to <strong>{email}</strong>. They’ll get an email with a link to set their
+            own password, then appear here.
+          </div>
+          <div className="flex justify-end">
+            <button className="btn-primary" onClick={onClose}>Done</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Sends a secure sign-up link. The teammate sets their own password — you never handle it.
+          </p>
+          <div>
+            <label className="label">Email *</label>
+            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Full name</label>
+            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Role</label>
+            <select className="input" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+              <option value="recruiter">Recruiter</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          {role === 'recruiter' && (
+            <div>
+              <label className="label">Regions (optional)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {regions.map((r) => (
+                  <span key={r} className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                    {r}
+                    <button onClick={() => setRegions((rs) => rs.filter((x) => x !== r))} className="text-brand-400 hover:text-brand-700">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                <select
+                  className="rounded-md border-0 bg-white py-1 text-xs text-gray-600 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-brand-500"
+                  value=""
+                  onChange={(e) => { if (e.target.value) setRegions((rs) => [...rs, e.target.value]) }}
+                >
+                  <option value="">+ Add region…</option>
+                  {regionOptions.filter((r) => !regions.includes(r)).map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+          <div className="flex justify-end gap-2">
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-primary" onClick={send} disabled={sending || !email}>
+              {sending ? 'Sending…' : 'Send invite'}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
   )
 }

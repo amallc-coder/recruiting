@@ -99,11 +99,21 @@ Supabase → **Project Settings → API**: copy the **Project URL** and the
 > `/<repo-name>/`, or change `base` in `vite.config.ts`.
 
 ### 5. Create users & assign regions
-1. Supabase → **Authentication → Users → Add user** (email + temp password,
-   check **Auto Confirm User**).
-2. The **first** sign-in becomes **admin** automatically; others start as recruiters.
-3. On the in-app **Team** screen (admins only): set roles and **assign each
-   recruiter the regions they cover**.
+- **Preset super-admin:** `npatel@amadministrators.com` becomes admin
+  automatically on first sign-in (configured in `schema.sql`). The first user to
+  sign in is also made admin as a bootstrap.
+- **Invite teammates by email:** on the **Team → Invite teammate** screen, enter
+  an email, role, and regions — they get a link to set their own password.
+  Requires the `invite-user` Edge Function (see
+  [`docs/setup-auth-and-sync.md`](docs/setup-auth-and-sync.md)).
+- **Or add users manually:** Supabase → Authentication → Users → Add user, then
+  set role/regions on the Team screen.
+
+### 6. (Optional) One-click SharePoint sync
+A **Sync SharePoint** button can pull candidates straight from the team's Excel
+file via Microsoft Graph — de-duplicated, newest-wins. Needs an Entra app
+registration and a tabular worksheet; full setup in
+[`docs/setup-auth-and-sync.md`](docs/setup-auth-and-sync.md).
 
 ---
 
@@ -126,9 +136,18 @@ npm run dev               # http://localhost:5173
 | **Dashboard** | KPIs for their territory: open needs, premium gaps, pipeline, hires; charts | Team-wide: needs by role/region, **pipeline by recruiter** |
 | **Facilities & Needs** | Facilities in their regions; edit Have/Need coverage by role | All facilities; create/delete |
 | **Facility detail** | Coverage editor (Have/Need/priority/current provider) + candidates there | same |
-| **Candidates** | Their territory's pipeline; stages, onboarding fields, **hiring-handoff checklist** | All candidates; reassign recruiter |
+| **Candidates** | Pipeline as a **table or Kanban board**; stages, onboarding fields, **hiring-handoff checklist**, résumé text | All candidates; reassign recruiter |
+| **AI Matching** | Pick an open position → ranked candidate matches with scores, strengths, and gaps | same |
 | **Team** | — | Manage roles + assign recruiter regions |
 | **Export** | CSV of their data | CSV of everything |
+
+**AI candidate matching.** On the **AI Matching** screen, pick an open position
+(a role with Need ≥ 1 on a facility), describe its requirements, and the app ranks
+candidates by fit — with a 0–100 score, strengths, and gaps. It runs a built-in
+heuristic offline (works in local mode immediately), and automatically upgrades to
+**Claude (Opus 4.8)** scoring when the `ai-match` Edge Function is deployed with an
+`ANTHROPIC_API_KEY` (the key stays server-side). See
+[`docs/setup-auth-and-sync.md`](docs/setup-auth-and-sync.md).
 
 Every candidate stage change is logged automatically in `candidate_stage_history`
 for audit and time-in-stage reporting.
