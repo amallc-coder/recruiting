@@ -148,6 +148,30 @@ create table if not exists public.candidate_stage_history (
 );
 create index if not exists idx_stage_history_candidate on public.candidate_stage_history(candidate_id);
 
+-- ---------------------------------------------------------------------------
+-- POSITIONS — shared catalog of roles (practice / SNF / mgmt / lab / hospital)
+-- with AI-generated responsibilities. Reference data: readable by all signed-in
+-- users; only admins add/edit.
+-- ---------------------------------------------------------------------------
+create table if not exists public.positions (
+  id               uuid primary key default gen_random_uuid(),
+  code             text,
+  title            text not null,
+  category         text,
+  org_types        jsonb not null default '[]'::jsonb,
+  rate_min         numeric,
+  rate_max         numeric,
+  rate_unit        text default 'NA',
+  responsibilities jsonb not null default '[]'::jsonb,
+  requirements     jsonb not null default '[]'::jsonb,
+  keywords         jsonb not null default '[]'::jsonb,
+  ai_generated     boolean not null default false,
+  active           boolean not null default true,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+-- RLS policies for positions are defined below, after is_admin() exists.
+
 -- ===========================================================================
 -- HELPER FUNCTIONS (SECURITY DEFINER to avoid RLS recursion)
 -- ===========================================================================
@@ -158,6 +182,16 @@ returns boolean language sql security definer set search_path = public stable as
     where id = auth.uid() and role = 'admin' and active = true
   );
 $$;
+
+-- Positions catalog RLS (defined here, now that is_admin() exists):
+-- any signed-in user can read; only admins write.
+alter table public.positions enable row level security;
+drop policy if exists "positions_read" on public.positions;
+create policy "positions_read" on public.positions
+  for select using (auth.uid() is not null);
+drop policy if exists "positions_admin_write" on public.positions;
+create policy "positions_admin_write" on public.positions
+  for all using (public.is_admin()) with check (public.is_admin());
 
 -- Does the current user cover this region (or is an admin)?
 create or replace function public.covers_region(r text)

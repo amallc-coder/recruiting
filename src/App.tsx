@@ -8,6 +8,7 @@ import { Facilities } from './pages/Facilities'
 import { FacilityDetail } from './pages/FacilityDetail'
 import { Candidates } from './pages/Candidates'
 import { Matching } from './pages/Matching'
+import { Positions } from './pages/Positions'
 import { Team } from './pages/Team'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/facilities/:id" element={<FacilityDetail />} />
             <Route path="/candidates" element={<Candidates />} />
             <Route path="/matching" element={<Matching />} />
+            <Route path="/positions" element={<Positions />} />
             <Route
               path="/team"
               element={
