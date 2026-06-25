@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Building2, Users, Sparkles, UserCog, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Sparkles, UserCog, Briefcase, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
@@ -55,6 +55,7 @@ export function Layout() {
     { to: '/facilities', label: 'Facilities & Needs', icon: Building2 },
     { to: '/candidates', label: 'Candidates', icon: Users },
     { to: '/matching', label: 'AI Matching', icon: Sparkles },
+    { to: '/positions', label: 'Positions', icon: Briefcase },
     ...(isAdmin ? [{ to: '/team', label: 'Team', icon: UserCog }] : []),
   ]
 

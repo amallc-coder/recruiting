@@ -5,10 +5,12 @@
 // so the entire UI works offline. The demo user is an admin (sees everything).
 // =============================================================================
 
+import { POSITION_SEED } from './positionsSeed'
+
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v3'
+const SEEDED = 'demo_seeded_v4'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -43,6 +45,7 @@ const TABLES = [
   'coverage_needs',
   'candidates',
   'candidate_stage_history',
+  'positions',
 ]
 
 function load(table: string): Row[] {
@@ -530,6 +533,9 @@ function seedIfNeeded() {
     ...PROVIDERS.map(([n, role, f, st]) => mk(n, role, '', null, f, '', '', st)),
   ]
   save('candidates', candidates)
+
+  // Positions repository catalog.
+  save('positions', POSITION_SEED.map((p) => stampInsert('positions', { ...p, active: true })))
 
   localStorage.setItem(SEEDED, '1')
 }

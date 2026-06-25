@@ -12,6 +12,8 @@ import {
   type Facility,
 } from '../lib/types'
 import { EmptyState, Modal, Spinner } from '../components/ui'
+import { Combobox } from '../components/Combobox'
+import { US_STATES, loadCities, searchCities } from '../lib/geo'
 
 const EMPTY: Partial<Facility> = {
   name: '',
@@ -278,19 +280,28 @@ function FacilityForm({
           <label className="label">Census</label>
           <input type="number" className="input" value={form.census ?? ''} onChange={(e) => set('census', Number(e.target.value))} />
         </div>
-        <div>
-          <label className="label">City</label>
-          <input className="input" value={form.city ?? ''} onChange={(e) => set('city', e.target.value)} />
-        </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="label">State</label>
-            <input className="input" value={form.state ?? ''} onChange={(e) => set('state', e.target.value)} />
+            <select className="input" value={form.state ?? ''} onChange={(e) => { set('state', e.target.value); loadCities() }}>
+              <option value="">Select…</option>
+              {US_STATES.map((s) => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+            </select>
           </div>
           <div>
             <label className="label">Zip</label>
             <input className="input" value={form.zip ?? ''} onChange={(e) => set('zip', e.target.value)} />
           </div>
+        </div>
+        <div>
+          <label className="label">City</label>
+          <Combobox
+            value={form.city ?? ''}
+            onChange={(v) => set('city', v)}
+            onFocusLoad={loadCities}
+            placeholder={form.state ? 'Type a city…' : 'Pick a state first (or type any city)'}
+            search={(q) => searchCities(q, form.state || null).map((r) => ({ value: r.city, label: r.label }))}
+          />
         </div>
         <div className="sm:col-span-2">
           <label className="label">Address</label>
