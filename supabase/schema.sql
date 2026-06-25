@@ -121,6 +121,16 @@ create index if not exists idx_candidates_stage     on public.candidates(current
 -- For databases created before the checklist column existed.
 alter table public.candidates add column if not exists checklist jsonb not null default '{}'::jsonb;
 
+-- SharePoint sync bookkeeping: identify where a record came from and when the
+-- source last changed, so repeated pulls de-duplicate and only newer data wins.
+alter table public.candidates add column if not exists source_system text;          -- e.g. 'sharepoint'
+alter table public.candidates add column if not exists source_key    text;          -- stable natural key from the sheet
+alter table public.candidates add column if not exists source_modified timestamptz; -- source row/file last-modified
+-- One row per (source, key) => repeated syncs upsert instead of duplicating.
+create unique index if not exists uq_candidates_source
+  on public.candidates(source_system, source_key)
+  where source_system is not null and source_key is not null;
+
 -- ---------------------------------------------------------------------------
 -- STAGE HISTORY — audit trail of pipeline moves (auto-written by trigger)
 -- ---------------------------------------------------------------------------
@@ -160,18 +170,63 @@ returns text language sql security definer set search_path = public stable as $$
   select region from public.facilities where id = fid;
 $$;
 
--- First user to sign up becomes admin; everyone else a recruiter.
+-- Preset super-admins: these emails always become admin on first sign-in,
+-- regardless of order. Add/remove rows to manage who is auto-admin.
+create table if not exists public.preset_admins (
+  email text primary key
+);
+insert into public.preset_admins (email) values
+  ('npatel@amadministrators.com')
+on conflict (email) do nothing;
+
+-- Don't expose the admin email list publicly; only admins can read it.
+alter table public.preset_admins enable row level security;
+drop policy if exists "preset_admins_admin_only" on public.preset_admins;
+create policy "preset_admins_admin_only" on public.preset_admins
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- Assign each new auth user a role:
+--   1. a preset super-admin email  -> admin
+--   2. the very first user          -> admin (bootstrap)
+--   3. a role passed in invite metadata (admin invites set this) -> that role
+--   4. otherwise                    -> recruiter
+-- NOTE: for (3) to be safe, disable open self-sign-ups in Supabase Auth so the
+-- only way to create a user is an admin invite (Authentication -> Providers ->
+-- Email -> turn OFF "Allow new users to sign up").
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  assigned_role text;
+  meta_role text := new.raw_user_meta_data->>'role';
 begin
+  if exists (select 1 from public.preset_admins where lower(email) = lower(coalesce(new.email, ''))) then
+    assigned_role := 'admin';
+  elsif (select count(*) from public.profiles) = 0 then
+    assigned_role := 'admin';
+  elsif meta_role in ('admin', 'recruiter') then
+    assigned_role := meta_role;
+  else
+    assigned_role := 'recruiter';
+  end if;
+
   insert into public.profiles (id, email, full_name, role)
   values (
     new.id,
     coalesce(new.email, ''),
     coalesce(new.raw_user_meta_data->>'full_name', ''),
-    case when (select count(*) from public.profiles) = 0 then 'admin' else 'recruiter' end
+    assigned_role
   )
   on conflict (id) do nothing;
+
+  -- Apply any regions the inviting admin attached (comma-separated in metadata).
+  if new.raw_user_meta_data->>'regions' is not null then
+    insert into public.recruiter_regions (recruiter_id, region)
+    select new.id, trim(r)
+    from unnest(string_to_array(new.raw_user_meta_data->>'regions', ',')) as r
+    where trim(r) <> ''
+    on conflict do nothing;
+  end if;
+
   return new;
 end;
 $$;

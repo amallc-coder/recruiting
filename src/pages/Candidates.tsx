@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Download, Pencil, Trash2, Search } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { Plus, Download, Pencil, Trash2, Search, RefreshCw } from 'lucide-react'
+import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useProfiles } from '../hooks/useProfiles'
 import { useFacilities } from '../hooks/useFacilities'
@@ -43,6 +43,25 @@ export function Candidates() {
   const [stageFilter, setStageFilter] = useState<Stage | 'all' | 'active_pipeline'>('all')
   const [roleFilter, setRoleFilter] = useState<ClinicalRole | 'all'>('all')
   const [editing, setEditing] = useState<Partial<Candidate> | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  async function syncSharePoint() {
+    setSyncMsg(null)
+    if (demoMode) {
+      setSyncMsg('SharePoint sync runs server-side — connect Supabase and configure the sync function first.')
+      return
+    }
+    setSyncing(true)
+    const { data, error } = await supabase.functions.invoke('sync-sharepoint', { body: {} })
+    setSyncing(false)
+    if (error || data?.error) {
+      setSyncMsg(`Sync failed: ${data?.error || error?.message}`)
+      return
+    }
+    setSyncMsg(`Synced: ${data.added} added, ${data.updated} updated, ${data.skipped} unchanged.`)
+    load()
+  }
 
   async function load() {
     setLoading(true)
@@ -113,6 +132,12 @@ export function Candidates() {
           </p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <button className="btn-secondary" onClick={syncSharePoint} disabled={syncing}>
+              <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing…' : 'Sync SharePoint'}
+            </button>
+          )}
           <button className="btn-secondary" onClick={exportCsv} disabled={filtered.length === 0}>
             <Download size={16} /> Export
           </button>
@@ -121,6 +146,10 @@ export function Candidates() {
           </button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">{syncMsg}</div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">

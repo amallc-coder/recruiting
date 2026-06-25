@@ -99,11 +99,21 @@ Supabase → **Project Settings → API**: copy the **Project URL** and the
 > `/<repo-name>/`, or change `base` in `vite.config.ts`.
 
 ### 5. Create users & assign regions
-1. Supabase → **Authentication → Users → Add user** (email + temp password,
-   check **Auto Confirm User**).
-2. The **first** sign-in becomes **admin** automatically; others start as recruiters.
-3. On the in-app **Team** screen (admins only): set roles and **assign each
-   recruiter the regions they cover**.
+- **Preset super-admin:** `npatel@amadministrators.com` becomes admin
+  automatically on first sign-in (configured in `schema.sql`). The first user to
+  sign in is also made admin as a bootstrap.
+- **Invite teammates by email:** on the **Team → Invite teammate** screen, enter
+  an email, role, and regions — they get a link to set their own password.
+  Requires the `invite-user` Edge Function (see
+  [`docs/setup-auth-and-sync.md`](docs/setup-auth-and-sync.md)).
+- **Or add users manually:** Supabase → Authentication → Users → Add user, then
+  set role/regions on the Team screen.
+
+### 6. (Optional) One-click SharePoint sync
+A **Sync SharePoint** button can pull candidates straight from the team's Excel
+file via Microsoft Graph — de-duplicated, newest-wins. Needs an Entra app
+registration and a tabular worksheet; full setup in
+[`docs/setup-auth-and-sync.md`](docs/setup-auth-and-sync.md).
 
 ---
 
