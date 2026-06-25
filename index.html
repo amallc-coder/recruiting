@@ -9,9 +9,48 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f43f5'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='18' font-weight='bold' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E"
     />
     <title>Recruiting Tracker</title>
+    <style>
+      @keyframes rt-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot" style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;color:#57606a">
+        <div style="text-align:center">
+          <div style="width:40px;height:40px;border:3px solid #d0d7de;border-top-color:#1f43f5;border-radius:50%;margin:0 auto 14px;animation:rt-spin 1s linear infinite"></div>
+          Loading Recruiting Tracker…
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Self-healing boot guard. If React hasn't taken over #root within 9s, the
+      // page is almost always a STALE CACHED shell whose hashed asset files no
+      // longer exist on the server (so the app's JS 404s and the screen is blank).
+      // Bust the cache once with a query param; if it still fails, show an
+      // actionable message instead of a white screen.
+      (function () {
+        setTimeout(function () {
+          if (!document.getElementById('boot')) return; // app mounted — all good
+          try {
+            if (!sessionStorage.getItem('rt_cachebust')) {
+              sessionStorage.setItem('rt_cachebust', '1');
+              location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+              return;
+            }
+          } catch (e) { /* storage blocked — fall through to message */ }
+          var b = document.getElementById('boot');
+          if (b) {
+            b.innerHTML =
+              '<div style="text-align:center;max-width:430px;padding:24px;font-family:system-ui,sans-serif;color:#1f2328">' +
+              '<div style="font-size:17px;font-weight:600;margin-bottom:8px">Couldn’t load the app</div>' +
+              '<div style="font-size:14px;color:#57606a;line-height:1.55">This is usually a cached page. Do a <b>hard refresh</b> (Ctrl/Cmd&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R), or open it in a private/incognito window. If it keeps happening, your network may be blocking the app files.</div>' +
+              '<button onclick="try{sessionStorage.removeItem(\'rt_cachebust\')}catch(e){};location.replace(location.pathname+\'?v=\'+Date.now())" style="margin-top:16px;background:#1f43f5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer">Try again</button>' +
+              '</div>';
+          }
+        }, 9000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
