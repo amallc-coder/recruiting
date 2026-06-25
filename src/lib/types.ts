@@ -56,6 +56,7 @@ export interface CoverageNeed {
   need_count: number
   priority: Priority
   current_provider: string | null
+  description: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -76,6 +77,7 @@ export interface Candidate {
   background_cleared_date: string | null
   welcome_call_done: boolean
   start_date: string | null
+  resume_text: string | null
   checklist: Record<string, boolean>
   rating: number | null
   notes: string | null

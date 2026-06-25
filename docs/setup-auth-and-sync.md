@@ -93,3 +93,21 @@ records (assign regions/recruiters first for best matching).
 > Because the source sheets are freeform, treat the first few syncs as a dry run:
 > check the added/updated/skipped counts and spot-check a handful of records,
 > then refine the mapping.
+
+---
+
+## AI candidate matching (Claude)
+
+The **AI Matching** screen ranks candidates against an open position. It works
+offline with a built-in heuristic; to upgrade to **Claude (Opus 4.8)** scoring,
+deploy the `ai-match` Edge Function with an Anthropic API key:
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase functions deploy ai-match
+```
+
+The key lives only in the function (server-side) — it is never exposed to the
+browser. The app calls the function when present and silently falls back to the
+heuristic on any error, so matching never breaks. For best results, give each
+position a clear description and paste résumé text on candidates.

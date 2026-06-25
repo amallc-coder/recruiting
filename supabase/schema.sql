@@ -73,6 +73,7 @@ create table if not exists public.coverage_needs (
   priority          text not null default 'standard'
                       check (priority in ('standard','premium','urgent')),
   current_provider  text,          -- name(s) of provider(s) currently covering
+  description       text,          -- position verbiage / requirements (for AI matching)
   notes             text,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
@@ -104,6 +105,7 @@ create table if not exists public.candidates (
   background_cleared_date date,
   welcome_call_done       boolean not null default false,
   start_date              date,
+  resume_text   text,          -- pasted resume / profile summary (for AI matching)
   -- per-candidate hiring-handoff checklist; keys map to steps defined in the app
   -- (LPN flow vs NP/PA flow). Stored as { "<step_key>": true } for completed steps.
   checklist     jsonb not null default '{}'::jsonb,
@@ -120,6 +122,8 @@ create index if not exists idx_candidates_stage     on public.candidates(current
 
 -- For databases created before the checklist column existed.
 alter table public.candidates add column if not exists checklist jsonb not null default '{}'::jsonb;
+alter table public.candidates add column if not exists resume_text text;
+alter table public.coverage_needs add column if not exists description text;
 
 -- SharePoint sync bookkeeping: identify where a record came from and when the
 -- source last changed, so repeated pulls de-duplicate and only newer data wins.
