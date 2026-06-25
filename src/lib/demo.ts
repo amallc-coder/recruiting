@@ -415,22 +415,121 @@ function seedIfNeeded() {
     ['Alisha Milligan', 'milligan3158@gmail.com', 'rec-hannah', 'North Village Park', '2026-06-29', '660-651-0535', 'welcome_call'],
   ]
 
-  const resumeFor = (name: string, fac: string): string =>
-    `${name} — Licensed Practical Nurse. Active Missouri LPN license. Skilled in ` +
-    `medication administration, wound care, vitals, and EHR charting (PointClickCare). ` +
-    `Long-term care / skilled-nursing experience. Available full-time, day shift; ` +
-    `targeting ${fac}.`
+  // Ohio LPN pipeline (Embassy / AMA LTC / Divine / Lions 10 homes). Recruiter
+  // left unassigned (Ohio desk) so it shows for admins; facility maps where the
+  // home exists in the seed list, otherwise stays unassigned.
+  // [name, email, facilityQuery, startISO|'', phone, stage]
+  const OHIO_LPN: [string, string, string, string, string, string][] = [
+    ['Stephanie Pacileo', 'stephaniepacileo@gmail.com', 'Madison', '', '440-251-9106', 'cleared'],
+    ['Candice Brown', 'Candicebrown2721@gmail.com', 'Parkside', '', '', 'cleared'],
+    ['Hope Kuruzovich', 'hkuruzovich@gmail.com', 'Springfield', '', '', 'cleared'],
+    ['Emily Shore', 'emilyshore3@gmail.com', 'Seasons', '', '330-842-0876', 'cleared'],
+    ['Michelle Smith', 'Michellesmith9521@outlook.com', 'Longmeadow', '', '330-607-0258', 'cleared'],
+    ['Aurelia Yoho', 'yohoaurelia@yahoo.com', 'Autumnwood', '', '724-718-3204', 'background'],
+    ['Tanisha Reeves', 'tanishareeves0@gmail.com', 'Forest Hills', '', '380-223-6727', 'cleared'],
+    ['Jeffery Carobert', 'carobertjeffery97@gmail.com', 'Winchester', '', '754-262-9125', 'cleared'],
+    ['Jeanenne Cheney', 'jlcheney73@gmail.com', 'Swanton', '', '567-294-1838', 'cleared'],
+    ['Lori Fyffe', '', 'Carlisle', '', '', 'sourced'],
+    ['Jessica Reffitt', 'Jessicarene10281@gmail.com', 'Lebanon', '', '513-689-0700', 'cleared'],
+    ['Elizabeth Brennan', 'elizabethwbrennan@gmail.com', 'Royal Oak', '', '216-600-8685', 'cleared'],
+    ['Arresa Ervin', 'aervin42024@gmail.com', 'Grande Pavilion', '', '', 'cleared'],
+    ['Shelby Elliott', '', 'Grande Oaks', '2026-07-06', '', 'background'],
+    ['Michelle Harvey', 'micheleharvey22@gmail.com', 'Willard SNF', '', '419-908-6289', 'cleared'],
+    ['Melissa Easterling', 'melissa448754@gmail.com', 'Crystal Care', '', '', 'cleared'],
+    ['Erica Steele', 'Erica.snyd3r@gmail.com', 'Fostoria', '2026-07-06', '419-889-2994', 'cleared'],
+    ['Dominque Campbell', 'Dominiquen8891@gmail.com', 'Richmond', '', '330-775-6525', 'cleared'],
+    ['Tonisha Stowers', 'tonishastowers@yahoo.com', 'Oak Hills', '', '419-239-3027', 'cleared'],
+    ['Jaime Baker', 'jbaker7804@yahoo.com', 'Cambridge', '', '740-630-8578', 'background'],
+    ['Charmarie Krouse', 'clkrouse@gmail.com', 'Logan', '', '740-497-5322', 'cleared'],
+    ['Jennifer Sciacca', 'jennifer.sciacca87@gmail.com', 'Cridersville', '', '740-206-3243', 'cleared'],
+    ['Amber Browning', '', 'Autumn Court', '', '', 'background'],
+    ['Tiffany Stevens', '', 'Valley View', '2026-06-29', '', 'background'],
+    ['Gloria Turner', '', 'Wapakoneta', '2026-06-29', '', 'background'],
+    ['Nikita Tumpkin', 'nikitatumpkin@yahoo.com', 'Oak Grove', '2026-07-07', '313-412-7856', 'cleared'],
+    ['Lynzee Williams', 'lynzeewilliams03@gmail.com', 'Stellar', '2026-07-13', '937-405-3878', 'background'],
+    ['James Collins', '', 'Celina', '2026-06-22', '', 'background'],
+    ['Mari Susan Jones', 'susanlpn6@gmail.com', 'Shane Hill', '2026-06-22', '419-204-3745', 'cleared'],
+    ['Shaunda Schnipke', '', 'Defiance', '2026-07-13', '', 'cleared'],
+    ['Elizabeth Stevens', '', 'New Philadelphia', '', '', 'background'],
+    ['Shana Golden', '', '', '', '', 'cleared'],
+    ['Amanda Pimpas', '', '', '2026-06-29', '', 'background'],
+    ['Marissa Gray', 'graymj09@icloud.com', '', '', '220-267-2030', 'cleared'],
+    ['Shakiyla Dixon', '', '', '', '', 'cleared'],
+    ['Amber Kuhn', 'kuhn998@gmail.com', '', '', '440-805-9729', 'cleared'],
+    ['Helan Calvert', 'Hcalvert731@gmail.com', '', '', '740-801-8166', 'cleared'],
+    ['Andrea Cline', 'andreacline1996@gmail.com', '', '', '937-218-2384', 'declined'],
+    ["Bre'an Williams", 'williamsbrean@yahoo.com', '', '', '614-200-4330', 'cleared'],
+    ['Chardai Howard', 'chardaih24@gmail.com', '', '', '216-801-5393', 'cleared'],
+    ['Nicole Raab', 'nicoleraab1977@gmail.com', '', '', '440-567-5870', 'cleared'],
+    ['Briann Woods', '', '', '', '', 'cleared'],
+  ]
 
-  save('candidates', REAL.map(([full_name, email, recruiter_id, facQuery, start, phone, stage]) =>
+  // Missouri MA (medical assistant) onboarding list.
+  // [name, email, facilityQuery, startISO|'', phone, stage]
+  const MO_MA: [string, string, string, string, string, string][] = [
+    ['Lelya Topalo', '', '', '2026-04-21', '', 'active'],
+    ['Drenecia Quilling', '', '', '2026-04-07', '', 'active'],
+    ['Chandra Flakes', '', '', '2026-04-07', '', 'active'],
+    ['Ginger Beerbower', '', 'Fair View', '2026-04-21', '', 'active'],
+    ['Sherry Whitalker Reed', '', '', '2026-04-13', '', 'active'],
+    ['Sharanya Duvvuri', 'sharanya.duvvuri43@gmail.com', 'Bernard', '2026-06-01', '', 'background'],
+    ['Brooke Poe', 'Brookelynnpoe@gmail.com', '', '2026-04-28', '816-509-2977', 'active'],
+    ['Estephany Guerra', 'jassmin.e.melton@icloud.com', 'Brookfield', '2026-04-28', '858-413-4843', 'active'],
+  ]
+
+  // NP / PA / Psych provider candidates actively in recruiting.
+  // [name, role, facilityQuery, stage]
+  const PROVIDERS: [string, string, string, string][] = [
+    ['Kallie Bateman', 'np', '', 'accepted'],
+    ['Rebekah Graham', 'np', '', 'accepted'],
+    ['Julia Neubeck', 'np', 'Willard SNF', 'accepted'],
+    ['Antoinette Bequette', 'np', '', 'offer'],
+    ['Kaytlyn Ungerer', 'np', '', 'interview'],
+    ['Laura Schultz', 'np', '', 'interview'],
+    ['Tabatha Peters', 'np', 'Logan', 'sourced'],
+    ['Rebecca Dindenger', 'np', '', 'sourced'],
+    ['Angela Berry', 'psych_np', '', 'offer'],
+    ['Courtney Oyer', 'psych_np', 'Four Seasons', 'accepted'],
+    ['Uzma Nosheen', 'psych_np', '', 'sourced'],
+    ['Kerri Woodson', 'np', '', 'sourced'],
+  ]
+
+  const ROLE_NOUN: Record<string, string> = {
+    lpn: 'Licensed Practical Nurse', ma: 'Medical Assistant', np: 'Nurse Practitioner',
+    pa: 'Physician Assistant', md: 'Physician', psych_np: 'Psychiatric Nurse Practitioner',
+    wound: 'Wound Care Provider',
+  }
+  const resumeFor = (name: string, role: string, fac: string): string => {
+    const noun = ROLE_NOUN[role] ?? 'Clinician'
+    const base =
+      role === 'np' || role === 'pa' || role === 'psych_np' || role === 'md'
+        ? `${name} — ${noun}. Active license; geriatric / long-term care experience. Rounding, chronic disease management, and collaboration with the attending physician.`
+        : role === 'ma'
+        ? `${name} — ${noun}. Rooming, vitals, EHR charting, and front-office support in a skilled-nursing / clinic setting.`
+        : `${name} — ${noun}. Active license. Skilled in medication administration, wound care, vitals, and EHR charting (PointClickCare). Long-term care / skilled-nursing experience; available full-time, day shift.`
+    return fac ? `${base} Targeting ${fac}.` : base
+  }
+
+  const mk = (
+    full_name: string, role: string, email: string, recruiter_id: string | null,
+    facQuery: string, start: string, phone: string, stage: string,
+  ): Row =>
     stampInsert('candidates', {
-      full_name, role: 'lpn', email,
+      full_name, role, email: email || null,
       phone: phone || null,
       facility_id: facByName(facQuery),
       recruiter_id, current_stage: stage,
-      source: 'Indeed', resume_text: resumeFor(full_name, facQuery), checklist: {},
+      source: 'Indeed', resume_text: resumeFor(full_name, role, facQuery), checklist: {},
       ...(start ? { start_date: start } : {}),
-    }),
-  ))
+    })
+
+  const candidates: Row[] = [
+    ...REAL.map(([n, e, r, f, s, p, st]) => mk(n, 'lpn', e, r, f, s, p, st)),
+    ...OHIO_LPN.map(([n, e, f, s, p, st]) => mk(n, 'lpn', e, null, f, s, p, st)),
+    ...MO_MA.map(([n, e, f, s, p, st]) => mk(n, 'ma', e, null, f, s, p, st)),
+    ...PROVIDERS.map(([n, role, f, st]) => mk(n, role, '', null, f, '', '', st)),
+  ]
+  save('candidates', candidates)
 
   localStorage.setItem(SEEDED, '1')
 }
