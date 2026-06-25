@@ -8,7 +8,7 @@
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v2'
+const SEEDED = 'demo_seeded_v3'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -353,34 +353,84 @@ function seedIfNeeded() {
   save('facilities', facilities)
   save('coverage_needs', coverage)
 
-  // A few example candidates (with résumé text) so AI Matching and the board
-  // are populated. Delete them or hit "Reset" once you add your real ones.
-  const C = (full_name: string, facility_id: string, recruiter_id: string, stage: string, resume: string, role = 'lpn', extra: Row = {}): Row =>
+  // Real LPN recruiting pipeline imported from the team's SharePoint workbook
+  // (names/contacts as recorded by the recruiters). Stages reflect where each
+  // candidate sits in onboarding. Resume text is a generated summary so AI
+  // Matching has something to score against; replace with real resumes anytime.
+  const facByName = (q: string): string | null =>
+    facilities.find((f) => String(f.name).toLowerCase().includes(q.toLowerCase()))?.id as string ?? null
+
+  // [name, email, recruiterId, facilityQuery, startDateISO|'', phone, stage]
+  const REAL: [string, string, string, string, string, string, string][] = [
+    ['Toshia Russell', 'toshiaj1980@gmail.com', 'rec-hannah', 'Cedargate', '2026-05-11', '617-870-4911', 'accepted'],
+    ['Tamara Evans', 'tamtamevans16@gmail.com', 'rec-hannah', 'Brunswick', '2026-05-11', '660-542-4275', 'accepted'],
+    ['Katherine Matthews', 'dawnmat69@yahoo.com', 'rec-hannah', 'Greenville', '2026-05-25', '573-714-1809', 'accepted'],
+    ['Erika Lavington-Foster', 'emlfoster@sbcglobal.net', 'rec-hannah', 'Crestwood', '2026-05-18', '314-406-3988', 'accepted'],
+    ['Teresa Glover', 'teresa12111129@gmail.com', 'rec-hannah', 'North Village Park', '2026-06-01', '660-308-0477', 'accepted'],
+    ['Shelby Dale', 'dale.shelby15@gmail.com', 'rec-hannah', 'Eastview', '2026-05-25', '660-605-4407', 'declined'],
+    ['Anne Hoover', 'abhoover3694@gmail.com', 'rec-alex', 'Edgewood', '2026-06-01', '816-304-4454', 'accepted'],
+    ['Connie Watring', 'cwatring65@gmail.com', 'rec-alex', 'Legendary', '2026-05-26', '660-473-0650', 'accepted'],
+    ['Rayna Allee-Manning', 'rcamanning@gmail.com', 'rec-alex', 'Odessa', '2026-05-28', '816-716-7868', 'no_response'],
+    ['Lynka Dusabe', 'lynkadusabe@gmail.com', 'rec-alex', 'Gregory', '2026-05-26', '816-609-2376', 'accepted'],
+    ['Donna Thompson', 'dlt.nursing@gmail.com', 'rec-alex', 'Nortonville', '2026-06-01', '913-370-3935', 'accepted'],
+    ['Hope Amos', 'bartlett.hope97@gmail.com', 'rec-alex', 'Rest Haven', '2026-05-19', '660-310-2354', 'declined'],
+    ['Marie Willard', 'marielouise1492@gmail.com', 'rec-alex', 'Pettis County', '2026-06-15', '573-418-9555', 'accepted'],
+    ['Xaviera Roberts', 'xavieraroberts32@yahoo.com', 'rec-alex', 'Bridgewood', '2026-05-20', '816-807-2867', 'declined'],
+    ['Christina McKinzie', 'Christina.baker.0916@gmail.com', 'rec-alex', 'Nicks', '', '660-646-7970', 'offer'],
+    ['Ashleigh Heath', 'ashleighheath03@gmail.com', 'rec-alex', 'Holton', '', '785-501-8957', 'declined'],
+    ['Michelle Ross', 'shellydawn734@gmail.com', 'rec-hannah', 'Sarcoxie', '2026-06-01', '417-592-3343', 'accepted'],
+    ['Bradley Land', 'b.landexamone213467@gmail.com', 'rec-hannah', 'Stonecrest', '2026-06-08', '573-247-3564', 'accepted'],
+    ['Hobie Booker', 'hobiebooker2020@gmail.com', 'rec-hannah', 'Heritage', '', '618-704-1800', 'offer'],
+    ['Dana DuBois', 'danaleonard1030@gmail.com', 'rec-hannah', 'Wellsville', '2026-05-25', '309-242-3702', 'accepted'],
+    ['Heather Warren', 'col07bae@gmail.com', 'rec-hannah', 'St Elizabeth', '2026-06-15', '573-797-8022', 'no_response'],
+    ['Shamaya Johnson', 'shamia3700@gmail.com', 'rec-alex', 'Parkway', '', '913-221-3700', 'offer'],
+    ['Misty Zumwait', 'mistyz1976@gmail.com', 'rec-alex', 'Westview', '2026-06-08', '573-587-2186', 'welcome_call'],
+    ['Brooklyn Summer', 'mcnellybrooklyn@gmail.com', 'rec-alex', 'Four Seasons', '2026-06-08', '660-322-8208', 'welcome_call'],
+    ['Amanda Hopkins', 'ahopkins4382@gmail.com', 'rec-alex', 'Pettis County', '2026-06-08', '573-418-4107', 'welcome_call'],
+    ['Sharandell Wallace', 'sharandell@yahoo.com', 'rec-alex', 'Edgewood', '2026-06-08', '816-924-8183', 'welcome_call'],
+    ['Charlotte Daugherty', 'Cdaugherty523@yahoo.com', 'rec-alex', 'Bridgewood', '2026-06-08', '816-848-9257', 'welcome_call'],
+    ['Carrie Hardaway', 'charris63877@gmail.com', 'rec-hannah', 'Portageville', '2026-06-08', '573-922-3669', 'welcome_call'],
+    ['Keara Miller', 'kearamiller0@gmail.com', 'rec-hannah', 'Carrie Ellingson', '2026-06-15', '618-250-3500', 'welcome_call'],
+    ['Bianca Howard', 'howard_bianca@yahoo.com', 'rec-hannah', 'Bernard', '2026-06-15', '314-816-9700', 'welcome_call'],
+    ['Shernicka Smith', 'venusdreams77@gmail.com', 'rec-hannah', 'Grand Manor', '2026-06-01', '314-527-2216', 'welcome_call'],
+    ['Dominique Jones', 'jonesd0717@gmail.com', 'rec-hannah', 'Hidden Lake', '2026-06-15', '314-229-4430', 'welcome_call'],
+    ['Elizabeth Thomas', 'smittencajun@icloud.com', 'rec-hannah', 'Heritage', '2026-06-15', '573-823-4600', 'welcome_call'],
+    ['Chelsea Wiseman', 'chelsea.vinson@yahoo.com', 'rec-alex', 'Four Seasons', '2026-06-08', '660-619-7063', 'welcome_call'],
+    ['Brittany Widebrook', 'brittanywidebrook@gmail.com', 'rec-hannah', 'Chariton Park', '2026-06-08', '573-603-4382', 'welcome_call'],
+    ['Breanne Starwalt', 'ghmom1212@gmail.com', 'rec-alex', 'Milan', '2026-06-15', '217-820-1189', 'welcome_call'],
+    ['Monde Black', 'monderuben@gmail.com', 'rec-alex', 'Gregory', '2026-06-08', '830-356-1379', 'welcome_call'],
+    ['Carrie Campbell', 'nelcampfam7@gmail.com', 'rec-alex', 'Nicks', '2026-06-08', '816-590-4339', 'welcome_call'],
+    ['Kennique Keys', 'keneq_jd@hotmail.com', 'rec-hannah', 'Hillside', '2026-06-15', '', 'welcome_call'],
+    ['Ashlyn Tush', 'ashlyndyann16@gmail.com', 'rec-hannah', 'Brookfield', '2026-06-08', '785-517-1334', 'welcome_call'],
+    ['Rebeca Sousley', 'bekilou9279@gmail.com', 'rec-alex', 'Parkway', '2026-06-08', '660-334-8130', 'welcome_call'],
+    ['Lakiehsa Brown', 'keshabrown830@gmail.com', 'rec-alex', 'Bridgewood', '2026-06-29', '816-655-8828', 'welcome_call'],
+    ['Tabitha Schroeder', 'tabbys23@yahoo.com', 'rec-hannah', 'Sarcoxie', '2026-06-29', '918-285-6346', 'welcome_call'],
+    ['Maraget Swafford', 'maggieswafford68@gmail.com', 'rec-hannah', 'South County', '2026-06-29', '314-915-9947', 'welcome_call'],
+    ['Janelle Phipps', 'janelle.l.phipps@gmail.com', 'rec-hannah', 'Nathan Richard', '2026-06-29', '620-704-7808', 'welcome_call'],
+    ['Tiffany Hampton', 'tiffanyhampton98@yahoo.com', 'rec-hannah', 'Greenville', '2026-06-29', '573-778-6319', 'welcome_call'],
+    ['Julia Snapp', 'jgrace1982@gmail.com', 'rec-alex', 'Legendary', '2026-06-29', '660-815-5419', 'welcome_call'],
+    ['Carlene Merritt', 'merrittcarlene@ymail.com', 'rec-alex', 'Gregory', '2026-06-29', '816-612-7453', 'welcome_call'],
+    ['Dawn Johnson', 'dwnhuddleston@yahoo.com', 'rec-alex', 'Fair View', '2026-06-29', '660-619-8133', 'welcome_call'],
+    ['Krisitina Hewitt', 'kristinanurselife@gmail.com', 'rec-alex', 'Nortonville', '2026-06-29', '913-370-0922', 'welcome_call'],
+    ['Alisha Milligan', 'milligan3158@gmail.com', 'rec-hannah', 'North Village Park', '2026-06-29', '660-651-0535', 'welcome_call'],
+  ]
+
+  const resumeFor = (name: string, fac: string): string =>
+    `${name} — Licensed Practical Nurse. Active Missouri LPN license. Skilled in ` +
+    `medication administration, wound care, vitals, and EHR charting (PointClickCare). ` +
+    `Long-term care / skilled-nursing experience. Available full-time, day shift; ` +
+    `targeting ${fac}.`
+
+  save('candidates', REAL.map(([full_name, email, recruiter_id, facQuery, start, phone, stage]) =>
     stampInsert('candidates', {
-      full_name, role, facility_id, recruiter_id, current_stage: stage,
-      email: full_name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
-      source: 'Indeed', resume_text: resume, checklist: {}, ...extra,
-    })
-  save('candidates', [
-    C('Xaviera Roberts', 'f1', 'rec-alex', 'accepted',
-      'Licensed Practical Nurse with 6 years in skilled nursing / long-term care. Active Missouri LPN license. Skilled in medication administration, wound care, vitals, and EHR charting in PointClickCare. Available for 5 day/week day shift in the Kansas City area.',
-      'lpn', { rating: 5, start_date: '2026-07-06' }),
-    C('Erika Lavington-Foster', 'f31', 'rec-hannah', 'offer',
-      'Experienced LPN, 8 years in LTC and rehab. Charge nurse experience supervising CNAs. Strong wound care and medication administration; thorough EHR charting. St. Louis based.',
-      'lpn', { rating: 4 }),
-    C('Toshia Russell', 'f20', 'rec-hannah', 'interview',
-      'LPN with 3 years SNF experience. IV certified, wound care, BLS. Active Missouri license. Seeking full-time day shift.',
-      'lpn', {}),
-    C('Tamara Evans', 'f10', 'rec-hannah', 'background',
-      'LPN new graduate. Recent clinical rotations in long-term care. BLS certified, eager to build medication-administration experience.',
-      'lpn', {}),
-    C('Hope Amos', 'f28', 'rec-alex', 'sourced',
-      'LPN, 2 years assisted living. Medication pass, vitals, resident care. Looking to move into skilled nursing.',
-      'lpn', {}),
-    C('Sara Koenemann', 'f48', 'rec-hannah', 'interview',
-      'Nurse Practitioner with 5 years of geriatric primary care in skilled nursing facilities. Manages chronic conditions, rounds on residents, and collaborates with attending physicians. Active NP license.',
-      'np', {}),
-  ])
+      full_name, role: 'lpn', email,
+      phone: phone || null,
+      facility_id: facByName(facQuery),
+      recruiter_id, current_stage: stage,
+      source: 'Indeed', resume_text: resumeFor(full_name, facQuery), checklist: {},
+      ...(start ? { start_date: start } : {}),
+    }),
+  ))
 
   localStorage.setItem(SEEDED, '1')
 }
