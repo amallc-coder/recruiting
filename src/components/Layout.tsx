@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, X } from 'lucide-react'
+import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
@@ -8,15 +8,14 @@ import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 function Wordmark() {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-ink">
-        <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden>
-          <rect x="6" y="17" width="4" height="9" rx="1.4" fill="#6e9a6a" />
-          <rect x="14" y="11" width="4" height="15" rx="1.4" fill="#cd7c4f" />
-          <rect x="22" y="7" width="4" height="19" rx="1.4" fill="#f4f1ea" />
-        </svg>
-      </span>
-      <span className="text-[15px] font-semibold tracking-tight text-ink">clinilytics</span>
-      <span className="rounded bg-ink px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-paper">
+      {/* Three stacked terracotta bars — the Clinilytics mark. */}
+      <svg width="24" height="20" viewBox="0 0 24 20" aria-hidden className="shrink-0">
+        <rect x="1.5" y="2.2" width="11" height="3.4" rx="1.7" fill="#c96f43" />
+        <rect x="1.5" y="8.3" width="21" height="3.4" rx="1.7" fill="#c96f43" />
+        <rect x="1.5" y="14.4" width="15" height="3.4" rx="1.7" fill="#c96f43" />
+      </svg>
+      <span className="text-[18px] font-bold lowercase tracking-tight text-ink">clinilytics</span>
+      <span className="rounded-full bg-sage-50 px-2.5 py-0.5 text-xs font-medium text-sage-700 ring-1 ring-inset ring-sage-100">
         ATS
       </span>
     </div>
@@ -47,88 +46,146 @@ function DemoBanner() {
   )
 }
 
+const tabClass = ({ isActive }: { isActive: boolean }) =>
+  `whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+    isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'
+  }`
+
 export function Layout() {
   const { profile, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+  const adminRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (adminRef.current && !adminRef.current.contains(e.target as Node)) setAdminOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
 
   async function handleSignOut() {
     await signOut()
-    if (demoMode) {
-      window.location.hash = '#/login'
-      window.location.reload()
-      return
-    }
+    if (demoMode) { window.location.hash = '#/login'; window.location.reload(); return }
     navigate('/login')
   }
 
-  const links = [
+  // Product tabs (everyone) in the lower bar; admin tools live under the Admin menu.
+  const tabs = [
     { to: '/', label: 'Dashboard', end: true },
-    { to: '/facilities', label: 'Facilities' },
-    { to: '/candidates', label: 'Candidates' },
-    { to: '/matching', label: 'Matching' },
-    { to: '/positions', label: 'Positions' },
-    ...(isAdmin ? [{ to: '/import', label: 'Import', end: false }] : []),
-    ...(isAdmin && !demoMode ? [{ to: '/setup', label: 'Setup', end: false }] : []),
-    ...(isAdmin ? [{ to: '/team', label: 'Team', end: false }] : []),
+    { to: '/facilities', label: 'Facilities', end: false },
+    { to: '/candidates', label: 'Candidates', end: false },
+    { to: '/matching', label: 'Matching', end: false },
+    { to: '/positions', label: 'Positions', end: false },
   ]
-
-  const tabClass = ({ isActive }: { isActive: boolean }) =>
-    `whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-      isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'
-    }`
+  const adminLinks = [
+    { to: '/team', label: 'Team', icon: Users },
+    { to: '/import', label: 'Import', icon: Upload },
+    ...(!demoMode ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
+  ]
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <DemoBanner />
 
-      <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4">
-          <Wordmark />
+      <header className="sticky top-0 z-30">
+        {/* ── Top layer: brand + account controls ── */}
+        <div className="border-b border-line bg-surface/90 backdrop-blur">
+          <div className="mx-auto flex h-12 max-w-[1440px] items-center gap-3 px-4">
+            <Wordmark />
 
-          {/* Desktop nav */}
-          <nav className="hidden flex-1 items-center gap-1 overflow-x-auto md:flex">
-            {links.map(({ to, label, end }) => (
+            <div className="ml-auto flex items-center gap-2">
+              {/* live status */}
+              <span className="hidden items-center gap-1.5 px-1.5 text-sm text-muted sm:inline-flex">
+                <span className={`h-2 w-2 rounded-full ${demoMode ? 'bg-clay-500' : 'bg-sage-500'}`} />
+                {demoMode ? 'Local' : 'Live'}
+              </span>
+
+              {/* settings */}
+              {isAdmin && (
+                <NavLink
+                  to={demoMode ? '/team' : '/setup'}
+                  title="Settings"
+                  className={({ isActive }) =>
+                    `hidden h-8 w-8 items-center justify-center rounded-md border border-line bg-surface hover:bg-brand-50 sm:inline-flex ${isActive ? 'text-ink' : 'text-muted hover:text-ink'}`
+                  }
+                >
+                  <Settings size={16} />
+                </NavLink>
+              )}
+
+              {/* Admin menu */}
+              {isAdmin && (
+                <div className="relative hidden sm:block" ref={adminRef}>
+                  <button
+                    onClick={() => setAdminOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm font-medium text-ink hover:bg-brand-50"
+                  >
+                    Admin
+                    <ChevronDown size={13} className={adminOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                  </button>
+                  {adminOpen && (
+                    <div className="absolute right-0 z-40 mt-1.5 w-48 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-lg">
+                      <div className="border-b border-line px-3 py-2">
+                        <div className="truncate text-sm font-medium text-ink">{profile?.full_name || profile?.email}</div>
+                        <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{profile?.role}</div>
+                      </div>
+                      {adminLinks.map(({ to, label, icon: Icon }) => (
+                        <NavLink
+                          key={to}
+                          to={to}
+                          onClick={() => setAdminOpen(false)}
+                          className={({ isActive }) =>
+                            `flex items-center gap-2 px-3 py-2 text-sm ${isActive ? 'bg-brand-50 text-ink' : 'text-muted hover:bg-brand-50 hover:text-ink'}`
+                          }
+                        >
+                          <Icon size={15} /> {label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleSignOut}
+                className="hidden items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm font-medium text-ink hover:bg-brand-50 sm:inline-flex"
+              >
+                <LogOut size={15} /> Sign out
+              </button>
+
+              {/* mobile toggle */}
+              <button className="text-muted md:hidden" onClick={() => setOpen((v) => !v)} aria-label="Menu">
+                {open ? <X size={22} /> : <Menu size={22} />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Bottom layer: product navigation ── */}
+        <div className="hidden border-b border-line bg-surface md:block">
+          <nav className="mx-auto flex h-11 max-w-[1440px] items-center gap-1 overflow-x-auto px-4">
+            {tabs.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={end} className={tabClass}>
                 {label}
               </NavLink>
             ))}
           </nav>
-
-          <div className="ml-auto flex items-center gap-2 md:ml-0">
-            {/* connection / mode chip */}
-            <span className="hidden items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-mono text-[11px] tracking-wide text-muted sm:inline-flex">
-              <span className={`h-1.5 w-1.5 rounded-full ${demoMode ? 'bg-clay-500' : 'bg-sage-500'}`} />
-              {demoMode ? 'LOCAL' : 'CONNECTED'}
-            </span>
-
-            {/* user */}
-            <div className="hidden text-right leading-tight sm:block">
-              <div className="max-w-[150px] truncate text-xs font-medium text-ink">
-                {profile?.full_name || profile?.email || 'You'}
-              </div>
-              <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{profile?.role}</div>
-            </div>
-            <button
-              onClick={handleSignOut}
-              className="hidden items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted hover:bg-brand-50 hover:text-ink sm:inline-flex"
-            >
-              <LogOut size={15} /> Sign out
-            </button>
-
-            {/* mobile menu toggle */}
-            <button className="text-muted md:hidden" onClick={() => setOpen((v) => !v)} aria-label="Menu">
-              {open ? <X size={22} /> : <Menu size={22} />}
-            </button>
-          </div>
         </div>
 
-        {/* Mobile nav drawer */}
+        {/* ── Mobile drawer ── */}
         {open && (
-          <nav className="border-t border-line bg-surface px-3 py-2 md:hidden">
+          <div className="border-b border-line bg-surface px-3 py-2 md:hidden">
             <div className="grid grid-cols-2 gap-1">
-              {links.map(({ to, label, end }) => (
+              {tabs.map(({ to, label, end }) => (
                 <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)} className={tabClass}>
+                  {label}
+                </NavLink>
+              ))}
+              {isAdmin && adminLinks.map(({ to, label }) => (
+                <NavLink key={to} to={to} onClick={() => setOpen(false)} className={tabClass}>
                   {label}
                 </NavLink>
               ))}
@@ -142,7 +199,7 @@ export function Layout() {
                 <LogOut size={15} /> Sign out
               </button>
             </div>
-          </nav>
+          </div>
         )}
       </header>
 
