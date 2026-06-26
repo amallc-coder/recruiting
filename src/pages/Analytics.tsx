@@ -439,7 +439,7 @@ function ExecutiveView({ days }: { days: number | null }) {
         <ExportButton filename="recruiter-leaderboard.csv" rows={data.leaderboard as unknown as Record<string, unknown>[]} meta={{ view: 'executive' }} />
       </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Open jobs" value={k.openJobs} />
+        <StatCard label="Open jobs" value={k.openJobs} hint={`${k.openPositions} open positions`} />
         <StatCard label="Active candidates" value={k.activeCandidates} />
         <StatCard label="Applications" value={k.applications} hint="in period" />
         <StatCard label="Offers out" value={k.offers} tone={k.offers > 0 ? 'good' : 'default'} />

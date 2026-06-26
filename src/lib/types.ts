@@ -25,6 +25,7 @@ export interface Profile {
   email: string
   role: Role
   active: boolean
+  placeholder?: boolean
   created_at: string
   updated_at: string
 }

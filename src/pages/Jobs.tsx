@@ -86,14 +86,21 @@ export function Jobs() {
     return c
   }, [jobs])
 
+  // "Open positions" = sum of remaining (or total) openings on published jobs.
+  const openStats = useMemo(() => {
+    const published = jobs.filter((j) => j.status === 'published')
+    const openPositions = published.reduce((s, j) => s + (j.openings_remaining ?? j.openings ?? 1), 0)
+    return { publishedReqs: published.length, openPositions }
+  }, [jobs])
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Jobs</h1>
           <p className="text-sm text-muted">
-            Create and manage openings. Published jobs appear on your public career page.{' '}
-            {jobs.length} total.
+            <strong className="text-ink">{openStats.openPositions}</strong> open position{openStats.openPositions !== 1 ? 's' : ''} across{' '}
+            {openStats.publishedReqs} published requisition{openStats.publishedReqs !== 1 ? 's' : ''} · {jobs.length} total.
           </p>
         </div>
         <div className="flex gap-2">
@@ -165,7 +172,13 @@ export function Jobs() {
                       {j.department && <span>{j.department}</span>}
                       <span>· {EMPLOYMENT_LABELS[j.employment_type]}</span>
                       <span>· {WORKPLACE_LABELS[j.workplace]}</span>
-                      {j.openings > 1 && <span>· {j.openings} openings</span>}
+                      {(j.openings > 1 || j.openings_remaining != null) && (
+                        <span className="font-medium text-ink">
+                          · {j.openings_remaining != null && j.openings_remaining !== j.openings
+                            ? `${j.openings_remaining} of ${j.openings}`
+                            : j.openings} open
+                        </span>
+                      )}
                       {formatSalary(j) && <span>· {formatSalary(j)}</span>}
                     </div>
                   </td>
