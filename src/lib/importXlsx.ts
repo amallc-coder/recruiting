@@ -187,6 +187,82 @@ export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
   return out
 }
 
+// ---- Openings -> Jobs --------------------------------------------------------
+// Each Recruitment Team Sheet row IS an opening (requisition). This pulls the
+// job/opening out of every row: title (Position), location (City/Region +
+// State), department (Division/Business), facility, recruiter, how many
+// openings, and whether it's still open.
+
+export interface MappedJob {
+  title: string
+  department: string | null
+  location: string | null
+  state: string | null
+  city: string | null
+  facilityText: string | null
+  recruiter: string | null
+  role: ClinicalRole
+  openings: number
+  openings_remaining: number | null
+  status: 'published' | 'closed'
+  open_date: string | null
+  close_date: string | null
+  sheet: string
+}
+
+export function extractTeamSheetJobs(sheet: ParsedSheet): MappedJob[] {
+  const H = sheet.headers.map((h) => norm(h))
+  const find = (re: RegExp) => H.findIndex((h) => re.test(h))
+  const stateI = find(/^state$/)
+  const cityI = find(/^city|region/)
+  const facI = find(/facility name|clinic name|^facility$/)
+  const posI = find(/^position$/)
+  const recI = find(/^recruiter$/)
+  const divI = find(/^division$/)
+  const busI = find(/^business$/)
+  const openI = find(/^openings$/)
+  const remainI = find(/openings remaining/)
+  const dOpenI = find(/date open/)
+  const dCloseI = find(/date closed/)
+
+  const out: MappedJob[] = []
+  for (const row of sheet.rows) {
+    const cells = sheet.headers.map((h) => row[h] ?? '')
+    const title = String(posI >= 0 ? cells[posI] : '').trim()
+    if (!title || /^position$/i.test(title)) continue
+
+    const state = String(stateI >= 0 ? cells[stateI] : '').trim()
+    const city = String(cityI >= 0 ? cells[cityI] : '').trim()
+    const openingsRaw = String(openI >= 0 ? cells[openI] : '').trim()
+    const openings = Math.max(1, Math.round(Number(openingsRaw) || 1))
+    const remainRaw = String(remainI >= 0 ? cells[remainI] : '').trim()
+    const openings_remaining = remainRaw === '' ? null : Math.max(0, Math.round(Number(remainRaw) || 0))
+    const close_date = dCloseI >= 0 ? mapDate(String(cells[dCloseI])) : null
+    const status: 'published' | 'closed' = openings_remaining === 0 || close_date ? 'closed' : 'published'
+    const dept = String((divI >= 0 ? cells[divI] : '') || (busI >= 0 ? cells[busI] : '')).trim()
+
+    out.push({
+      title,
+      department: dept || null,
+      // City/Region in this sheet often already carries the state; fall back to
+      // the State column only when there's no city, to avoid doubling it.
+      location: city || state || null,
+      state: state || null,
+      city: city || null,
+      facilityText: String(facI >= 0 ? cells[facI] : '').trim() || null,
+      recruiter: String(recI >= 0 ? cells[recI] : '').trim() || null,
+      role: mapRole(title),
+      openings,
+      openings_remaining,
+      status,
+      open_date: dOpenI >= 0 ? mapDate(String(cells[dOpenI])) : null,
+      close_date,
+      sheet: sheet.name,
+    })
+  }
+  return out
+}
+
 // Excel serial date or text date -> ISO yyyy-mm-dd (best effort).
 export function mapDate(raw: string): string | null {
   const v = String(raw ?? '').trim()

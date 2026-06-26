@@ -482,6 +482,9 @@ create index if not exists idx_jobs_company   on public.jobs(company_id);
 create index if not exists idx_jobs_status     on public.jobs(status);
 create index if not exists idx_jobs_recruiter  on public.jobs(assigned_recruiter_id);
 create unique index if not exists uq_jobs_slug on public.jobs(slug) where slug is not null;
+-- Number of openings per requisition (from imported recruiting sheets).
+alter table public.jobs add column if not exists openings int not null default 1;
+alter table public.jobs add column if not exists openings_remaining int;
 
 -- ---------------------------------------------------------------------------
 -- APPLICATIONS — a person applying to a job (career page or manual add)

@@ -165,6 +165,7 @@ export function Jobs() {
                       {j.department && <span>{j.department}</span>}
                       <span>· {EMPLOYMENT_LABELS[j.employment_type]}</span>
                       <span>· {WORKPLACE_LABELS[j.workplace]}</span>
+                      {j.openings > 1 && <span>· {j.openings} openings</span>}
                       {formatSalary(j) && <span>· {formatSalary(j)}</span>}
                     </div>
                   </td>
@@ -229,6 +230,7 @@ export function JobModal({
   const [benefits, setBenefits] = useState(job?.benefits ?? '')
   const [status, setStatus] = useState<JobStatus>(job?.status ?? 'draft')
   const [visibility, setVisibility] = useState<'public' | 'internal'>(job?.visibility ?? 'public')
+  const [openings, setOpenings] = useState(job?.openings?.toString() ?? '1')
   const [aiBusy, setAiBusy] = useState(false)
   const [aiNote, setAiNote] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -272,6 +274,7 @@ export function JobModal({
       benefits: benefits.trim() || null,
       status,
       visibility,
+      openings: openings ? Math.max(1, Number(openings)) : 1,
       slug: slugify(title) + '-' + (job?.id ?? '').slice(0, 4) || slugify(title),
       updated_by: currentUserId,
     }
@@ -394,7 +397,11 @@ export function JobModal({
           <textarea className="input min-h-[60px]" value={benefits} onChange={(e) => setBenefits(e.target.value)} />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className="label">Openings</label>
+            <input className="input" type="number" min="1" value={openings} onChange={(e) => setOpenings(e.target.value)} />
+          </div>
           <div>
             <label className="label">Status</label>
             <select className="input" value={status} onChange={(e) => setStatus(e.target.value as JobStatus)}>
