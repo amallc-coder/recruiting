@@ -56,6 +56,65 @@ function pipelineConversion(candidates: Candidate[]): { from: string; to: string
   }))
 }
 
+// ---- Candidate-journey timestamps (skew-safe) -------------------------------
+// Time-based KPIs are computed from the real recorded timeline in
+// candidate_stage_history (each stage change is timestamped + attributed when a
+// recruiter acts on the platform). Bulk-IMPORTED candidates carry a stage but
+// not a genuine recorded journey — their history is stamped at import time — so
+// they are EXCLUDED from every duration metric to avoid skewing results. They
+// still count toward volume metrics (totals, funnel, counts).
+export const isNativeCandidate = (c: Pick<Candidate, 'source'>) =>
+  !/^(import|sharepoint)$/i.test((c.source || '').trim())
+
+interface HistRow { candidate_id: string; to_stage: string; created_at: string }
+type Journeys = Map<string, { entered: Record<string, number>; last: number }>
+
+async function loadStageHistory(): Promise<HistRow[]> {
+  const { data } = await supabase.from('candidate_stage_history').select('candidate_id,to_stage,created_at')
+  return (data as HistRow[]) ?? []
+}
+
+/** First timestamp each NATIVE candidate entered each stage (ms). */
+function buildJourneys(history: HistRow[], candidates: Candidate[], days: number | null): Journeys {
+  const native = new Set(candidates.filter(isNativeCandidate).map((c) => c.id))
+  const rows = [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const map: Journeys = new Map()
+  for (const h of rows) {
+    if (!native.has(h.candidate_id)) continue
+    const t = new Date(h.created_at).getTime()
+    let j = map.get(h.candidate_id)
+    if (!j) { j = { entered: {}, last: 0 }; map.set(h.candidate_id, j) }
+    if (j.entered[h.to_stage] === undefined) j.entered[h.to_stage] = t
+    if (t > j.last) j.last = t
+  }
+  if (days != null) {
+    const since = sinceMs(days)
+    for (const [id, j] of map) {
+      const start = j.entered.sourced ?? Math.min(...Object.values(j.entered))
+      if (!(start >= since)) map.delete(id)
+    }
+  }
+  return map
+}
+
+function durationsDays(journeys: Journeys, from: string, to: string): number[] {
+  const out: number[] = []
+  for (const j of journeys.values()) {
+    const a = j.entered[from], b = j.entered[to]
+    if (a != null && b != null && b >= a) out.push((b - a) / 86400_000)
+  }
+  return out
+}
+function durStat(arr: number[]) {
+  if (!arr.length) return { avgDays: null as number | null, medianDays: null as number | null, n: 0 }
+  const sorted = [...arr].sort((x, y) => x - y)
+  return {
+    avgDays: Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 10) / 10,
+    medianDays: Math.round(sorted[Math.floor((sorted.length - 1) / 2)] * 10) / 10,
+    n: arr.length,
+  }
+}
+
 export interface ExecutiveData {
   kpis: { openJobs: number; openPositions: number; activeCandidates: number; applications: number; offers: number; hires: number; avgTimeToHire: number | null }
   funnel: { stage: string; count: number }[]
@@ -66,11 +125,12 @@ export interface ExecutiveData {
 }
 
 export async function getExecutive(days: number | null): Promise<ExecutiveData> {
-  const [{ data: cData }, { data: aData }, { data: jData }, { data: pData }] = await Promise.all([
+  const [{ data: cData }, { data: aData }, { data: jData }, { data: pData }, history] = await Promise.all([
     supabase.from('candidates').select('*'),
     supabase.from('applications').select('*'),
     supabase.from('jobs').select('*'),
     supabase.from('profiles').select('*'),
+    loadStageHistory(),
   ])
   const candidates = (cData as Candidate[]) ?? []
   const applications = (aData as Application[]) ?? []
@@ -80,15 +140,10 @@ export async function getExecutive(days: number | null): Promise<ExecutiveData> 
   const periodCands = candidates.filter((c) => inPeriod(c.created_at, days))
   const periodApps = applications.filter((a) => inPeriod(a.created_at, days))
 
-  // Time to hire (days) for hired candidates with a start date.
-  const tth: number[] = []
-  for (const c of candidates) {
-    if (c.current_stage === 'active' && c.start_date && c.created_at) {
-      const d = (new Date(c.start_date).getTime() - new Date(c.created_at).getTime()) / 86400_000
-      if (d >= 0 && d < 400) tth.push(d)
-    }
-  }
-  const avgTimeToHire = tth.length ? Math.round(tth.reduce((s, n) => s + n, 0) / tth.length) : null
+  // Time to hire from the real recorded journey (sourced → active), native
+  // candidates only — imported records are excluded so the metric isn't skewed.
+  const journeys = buildJourneys(history, candidates, days)
+  const avgTimeToHire = durStat(durationsDays(journeys, 'sourced', 'active')).avgDays
 
   const publishedJobs = jobs.filter((j) => j.status === 'published')
   const kpis = {
@@ -234,39 +289,74 @@ export interface PipelineData {
 }
 
 export async function getPipeline(days: number | null): Promise<PipelineData> {
-  const { data } = await supabase.from('candidates').select('*')
-  const candidates = ((data as Candidate[]) ?? []).filter((c) => inPeriod(c.created_at, days))
+  const [{ data: cData }, history] = await Promise.all([
+    supabase.from('candidates').select('*'),
+    loadStageHistory(),
+  ])
+  const allCandidates = (cData as Candidate[]) ?? []
+  const candidates = allCandidates.filter((c) => inPeriod(c.created_at, days))
 
   const perStage = PIPELINE_STAGES.map((stage) => ({
     stage: STAGE_LABELS[stage],
     count: candidates.filter((c) => c.current_stage === stage).length,
   }))
 
-  // Stage aging: average days candidates have sat in their current stage
-  // (now − last update). The stage with the highest aging is the bottleneck.
+  // Stage aging: average days NATIVE candidates have sat in their current stage,
+  // measured from when they actually entered it (recorded timeline). Imported
+  // records are excluded so a recent bulk import can't mask a real bottleneck.
+  const journeys = buildJourneys(history, allCandidates, days)
+  const byId = new Map(allCandidates.map((c) => [c.id, c]))
   const agingRaw = PIPELINE_STAGES.filter((s) => s !== 'active').map((stage) => {
-    const here = candidates.filter((c) => c.current_stage === stage)
-    const days = here.map((c) => (Date.now() - new Date(c.updated_at || c.created_at).getTime()) / 86400_000)
-    const avg = days.length ? days.reduce((s, n) => s + n, 0) / days.length : 0
-    return { stage: STAGE_LABELS[stage], avgDays: Math.round(avg), count: here.length }
+    const ds: number[] = []
+    for (const [id, j] of journeys) {
+      const c = byId.get(id)
+      if (c?.current_stage === stage && j.entered[stage] != null) ds.push((Date.now() - j.entered[stage]) / 86400_000)
+    }
+    const avg = ds.length ? ds.reduce((s, n) => s + n, 0) / ds.length : 0
+    return { stage: STAGE_LABELS[stage], avgDays: Math.round(avg), count: ds.length }
   })
   const maxAging = Math.max(0, ...agingRaw.filter((a) => a.count > 0).map((a) => a.avgDays))
   const aging = agingRaw.map((a) => ({ ...a, bottleneck: a.count > 0 && a.avgDays === maxAging && maxAging > 0 }))
-
-  const tth: number[] = []
-  for (const c of candidates) {
-    if (c.current_stage === 'active' && c.start_date && c.created_at) {
-      const d = (new Date(c.start_date).getTime() - new Date(c.created_at).getTime()) / 86400_000
-      if (d >= 0 && d < 400) tth.push(d)
-    }
-  }
 
   return {
     perStage,
     conversion: pipelineConversion(candidates),
     aging,
-    avgTimeToHire: tth.length ? Math.round(tth.reduce((s, n) => s + n, 0) / tth.length) : null,
+    avgTimeToHire: durStat(durationsDays(journeys, 'sourced', 'active')).avgDays,
     totalActive: candidates.filter((c) => c.current_stage === 'active').length,
+  }
+}
+
+export interface JourneyData {
+  qualifying: number
+  excludedImports: number
+  kpis: { key: string; label: string; avgDays: number | null; medianDays: number | null; n: number }[]
+}
+
+const JOURNEY_MILESTONES: { key: string; label: string; from: string; to: string }[] = [
+  { key: 'src_int', label: 'Sourced → Interview', from: 'sourced', to: 'interview' },
+  { key: 'int_off', label: 'Interview → Offer', from: 'interview', to: 'offer' },
+  { key: 'off_hire', label: 'Offer → Hired', from: 'offer', to: 'active' },
+  { key: 'src_off', label: 'Time to Offer (sourced → offer)', from: 'sourced', to: 'offer' },
+  { key: 'src_hire', label: 'Time to Hire (sourced → hired)', from: 'sourced', to: 'active' },
+]
+
+/** Candidate-journey time KPIs. Computed only from natively-tracked candidates;
+ *  imported records are excluded and reported separately to avoid skew. */
+export async function getJourney(days: number | null): Promise<JourneyData> {
+  const [{ data: cData }, history] = await Promise.all([
+    supabase.from('candidates').select('id,source,current_stage,created_at'),
+    loadStageHistory(),
+  ])
+  const candidates = (cData as Candidate[]) ?? []
+  const journeys = buildJourneys(history, candidates, days)
+  const kpis = JOURNEY_MILESTONES.map((m) => ({
+    key: m.key, label: m.label, ...durStat(durationsDays(journeys, m.from, m.to)),
+  }))
+  return {
+    qualifying: journeys.size,
+    excludedImports: candidates.filter((c) => !isNativeCandidate(c)).length,
+    kpis,
   }
 }
 
