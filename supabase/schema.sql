@@ -1010,6 +1010,71 @@ create policy "costs_admin" on public.recruiting_costs
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- =============================================================================
+-- STRICT RBAC ISOLATION (enabled)
+-- =============================================================================
+-- Recruiters see ONLY the people-records assigned to them; admins see
+-- everything. This OVERRIDES the earlier region-based policies for candidates,
+-- stage history, jobs, interviews, and offers (later policy definitions win).
+-- Facility / coverage reference data remain region-scoped so candidates still
+-- have facility context. Server-enforced — client-side checks are not relied on.
+
+-- candidates: assigned recruiter or admin only
+drop policy if exists "candidates_select" on public.candidates;
+create policy "candidates_select" on public.candidates
+  for select using (public.is_admin() or recruiter_id = auth.uid());
+drop policy if exists "candidates_insert" on public.candidates;
+create policy "candidates_insert" on public.candidates
+  for insert with check (public.is_admin() or recruiter_id = auth.uid());
+drop policy if exists "candidates_update" on public.candidates;
+create policy "candidates_update" on public.candidates
+  for update using (public.is_admin() or recruiter_id = auth.uid())
+  with check (public.is_admin() or recruiter_id = auth.uid());
+drop policy if exists "candidates_delete" on public.candidates;
+create policy "candidates_delete" on public.candidates
+  for delete using (public.is_admin() or recruiter_id = auth.uid());
+
+-- stage history: only for candidates the caller owns
+drop policy if exists "history_select" on public.candidate_stage_history;
+create policy "history_select" on public.candidate_stage_history
+  for select using (
+    public.is_admin() or exists (
+      select 1 from public.candidates c
+      where c.id = candidate_id and c.recruiter_id = auth.uid()
+    )
+  );
+
+-- jobs: the career page still reads published+public; otherwise admin, the
+-- assigned recruiter, or the hiring manager only (no blanket signed-in read).
+drop policy if exists "jobs_read" on public.jobs;
+create policy "jobs_read" on public.jobs
+  for select using (
+    (status = 'published' and visibility = 'public')
+    or public.is_admin()
+    or assigned_recruiter_id = auth.uid()
+    or hiring_manager_id = auth.uid()
+  );
+
+-- interviews / offers: strict to the candidate's assigned recruiter
+drop policy if exists "interviews_access" on public.interviews;
+create policy "interviews_access" on public.interviews
+  for all using (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id and c.recruiter_id = auth.uid())
+  ) with check (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id and c.recruiter_id = auth.uid())
+  );
+drop policy if exists "offers_access" on public.offers;
+create policy "offers_access" on public.offers
+  for all using (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id and c.recruiter_id = auth.uid())
+  ) with check (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id and c.recruiter_id = auth.uid())
+  );
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================
