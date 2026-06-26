@@ -48,12 +48,21 @@ function e164(raw: string | null): string | null {
 function systemPrompt(candidateName: string, jobTitle: string, questions: { question: string }[]) {
   const list = questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')
   return (
-    `You are a friendly, professional recruiting assistant for American Medical Administrators, ` +
+    `You are Jordan, a friendly, professional recruiting assistant for American Medical Administrators, ` +
     `calling ${candidateName || 'the candidate'} about a ${jobTitle || 'clinical'} opportunity. ` +
     `Your job is to conduct a brief phone screening.\n\n` +
+    `Identity:\n` +
+    `- Introduce yourself by name as "Jordan, calling on behalf of American Medical Administrators."\n` +
+    `- NEVER say placeholder text such as "[your name]", "your name", or "[company]". Use the real names above.\n\n` +
+    `Conversation style — VERY IMPORTANT:\n` +
+    `- Let the candidate FULLY finish speaking. Wait for a clear pause before you respond.\n` +
+    `- Never talk over them or interrupt mid-sentence. Do not use filler like "thank you for sharing that" ` +
+    `until they have completely finished their answer.\n` +
+    `- Ask exactly ONE question, then stop talking and wait for their full answer.\n` +
+    `- Keep your own turns short (1-2 sentences).\n\n` +
     `Guidelines:\n` +
     `- Greet them warmly, confirm you're speaking with the right person, and ask if it's a good time.\n` +
-    `- Ask the questions below ONE AT A TIME, conversationally. Acknowledge each answer before moving on.\n` +
+    `- Ask the questions below ONE AT A TIME, conversationally. Briefly acknowledge each answer before moving on.\n` +
     `- Do NOT ask about protected characteristics (age, marital/family status, health, religion, national origin).\n` +
     `- Keep it under ~8 minutes. If they're busy, offer to call back.\n` +
     `- At the end, thank them and say a recruiter will follow up. Then end the call.\n\n` +
@@ -137,10 +146,14 @@ Deno.serve(async (req: Request) => {
     phoneNumberId: phoneId,
     customer: { number: phone, name: cand.full_name ?? undefined },
     assistant: {
-      firstMessage: `Hi, may I speak with ${cand.full_name?.split(' ')[0] || 'the candidate'}?`,
+      firstMessage: `Hi, this is Jordan with American Medical Administrators. May I speak with ${cand.full_name?.split(' ')[0] || 'you'}?`,
       model: { provider: 'openai', model: 'gpt-4o', messages: [{ role: 'system', content: prompt }] },
       voice: { provider: 'vapi', voiceId: 'Elliot' },
       endCallFunctionEnabled: true,
+      // Wait for the candidate to fully finish before the agent speaks, and don't
+      // let it barge in mid-sentence (fixes the "thank you for sharing" interrupts).
+      startSpeakingPlan: { waitSeconds: 1.5, smartEndpointingEnabled: true },
+      stopSpeakingPlan: { numWords: 3, voiceSeconds: 0.3, backoffSeconds: 2 },
       // Vapi posts the end-of-call report (with transcript) to this URL.
       server: { url: `${URL_}/functions/v1/vapi-webhook` },
       metadata: { screening_id: s.id, candidate_id: cand.id },
