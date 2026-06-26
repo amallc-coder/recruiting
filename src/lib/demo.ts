@@ -7,11 +7,12 @@
 
 import { POSITION_SEED } from './positionsSeed'
 import { MASTER_FACILITIES, MASTER_REQS, type MasterReq } from './masterData'
+import { DEFAULT_COMPANY_ID } from './types'
 
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v4'
+const SEEDED = 'demo_seeded_v7'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -47,6 +48,19 @@ const TABLES = [
   'candidates',
   'candidate_stage_history',
   'positions',
+  'companies',
+  'jobs',
+  'applications',
+  'analytics_events',
+  'audit_logs',
+  'integrations',
+  'integration_credentials',
+  'integration_logs',
+  'integration_field_mappings',
+  'webhook_events',
+  'interviews',
+  'offers',
+  'recruiting_costs',
 ]
 
 function load(table: string): Row[] {
@@ -438,6 +452,155 @@ function seedIfNeeded() {
 
   // Positions repository catalog.
   save('positions', POSITION_SEED.map((p) => stampInsert('positions', { ...p, active: true })))
+
+  // ---- ATS layer: company + jobs derived from the real open requisitions ----
+  save('companies', [
+    { id: DEFAULT_COMPANY_ID, name: 'American Medical Administrators', slug: 'ama', created_at: nowIso(), updated_at: nowIso() },
+  ])
+
+  const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
+  const recIds = ['rec-alex', 'rec-hannah']
+  const empType = (t: string) => {
+    const x = (t || '').toLowerCase()
+    if (x.includes('part')) return 'part_time'
+    if (x.includes('prn') || x.includes('per diem') || x.includes('perdiem')) return 'per_diem'
+    if (x.includes('contract') || x.includes('1099')) return 'contract'
+    return 'full_time'
+  }
+  // Post the first ~16 open requisitions as jobs (most published, a few draft).
+  const jobs: Row[] = MASTER_REQS.slice(0, 16).map((r, i) => {
+    const fac = facById.get(r.facility_id)
+    const role = reqRole(r.category, r.position)
+    return stampInsert('jobs', {
+      company_id: DEFAULT_COMPANY_ID,
+      title: r.position,
+      department: r.category,
+      // r.city from the master sheet already carries the state; fall back to the
+      // facility state only when there's no city, to avoid doubling it.
+      location: r.city || fac?.state || null,
+      employment_type: empType(r.type),
+      workplace: 'onsite',
+      role,
+      facility_id: r.facility_id,
+      assigned_recruiter_id: recIds[i % recIds.length],
+      hiring_manager_id: null,
+      salary_min: r.rate_min ?? null,
+      salary_max: r.rate_max ?? null,
+      salary_unit: r.rate_unit === 'Annual' ? 'year' : 'hour',
+      description: `Join ${r.facility_name}${r.city ? ` in ${r.city}` : ''} as a ${r.position}. ` +
+        `We're a mission-driven team supporting skilled-nursing and clinic care across the region.`,
+      responsibilities: null,
+      requirements: null,
+      benefits: null,
+      status: i % 6 === 0 ? 'draft' : 'published',
+      visibility: 'public',
+      slug: slug(r.position) + '-' + r.facility_id.slice(0, 4),
+      created_by: DEMO_USER.id,
+      updated_by: null,
+    })
+  })
+  save('jobs', jobs)
+
+  // A few sample applications on the first published jobs, so the applicant
+  // view and pipeline have something to show out of the box.
+  const published = jobs.filter((j) => j.status === 'published')
+  const SAMPLE_APPS: [string, string, string][] = [
+    ['Jasmine Carter', 'jasmine.carter@example.com', '816-555-0142'],
+    ['Devon Brooks', 'devon.brooks@example.com', '573-555-0198'],
+    ['Priya Nair', 'priya.nair@example.com', '314-555-0177'],
+  ]
+  const applications: Row[] = published.slice(0, 2).flatMap((j, ji) =>
+    SAMPLE_APPS.slice(0, ji === 0 ? 3 : 1).map(([name, email, phone]) =>
+      stampInsert('applications', {
+        company_id: DEFAULT_COMPANY_ID,
+        job_id: j.id,
+        candidate_id: null,
+        full_name: name,
+        email,
+        phone,
+        source: 'Career Site',
+        resume_text: `${name} — applicant for ${j.title}.`,
+        stage: 'sourced',
+        assigned_recruiter_id: j.assigned_recruiter_id,
+        custom_answers: {},
+      }),
+    ),
+  )
+  save('applications', applications)
+  save('analytics_events', applications.map((a) => stampInsert('analytics_events', {
+    company_id: DEFAULT_COMPANY_ID,
+    event_type: 'application_submitted',
+    application_id: a.id,
+    job_id: a.job_id,
+    to_stage: 'sourced',
+    payload: { source: 'Career Site' },
+  })))
+
+  // ---- Interviews + offers (sample, spread over the last weeks) ----
+  const dayMs = 86400000
+  const interviewers = ['rec-alex', 'rec-hannah', DEMO_USER.id]
+  const istatuses = ['completed', 'completed', 'scheduled', 'completed', 'no_show', 'completed', 'cancelled', 'rescheduled', 'scheduled', 'completed']
+  const interviews: Row[] = candidates.slice(0, 16).map((c, i) => {
+    const status = istatuses[i % istatuses.length]
+    const done = status === 'completed'
+    return stampInsert('interviews', {
+      company_id: DEFAULT_COMPANY_ID,
+      candidate_id: c.id,
+      job_id: null,
+      interviewer_id: interviewers[i % interviewers.length],
+      scheduled_at: new Date(Date.now() - (i * 4 + 2) * dayMs).toISOString(),
+      duration_min: [30, 45, 60][i % 3],
+      location: i % 2 ? 'Video call' : 'On-site',
+      status,
+      feedback: done ? 'Strong communication; relevant clinical experience.' : null,
+      score: done ? 3 + (i % 3) : null,
+      created_by: DEMO_USER.id,
+    })
+  })
+  save('interviews', interviews)
+
+  const salaryFor = (role: string) =>
+    role === 'np' ? 130000 : role === 'md' ? 240000 : role === 'pa' ? 115000 :
+    role === 'rn' ? 78000 : role === 'lpn' ? 64000 : role === 'ma' ? 44000 : 60000
+  const offerCands = candidates.filter((c) => ['offer', 'accepted', 'welcome_call'].includes(c.current_stage)).slice(0, 14)
+  const ostatus = ['accepted', 'sent', 'negotiating', 'declined', 'accepted', 'sent', 'expired', 'accepted', 'accepted', 'sent', 'accepted', 'negotiating']
+  const offers: Row[] = offerCands.map((c, i) => stampInsert('offers', {
+    company_id: DEFAULT_COMPANY_ID,
+    candidate_id: c.id,
+    job_id: null,
+    salary: salaryFor(c.role) + (i % 5) * 1500,
+    bonus: i % 3 === 0 ? 2000 : null,
+    start_date: c.start_date ?? null,
+    status: ostatus[i % ostatus.length],
+    sent_at: new Date(Date.now() - (i * 3 + 5) * dayMs).toISOString(),
+    approved_by: DEMO_USER.id,
+    approved_at: new Date(Date.now() - (i * 3 + 6) * dayMs).toISOString(),
+    created_by: DEMO_USER.id,
+  }))
+  save('offers', offers)
+
+  // ---- Recruiting costs (last 3 months, for the Finance dashboard) ----
+  const monthStart = (back: number) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - back, 1)
+    return d.toISOString().slice(0, 10)
+  }
+  const costRows: [string, string, number][] = [
+    ['job_board', 'Indeed', 4200], ['job_board', 'LinkedIn', 3800],
+    ['agency', 'Regional staffing', 9500], ['referral', 'Employee referrals', 3000],
+    ['software', 'Clinilytics ATS', 1200], ['recruiter', 'Recruiter salaries (allocated)', 18000],
+  ]
+  const costs: Row[] = [0, 1, 2].flatMap((back) =>
+    costRows.map(([category, vendor, amount]) => stampInsert('recruiting_costs', {
+      company_id: DEFAULT_COMPANY_ID,
+      category,
+      vendor,
+      amount: amount + back * 250,
+      period: monthStart(back),
+      created_by: DEMO_USER.id,
+    })),
+  )
+  save('recruiting_costs', costs)
 
   localStorage.setItem(SEEDED, '1')
 }

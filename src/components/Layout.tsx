@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database } from 'lucide-react'
+import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database, Plug } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
@@ -77,14 +77,17 @@ export function Layout() {
   // Product tabs (everyone) in the lower bar; admin tools live under the Admin menu.
   const tabs = [
     { to: '/', label: 'Dashboard', end: true },
-    { to: '/facilities', label: 'Facilities', end: false },
+    { to: '/jobs', label: 'Jobs', end: false },
     { to: '/candidates', label: 'Candidates', end: false },
+    { to: '/analytics', label: 'Analytics', end: false },
+    { to: '/facilities', label: 'Facilities', end: false },
     { to: '/matching', label: 'Matching', end: false },
     { to: '/positions', label: 'Positions', end: false },
   ]
   const adminLinks = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },
+    { to: '/integrations', label: 'Integrations', icon: Plug },
     ...(!demoMode ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
   ]
 

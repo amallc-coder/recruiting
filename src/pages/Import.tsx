@@ -3,8 +3,14 @@ import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from 'l
 import { supabase, demoMode } from '../lib/supabase'
 import { ROLE_LABELS, STAGE_LABELS, type Facility, type Profile } from '../lib/types'
 import {
-  parseWorkbook, autoMap, mapSheet, type Field, type ParsedSheet, type MappedCandidate,
+  parseWorkbook, autoMap, mapSheet, isTeamSheet, unpivotTeamSheet,
+  type Field, type ParsedSheet, type MappedCandidate,
 } from '../lib/importXlsx'
+
+// Tabs in a "Recruitment Team Sheet" that are NOT individual recruiters: the
+// truncated rollup ("All Data"), backup/scratch tabs, the pivot "List", and
+// empty placeholder tabs. The real per-recruiter tabs are the source of truth.
+const NON_RECRUITER_TAB = /^(all data|back ?up|list|new recruiter)/i
 
 const FIELDS: { value: Field; label: string }[] = [
   { value: 'ignore', label: '— ignore —' },
@@ -53,11 +59,21 @@ export function Import() {
     setBusy(false)
   }
 
+  // Detect the wide "Recruitment Team Sheet" layout (Candidate N blocks).
+  const teamSources = useMemo(
+    () => (sheets ?? []).filter((s) => isTeamSheet(s.headers) && s.rows.length > 0 && !NON_RECRUITER_TAB.test(s.name)),
+    [sheets],
+  )
+  const teamMode = teamSources.length > 0
+
   // All mapped candidates across sheets (live preview as mapping changes).
+  // In team mode we unpivot the per-recruiter tabs; otherwise apply the column
+  // mapping to flat tabs.
   const mapped: MappedCandidate[] = useMemo(() => {
     if (!sheets) return []
+    if (teamMode) return teamSources.flatMap(unpivotTeamSheet)
     return sheets.flatMap((s) => mapSheet(s, mapping))
-  }, [sheets, mapping])
+  }, [sheets, mapping, teamMode, teamSources])
 
   const allHeaders = useMemo(() => {
     const seen = new Set<string>()
@@ -114,17 +130,21 @@ export function Import() {
       }
 
       // Dedup vs existing.
+      // Dedup key: name + email, falling back to facility when there is no
+      // email (team-sheet candidates have no contact info).
+      const dedupKey = (name: string, email: string | null, facility: string | null) =>
+        norm(name) + '|' + norm(email || facility || '')
       const seen = new Set<string>()
       if (dedup) {
         const { data: existing } = await supabase.from('candidates').select('full_name,email')
         for (const c of (existing as { full_name: string; email: string | null }[]) ?? [])
-          seen.add(norm(c.full_name) + '|' + norm(c.email ?? ''))
+          seen.add(dedupKey(c.full_name, c.email, null))
       }
 
       let facMatched = 0
       const rows: Record<string, unknown>[] = []
       for (const m of mapped) {
-        const key = norm(m.full_name) + '|' + norm(m.email ?? '')
+        const key = dedupKey(m.full_name, m.email, m.facilityText)
         if (dedup && seen.has(key)) continue
         seen.add(key)
         const facility_id = facMatch(m.facilityText)
@@ -228,27 +248,48 @@ export function Import() {
             </div>
           </div>
 
-          <div className="card p-4">
-            <div className="mb-3 text-sm font-semibold text-ink">Column mapping</div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {allHeaders.map((h) => (
-                <div key={h} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted" title={h}>{h}</span>
-                  <select
-                    className="rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
-                    value={mapping[h] ?? 'ignore'}
-                    onChange={(e) => setMapping((m) => ({ ...m, [h]: e.target.value as Field }))}
-                  >
-                    {FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
+          {teamMode ? (
+            <div className="card p-4">
+              <div className="flex items-start gap-2 text-sm">
+                <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-sage-600" />
+                <div>
+                  <span className="font-semibold text-ink">Recruitment Team Sheet detected.</span>{' '}
+                  <span className="text-muted">
+                    Reading the {teamSources.length} recruiter tab{teamSources.length !== 1 ? 's' : ''} directly —
+                    each opening’s candidates (Candidate 1, 2, 3 …) are unpivoted into individual records, with the
+                    recruiter, facility, position, and pipeline stage pulled from the Open / Interview / Offer / Hire
+                    dates. The rollup “All Data”, backup, and list tabs are skipped to avoid duplicates.
+                  </span>
                 </div>
-              ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+                <label className="flex items-center gap-1.5"><input type="checkbox" checked={dedup} onChange={(e) => setDedup(e.target.checked)} /> Skip duplicates (name + facility)</label>
+                {demoMode && <label className="flex items-center gap-1.5"><input type="checkbox" checked={createRecruiters} onChange={(e) => setCreateRecruiters(e.target.checked)} /> Create a recruiter for each new name</label>}
+              </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-              <label className="flex items-center gap-1.5"><input type="checkbox" checked={dedup} onChange={(e) => setDedup(e.target.checked)} /> Skip duplicates (name + email)</label>
-              {demoMode && <label className="flex items-center gap-1.5"><input type="checkbox" checked={createRecruiters} onChange={(e) => setCreateRecruiters(e.target.checked)} /> Create a recruiter for each new name</label>}
+          ) : (
+            <div className="card p-4">
+              <div className="mb-3 text-sm font-semibold text-ink">Column mapping</div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {allHeaders.map((h) => (
+                  <div key={h} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted" title={h}>{h}</span>
+                    <select
+                      className="rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500"
+                      value={mapping[h] ?? 'ignore'}
+                      onChange={(e) => setMapping((m) => ({ ...m, [h]: e.target.value as Field }))}
+                    >
+                      {FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+                <label className="flex items-center gap-1.5"><input type="checkbox" checked={dedup} onChange={(e) => setDedup(e.target.checked)} /> Skip duplicates (name + email)</label>
+                {demoMode && <label className="flex items-center gap-1.5"><input type="checkbox" checked={createRecruiters} onChange={(e) => setCreateRecruiters(e.target.checked)} /> Create a recruiter for each new name</label>}
+              </div>
             </div>
-          </div>
+          )}
 
           {hasName ? (
             <div className="card overflow-hidden">

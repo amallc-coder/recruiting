@@ -97,6 +97,163 @@ export interface StageHistory {
   created_at: string
 }
 
+// ---- ATS layer: companies, jobs, applications --------------------------------
+
+// The single default tenant until the multi-company workspace phase lands.
+export const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001'
+
+export type JobStatus = 'draft' | 'published' | 'paused' | 'closed' | 'archived'
+export type EmploymentType =
+  | 'full_time' | 'part_time' | 'contract' | 'per_diem' | 'temporary' | 'internship'
+export type Workplace = 'onsite' | 'hybrid' | 'remote'
+
+export interface Job {
+  id: string
+  company_id: string
+  title: string
+  department: string | null
+  location: string | null
+  employment_type: EmploymentType
+  workplace: Workplace
+  salary_min: number | null
+  salary_max: number | null
+  salary_unit: 'year' | 'hour'
+  description: string | null
+  responsibilities: string | null
+  requirements: string | null
+  benefits: string | null
+  hiring_manager_id: string | null
+  assigned_recruiter_id: string | null
+  facility_id: string | null
+  role: ClinicalRole | null
+  status: JobStatus
+  visibility: 'public' | 'internal'
+  slug: string | null
+  open_date: string | null
+  close_date: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Application {
+  id: string
+  company_id: string
+  job_id: string
+  candidate_id: string | null
+  full_name: string
+  email: string | null
+  phone: string | null
+  linkedin: string | null
+  portfolio: string | null
+  cover_letter: string | null
+  resume_url: string | null
+  resume_text: string | null
+  source: string | null
+  custom_answers: Record<string, unknown>
+  stage: Stage
+  assigned_recruiter_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled' | 'rescheduled' | 'no_show'
+export type OfferStatus = 'pending' | 'sent' | 'accepted' | 'declined' | 'expired' | 'negotiating'
+
+export interface Interview {
+  id: string
+  company_id: string
+  candidate_id: string
+  job_id: string | null
+  application_id: string | null
+  interviewer_id: string | null
+  scheduled_at: string | null
+  duration_min: number
+  location: string | null
+  status: InterviewStatus
+  feedback: string | null
+  score: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Offer {
+  id: string
+  company_id: string
+  candidate_id: string
+  job_id: string | null
+  application_id: string | null
+  salary: number | null
+  bonus: number | null
+  equity: string | null
+  start_date: string | null
+  status: OfferStatus
+  approved_by: string | null
+  approved_at: string | null
+  sent_at: string | null
+  signed_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const INTERVIEW_STATUSES: InterviewStatus[] = ['scheduled', 'completed', 'cancelled', 'rescheduled', 'no_show']
+export const INTERVIEW_STATUS_LABELS: Record<InterviewStatus, string> = {
+  scheduled: 'Scheduled', completed: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No-show',
+}
+export const OFFER_STATUSES: OfferStatus[] = ['pending', 'sent', 'accepted', 'declined', 'expired', 'negotiating']
+export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
+  pending: 'Pending', sent: 'Sent', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', negotiating: 'Negotiating',
+}
+
+export type CostCategory = 'job_board' | 'agency' | 'referral' | 'software' | 'recruiter' | 'other'
+
+export interface RecruitingCost {
+  id: string
+  company_id: string
+  category: CostCategory
+  vendor: string | null
+  amount: number
+  period: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const COST_CATEGORIES: CostCategory[] = ['job_board', 'agency', 'referral', 'software', 'recruiter', 'other']
+export const COST_CATEGORY_LABELS: Record<CostCategory, string> = {
+  job_board: 'Job boards', agency: 'Agency fees', referral: 'Referral bonuses',
+  software: 'Software', recruiter: 'Recruiter cost', other: 'Other',
+}
+
+export const JOB_STATUSES: JobStatus[] = ['draft', 'published', 'paused', 'closed', 'archived']
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  paused: 'Paused',
+  closed: 'Closed',
+  archived: 'Archived',
+}
+
+export const EMPLOYMENT_TYPES: EmploymentType[] = [
+  'full_time', 'part_time', 'contract', 'per_diem', 'temporary', 'internship',
+]
+export const EMPLOYMENT_LABELS: Record<EmploymentType, string> = {
+  full_time: 'Full-time',
+  part_time: 'Part-time',
+  contract: 'Contract',
+  per_diem: 'Per diem',
+  temporary: 'Temporary',
+  internship: 'Internship',
+}
+
+export const WORKPLACE_TYPES: Workplace[] = ['onsite', 'hybrid', 'remote']
+export const WORKPLACE_LABELS: Record<Workplace, string> = {
+  onsite: 'On-site',
+  hybrid: 'Hybrid',
+  remote: 'Remote',
+}
+
 // ---- Reference data & labels -------------------------------------------------
 
 export const CLINICAL_ROLES: ClinicalRole[] = [
