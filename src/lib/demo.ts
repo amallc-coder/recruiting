@@ -12,7 +12,7 @@ import { DEFAULT_COMPANY_ID } from './types'
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v8'
+const SEEDED = 'demo_seeded_v9'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -440,7 +440,8 @@ function seedIfNeeded() {
       phone: phone || null,
       facility_id: facByName(facQuery),
       recruiter_id, current_stage: stage,
-      source: 'Indeed', resume_text: resumeFor(full_name, role, facQuery), checklist: {},
+      // Bulk records are "imports" → excluded from time-based KPIs by design.
+      source: 'Import', resume_text: resumeFor(full_name, role, facQuery), checklist: {},
       ...(start ? { start_date: start } : {}),
     })
 
@@ -448,7 +449,52 @@ function seedIfNeeded() {
     ...REAL.map(([n, e, r, f, s, p, st]) => mk(n, 'lpn', e, r, f, s, p, st)),
     ...MO_MA.map(([n, e, f, s, p, st]) => mk(n, 'ma', e, null, f, s, p, st)),
   ]
+
+  // ---- Native (platform-tracked) candidates with REAL stage-change timestamps ----
+  // These power the Journey / time-to-hire KPIs. Each has a recorded timeline in
+  // candidate_stage_history; the bulk records above (source 'Import') are excluded
+  // from time metrics so import timestamps can't skew cycle times.
+  const D = 86400000
+  const NATIVE = [
+    'Avery Sloan', 'Bria Tran', 'Caleb Munoz', 'Dana Whitfield', 'Elena Park', 'Felix Boateng',
+    'Grace Liu', 'Hassan Ali', 'Imani Cole', 'Jonah Reed', 'Kira Novak', 'Liam Foster',
+    'Maya Iyer', 'Noah Bright', 'Olivia Frost', 'Priya Shah', 'Quinn Avery', 'Rosa Mendez',
+    'Sam Carter', 'Tessa Lin', 'Umar Khan', 'Vera Dunn', 'Will Hayes', 'Zoe Park',
+  ]
+  const NJ_ROLES = ['lpn', 'ma', 'rn', 'np', 'tech']
+  const stageHistory: Row[] = []
+  const nativeCands: Row[] = NATIVE.map((name, i) => {
+    const id = uuid()
+    const role = NJ_ROLES[i % NJ_ROLES.length]
+    const recId = ['rec-alex', 'rec-hannah'][i % 2]
+    const start = Date.now() - (10 + i * 2) * D
+    const tInterview = start + (2 + (i % 5)) * D
+    const tOffer = tInterview + (5 + (i % 6)) * D
+    const tActive = tOffer + (6 + (i % 7)) * D
+    const reach = i % 5 // 1..4 candidates progress to interview/offer/hire; some stay sourced
+    const steps: [string, number][] = [['sourced', start]]
+    if (reach >= 1) steps.push(['interview', tInterview])
+    if (reach >= 2) steps.push(['offer', tOffer])
+    if (reach >= 3) steps.push(['active', tActive])
+    const current = steps[steps.length - 1][0]
+    let prev: string | null = null
+    for (const [st, ts] of steps) {
+      stageHistory.push(stampInsert('candidate_stage_history', {
+        candidate_id: id, from_stage: prev, to_stage: st, changed_by: recId, created_at: new Date(ts).toISOString(),
+      }))
+      prev = st
+    }
+    return stampInsert('candidates', {
+      id, full_name: name, role, email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+      phone: null, facility_id: null, recruiter_id: recId, current_stage: current,
+      source: 'Career Site', resume_text: `${name} — ${ROLE_NOUN[role] ?? 'Clinician'}.`, checklist: {},
+      created_at: new Date(start).toISOString(), updated_at: new Date(steps[steps.length - 1][1]).toISOString(),
+      ...(current === 'active' ? { start_date: new Date(tActive).toISOString().slice(0, 10) } : {}),
+    })
+  })
+  candidates.push(...nativeCands)
   save('candidates', candidates)
+  save('candidate_stage_history', stageHistory)
 
   // Positions repository catalog.
   save('positions', POSITION_SEED.map((p) => stampInsert('positions', { ...p, active: true })))

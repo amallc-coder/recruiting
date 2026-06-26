@@ -9,8 +9,8 @@ import { downloadCsv } from '../lib/export'
 import { Spinner, StatCard, Modal } from '../components/ui'
 import { DEFAULT_COMPANY_ID, COST_CATEGORIES, COST_CATEGORY_LABELS, type CostCategory } from '../lib/types'
 import {
-  PERIODS, getExecutive, getRecruiter, getPipeline, getInterviews, getOffers, getFinance, logAudit,
-  type ExecutiveData, type RecruiterData, type PipelineData, type InterviewData, type OfferData, type FinanceData,
+  PERIODS, getExecutive, getRecruiter, getPipeline, getInterviews, getOffers, getFinance, getJourney, logAudit,
+  type ExecutiveData, type RecruiterData, type PipelineData, type InterviewData, type OfferData, type FinanceData, type JourneyData,
 } from '../lib/analytics'
 
 const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
@@ -44,7 +44,7 @@ function ChartCard({ title, children, height = 280, empty }: {
   )
 }
 
-type AdminView = 'executive' | 'pipeline' | 'interviews' | 'offers' | 'finance'
+type AdminView = 'executive' | 'pipeline' | 'journey' | 'interviews' | 'offers' | 'finance'
 
 export function Analytics() {
   const { isAdmin, profile } = useAuth()
@@ -65,7 +65,7 @@ export function Analytics() {
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
             <div className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
-              {([['executive', 'Executive'], ['pipeline', 'Pipeline'], ['interviews', 'Interviews'], ['offers', 'Offers'], ['finance', 'Finance']] as [AdminView, string][]).map(([v, label]) => (
+              {([['executive', 'Executive'], ['pipeline', 'Pipeline'], ['journey', 'Journey'], ['interviews', 'Interviews'], ['offers', 'Offers'], ['finance', 'Finance']] as [AdminView, string][]).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -97,6 +97,7 @@ export function Analytics() {
       {isAdmin
         ? (view === 'executive' ? <ExecutiveView days={days} />
           : view === 'pipeline' ? <PipelineView days={days} />
+          : view === 'journey' ? <JourneyView days={days} />
           : view === 'interviews' ? <InterviewsView days={days} />
           : view === 'offers' ? <OffersView days={days} />
           : <FinanceView days={days} />)
@@ -218,6 +219,71 @@ function AddCostModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         </div>
       </div>
     </Modal>
+  )
+}
+
+function JourneyView({ days }: { days: number | null }) {
+  const [data, setData] = useState<JourneyData | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let active = true; setLoading(true)
+    getJourney(days).then((d) => { if (active) { setData(d); setLoading(false) } })
+    logAudit('dashboard_viewed', { view: 'journey', days })
+    return () => { active = false }
+  }, [days])
+  if (loading || !data) return <Spinner label="Measuring candidate journeys…" />
+
+  const chart = data.kpis.filter((k) => k.avgDays != null).map((k) => ({ label: k.label.replace(/ \(.*\)/, ''), days: k.avgDays as number }))
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+        <Lock size={15} className="mt-0.5 shrink-0 text-muted" />
+        <div className="text-muted">
+          <span className="font-medium text-ink">Skew-protected.</span> Durations come from the recorded
+          timeline (each stage change is timestamped when a recruiter acts). Based on{' '}
+          <strong className="text-ink">{data.qualifying}</strong> platform-tracked candidate{data.qualifying !== 1 ? 's' : ''};{' '}
+          <strong className="text-ink">{data.excludedImports}</strong> imported record{data.excludedImports !== 1 ? 's are' : ' is'} excluded
+          from time metrics (they still count in volume/funnel). As recruiters work candidates on the
+          platform, these numbers grow.
+        </div>
+      </div>
+
+      {data.qualifying === 0 ? (
+        <div className="card p-6 text-sm text-muted">
+          <div className="mb-1 font-medium text-ink">No platform-tracked journeys yet</div>
+          Time-to-hire and stage-duration KPIs populate as candidates move through stages on the platform.
+          Imported candidates are intentionally excluded here so their import timestamps don’t distort the
+          real cycle times.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+            {data.kpis.map((k) => (
+              <StatCard
+                key={k.key}
+                label={k.label.replace(/ \(.*\)/, '')}
+                value={k.avgDays == null ? '—' : `${k.avgDays}d`}
+                hint={k.n > 0 ? `median ${k.medianDays}d · n=${k.n}` : 'no data yet'}
+                tone={k.key === 'src_hire' && k.avgDays != null ? 'good' : 'default'}
+              />
+            ))}
+          </div>
+
+          <ChartCard title="Average days between milestones" empty={chart.length === 0 ? 'Not enough journey data yet' : undefined}>
+            <BarChart data={chart} layout="vertical" margin={{ left: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
+              <XAxis type="number" tick={{ fontSize: 12 }} />
+              <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar isAnimationActive={false} dataKey="days" radius={[0, 6, 6, 0]}>
+                {chart.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ChartCard>
+        </>
+      )}
+    </div>
   )
 }
 
