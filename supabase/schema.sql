@@ -890,6 +890,97 @@ create policy "webhook_events_admin" on public.webhook_events
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- =============================================================================
+-- INTERVIEWS & OFFERS
+-- =============================================================================
+-- Interview scheduling/feedback and offer management, feeding the interview and
+-- offer analytics dashboards. Access mirrors candidates: admins + the candidate's
+-- recruiter (or territory) can manage. Idempotent.
+
+create table if not exists public.interviews (
+  id             uuid primary key default gen_random_uuid(),
+  company_id     uuid not null default '00000000-0000-0000-0000-000000000001'
+                   references public.companies(id) on delete cascade,
+  candidate_id   uuid not null references public.candidates(id) on delete cascade,
+  job_id         uuid references public.jobs(id) on delete set null,
+  application_id uuid references public.applications(id) on delete set null,
+  interviewer_id uuid references public.profiles(id) on delete set null,
+  scheduled_at   timestamptz,
+  duration_min   int not null default 30,
+  location       text,                 -- room or video link
+  status         text not null default 'scheduled'
+                   check (status in ('scheduled','completed','cancelled','rescheduled','no_show')),
+  feedback       text,
+  score          int check (score between 1 and 5),
+  created_by     uuid references public.profiles(id) on delete set null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists idx_interviews_candidate on public.interviews(candidate_id);
+create index if not exists idx_interviews_job on public.interviews(job_id);
+
+create table if not exists public.offers (
+  id             uuid primary key default gen_random_uuid(),
+  company_id     uuid not null default '00000000-0000-0000-0000-000000000001'
+                   references public.companies(id) on delete cascade,
+  candidate_id   uuid not null references public.candidates(id) on delete cascade,
+  job_id         uuid references public.jobs(id) on delete set null,
+  application_id uuid references public.applications(id) on delete set null,
+  salary         numeric,
+  bonus          numeric,
+  equity         text,
+  start_date     date,
+  status         text not null default 'pending'
+                   check (status in ('pending','sent','accepted','declined','expired','negotiating')),
+  approved_by    uuid references public.profiles(id) on delete set null,
+  approved_at    timestamptz,
+  sent_at        timestamptz,
+  signed_url     text,
+  created_by     uuid references public.profiles(id) on delete set null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists idx_offers_candidate on public.offers(candidate_id);
+create index if not exists idx_offers_job on public.offers(job_id);
+
+drop trigger if exists trg_touch_interviews on public.interviews;
+create trigger trg_touch_interviews before update on public.interviews
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_touch_offers on public.offers;
+create trigger trg_touch_offers before update on public.offers
+  for each row execute function public.touch_updated_at();
+
+alter table public.interviews enable row level security;
+alter table public.offers     enable row level security;
+
+-- Access mirrors candidates: admin, the candidate's recruiter, or territory.
+drop policy if exists "interviews_access" on public.interviews;
+create policy "interviews_access" on public.interviews
+  for all using (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id
+        and (c.recruiter_id = auth.uid() or public.covers_region(c.region))
+    )
+  ) with check (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id
+        and (c.recruiter_id = auth.uid() or public.covers_region(c.region))
+    )
+  );
+drop policy if exists "offers_access" on public.offers;
+create policy "offers_access" on public.offers
+  for all using (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id
+        and (c.recruiter_id = auth.uid() or public.covers_region(c.region))
+    )
+  ) with check (
+    public.is_admin() or exists (
+      select 1 from public.candidates c where c.id = candidate_id
+        and (c.recruiter_id = auth.uid() or public.covers_region(c.region))
+    )
+  );
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================

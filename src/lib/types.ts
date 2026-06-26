@@ -158,6 +158,54 @@ export interface Application {
   updated_at: string
 }
 
+export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled' | 'rescheduled' | 'no_show'
+export type OfferStatus = 'pending' | 'sent' | 'accepted' | 'declined' | 'expired' | 'negotiating'
+
+export interface Interview {
+  id: string
+  company_id: string
+  candidate_id: string
+  job_id: string | null
+  application_id: string | null
+  interviewer_id: string | null
+  scheduled_at: string | null
+  duration_min: number
+  location: string | null
+  status: InterviewStatus
+  feedback: string | null
+  score: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Offer {
+  id: string
+  company_id: string
+  candidate_id: string
+  job_id: string | null
+  application_id: string | null
+  salary: number | null
+  bonus: number | null
+  equity: string | null
+  start_date: string | null
+  status: OfferStatus
+  approved_by: string | null
+  approved_at: string | null
+  sent_at: string | null
+  signed_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const INTERVIEW_STATUSES: InterviewStatus[] = ['scheduled', 'completed', 'cancelled', 'rescheduled', 'no_show']
+export const INTERVIEW_STATUS_LABELS: Record<InterviewStatus, string> = {
+  scheduled: 'Scheduled', completed: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No-show',
+}
+export const OFFER_STATUSES: OfferStatus[] = ['pending', 'sent', 'accepted', 'declined', 'expired', 'negotiating']
+export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
+  pending: 'Pending', sent: 'Sent', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', negotiating: 'Negotiating',
+}
+
 export const JOB_STATUSES: JobStatus[] = ['draft', 'published', 'paused', 'closed', 'archived']
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   draft: 'Draft',

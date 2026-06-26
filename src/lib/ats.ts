@@ -103,6 +103,40 @@ export async function submitApplication(input: ApplyInput): Promise<{ error: str
   return { error: null }
 }
 
+export async function scheduleInterview(input: {
+  candidate_id: string; job_id: string | null; scheduled_at: string
+  interviewer_id?: string | null; location?: string; duration_min?: number
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('interviews').insert({
+    company_id: DEFAULT_COMPANY_ID,
+    candidate_id: input.candidate_id,
+    job_id: input.job_id,
+    interviewer_id: input.interviewer_id ?? null,
+    scheduled_at: input.scheduled_at,
+    duration_min: input.duration_min ?? 30,
+    location: input.location ?? null,
+    status: 'scheduled',
+  })
+  return { error: error?.message ?? null }
+}
+
+export async function createOffer(input: {
+  candidate_id: string; job_id: string | null; salary?: number | null
+  bonus?: number | null; start_date?: string | null; status?: string
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('offers').insert({
+    company_id: DEFAULT_COMPANY_ID,
+    candidate_id: input.candidate_id,
+    job_id: input.job_id,
+    salary: input.salary ?? null,
+    bonus: input.bonus ?? null,
+    start_date: input.start_date ?? null,
+    status: input.status ?? 'sent',
+    sent_at: new Date().toISOString(),
+  })
+  return { error: error?.message ?? null }
+}
+
 /** Move an application (and its linked candidate) to a new pipeline stage. */
 export async function setApplicationStage(
   app: { id: string; candidate_id: string | null },

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Pencil, Plus, MapPin, Briefcase, Loader2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Pencil, Plus, MapPin, Briefcase, Loader2, CalendarPlus, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { formatSalary, submitApplication, setApplicationStage } from '../lib/ats'
+import { formatSalary, submitApplication, setApplicationStage, scheduleInterview, createOffer } from '../lib/ats'
 import {
   STAGES, STAGE_LABELS, PIPELINE_STAGES, EMPLOYMENT_LABELS, WORKPLACE_LABELS, ROLE_LABELS,
   type Job, type Application, type Profile, type Facility, type Stage,
@@ -26,6 +26,7 @@ export function JobDetail() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [action, setAction] = useState<{ app: Application; mode: 'interview' | 'offer' } | null>(null)
 
   const canManage = isAdmin || profile?.role === 'recruiter'
 
@@ -266,17 +267,25 @@ export function JobDetail() {
                   <td className="hidden px-4 py-3 text-muted lg:table-cell">{a.source ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-muted lg:table-cell">{new Date(a.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {canManage ? (
-                      <select
-                        className="rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-sage-500"
-                        value={a.stage}
-                        onChange={(e) => moveStage(a, e.target.value as Stage)}
-                      >
-                        {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-                      </select>
-                    ) : (
-                      <StageBadge stage={a.stage} />
-                    )}
+                    <div className="flex items-center gap-2">
+                      {canManage ? (
+                        <select
+                          className="rounded-md border-0 bg-surface py-1 text-xs text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-sage-500"
+                          value={a.stage}
+                          onChange={(e) => moveStage(a, e.target.value as Stage)}
+                        >
+                          {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                        </select>
+                      ) : (
+                        <StageBadge stage={a.stage} />
+                      )}
+                      {canManage && a.candidate_id && (
+                        <>
+                          <button title="Schedule interview" className="text-muted hover:text-ink" onClick={() => setAction({ app: a, mode: 'interview' })}><CalendarPlus size={15} /></button>
+                          <button title="Extend offer" className="text-muted hover:text-ink" onClick={() => setAction({ app: a, mode: 'offer' })}><FileText size={15} /></button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -298,7 +307,89 @@ export function JobDetail() {
       {adding && (
         <AddApplicantModal job={job} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />
       )}
+      {action && (
+        <ApplicantActionModal
+          app={action.app}
+          mode={action.mode}
+          job={job}
+          recruiters={recruiters}
+          onClose={() => setAction(null)}
+          onSaved={() => setAction(null)}
+        />
+      )}
     </div>
+  )
+}
+
+function ApplicantActionModal({ app, mode, job, recruiters, onClose, onSaved }: {
+  app: Application
+  mode: 'interview' | 'offer'
+  job: Job
+  recruiters: Profile[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [when, setWhen] = useState('')
+  const [interviewerId, setInterviewerId] = useState('')
+  const [location, setLocation] = useState('Video call')
+  const [salary, setSalary] = useState(job.salary_max?.toString() ?? job.salary_min?.toString() ?? '')
+  const [startDate, setStartDate] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    if (!app.candidate_id) { setError('This applicant has no linked candidate yet.'); return }
+    setSaving(true); setError(null)
+    const res = mode === 'interview'
+      ? await scheduleInterview({ candidate_id: app.candidate_id, job_id: job.id, scheduled_at: when ? new Date(when).toISOString() : new Date().toISOString(), interviewer_id: interviewerId || null, location })
+      : await createOffer({ candidate_id: app.candidate_id, job_id: job.id, salary: salary ? Number(salary) : null, start_date: startDate || null, status: 'sent' })
+    setSaving(false)
+    if (res.error) { setError(res.error); return }
+    onSaved()
+  }
+
+  return (
+    <Modal title={mode === 'interview' ? `Schedule interview — ${app.full_name}` : `Extend offer — ${app.full_name}`} onClose={onClose}>
+      <div className="space-y-3">
+        {mode === 'interview' ? (
+          <>
+            <div>
+              <label className="label">Date & time</label>
+              <input className="input" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Interviewer</label>
+              <select className="input" value={interviewerId} onChange={(e) => setInterviewerId(e.target.value)}>
+                <option value="">— unassigned —</option>
+                {recruiters.map((r) => <option key={r.id} value={r.id}>{r.full_name || r.email}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Location</label>
+              <input className="input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Video call or room" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="label">Salary</label>
+              <input className="input" type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="Annual salary" />
+            </div>
+            <div>
+              <label className="label">Start date</label>
+              <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+          </>
+        )}
+        {error && <div className="rounded-lg bg-rust-50 px-3 py-2 text-sm text-rust-500">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : null} {mode === 'interview' ? 'Schedule' : 'Send offer'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

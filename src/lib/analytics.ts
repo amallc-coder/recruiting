@@ -11,7 +11,8 @@
 import { supabase, demoMode } from './supabase'
 import {
   PIPELINE_STAGES, STAGE_LABELS,
-  type Candidate, type Application, type Job, type Profile,
+  INTERVIEW_STATUSES, INTERVIEW_STATUS_LABELS, OFFER_STATUSES, OFFER_STATUS_LABELS,
+  type Candidate, type Application, type Job, type Profile, type Interview, type Offer,
 } from './types'
 
 export interface Period { label: string; days: number | null }
@@ -263,6 +264,94 @@ export async function getPipeline(days: number | null): Promise<PipelineData> {
     avgTimeToHire: tth.length ? Math.round(tth.reduce((s, n) => s + n, 0) / tth.length) : null,
     totalActive: candidates.filter((c) => c.current_stage === 'active').length,
   }
+}
+
+export interface InterviewData {
+  kpis: { scheduled: number; completed: number; cancelled: number; noShow: number; rescheduled: number; avgScore: number | null; feedbackRate: number }
+  byStatus: { status: string; count: number }[]
+  overTime: { label: string; count: number }[]
+  interviewers: { name: string; completed: number; avgScore: number | null }[]
+}
+
+export async function getInterviews(days: number | null): Promise<InterviewData> {
+  const [{ data: iData }, { data: pData }] = await Promise.all([
+    supabase.from('interviews').select('*'),
+    supabase.from('profiles').select('id,full_name,email'),
+  ])
+  const interviews = ((iData as Interview[]) ?? []).filter((x) => inPeriod(x.scheduled_at || x.created_at, days))
+  const profiles = (pData as Profile[]) ?? []
+  const nameOf = (id: string | null) => profiles.find((p) => p.id === id)?.full_name || 'Unassigned'
+
+  const by = (s: string) => interviews.filter((i) => i.status === s).length
+  const completed = interviews.filter((i) => i.status === 'completed')
+  const scores = completed.map((i) => i.score).filter((s): s is number => s != null)
+  const withFeedback = completed.filter((i) => (i.feedback ?? '').trim()).length
+
+  const kpis = {
+    scheduled: by('scheduled'),
+    completed: completed.length,
+    cancelled: by('cancelled'),
+    noShow: by('no_show'),
+    rescheduled: by('rescheduled'),
+    avgScore: scores.length ? Math.round((scores.reduce((s, n) => s + n, 0) / scores.length) * 10) / 10 : null,
+    feedbackRate: completed.length ? Math.round((withFeedback / completed.length) * 100) : 0,
+  }
+  const byStatus = INTERVIEW_STATUSES.map((s) => ({ status: INTERVIEW_STATUS_LABELS[s], count: by(s) }))
+  const overTime = weeklyBuckets(interviews.map((i) => i.scheduled_at || i.created_at), 8)
+
+  const intMap = new Map<string, Interview[]>()
+  for (const i of completed) {
+    const k = i.interviewer_id ?? 'none'
+    ;(intMap.get(k) ?? intMap.set(k, []).get(k)!).push(i)
+  }
+  const interviewers = [...intMap.entries()].map(([id, list]) => {
+    const ss = list.map((x) => x.score).filter((s): s is number => s != null)
+    return { name: nameOf(id === 'none' ? null : id), completed: list.length, avgScore: ss.length ? Math.round((ss.reduce((a, b) => a + b, 0) / ss.length) * 10) / 10 : null }
+  }).sort((a, b) => b.completed - a.completed)
+
+  return { kpis, byStatus, overTime, interviewers }
+}
+
+export interface OfferData {
+  kpis: { sent: number; accepted: number; declined: number; negotiating: number; expired: number; acceptanceRate: number; avgSalary: number | null }
+  byStatus: { status: string; count: number }[]
+  acceptanceTrend: { label: string; count: number }[]
+  salaryBuckets: { range: string; count: number }[]
+}
+
+export async function getOffers(days: number | null): Promise<OfferData> {
+  const { data } = await supabase.from('offers').select('*')
+  const offers = ((data as Offer[]) ?? []).filter((o) => inPeriod(o.sent_at || o.created_at, days))
+
+  const by = (s: string) => offers.filter((o) => o.status === s).length
+  const accepted = by('accepted')
+  const decided = accepted + by('declined')
+  const salaries = offers.map((o) => o.salary).filter((s): s is number => s != null)
+
+  const kpis = {
+    sent: offers.filter((o) => o.status !== 'pending').length,
+    accepted,
+    declined: by('declined'),
+    negotiating: by('negotiating'),
+    expired: by('expired'),
+    acceptanceRate: decided ? Math.round((accepted / decided) * 100) : 0,
+    avgSalary: salaries.length ? Math.round(salaries.reduce((s, n) => s + n, 0) / salaries.length) : null,
+  }
+  const byStatus = OFFER_STATUSES.map((s) => ({ status: OFFER_STATUS_LABELS[s], count: by(s) }))
+  const acceptanceTrend = weeklyBuckets(offers.filter((o) => o.status === 'accepted').map((o) => o.sent_at || o.created_at), 8)
+
+  // Salary distribution in $20k buckets.
+  const buckets: Record<string, number> = {}
+  for (const s of salaries) {
+    const lo = Math.floor(s / 20000) * 20
+    const key = `$${lo}–${lo + 20}k`
+    buckets[key] = (buckets[key] ?? 0) + 1
+  }
+  const salaryBuckets = Object.entries(buckets)
+    .map(([range, count]) => ({ range, count }))
+    .sort((a, b) => parseInt(a.range.slice(1)) - parseInt(b.range.slice(1)))
+
+  return { kpis, byStatus, acceptanceTrend, salaryBuckets }
 }
 
 /** Best-effort audit write for permission-sensitive actions. */

@@ -12,7 +12,7 @@ import { DEFAULT_COMPANY_ID } from './types'
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v5'
+const SEEDED = 'demo_seeded_v6'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -58,6 +58,8 @@ const TABLES = [
   'integration_logs',
   'integration_field_mappings',
   'webhook_events',
+  'interviews',
+  'offers',
 ]
 
 function load(table: string): Row[] {
@@ -532,6 +534,49 @@ function seedIfNeeded() {
     to_stage: 'sourced',
     payload: { source: 'Career Site' },
   })))
+
+  // ---- Interviews + offers (sample, spread over the last weeks) ----
+  const dayMs = 86400000
+  const interviewers = ['rec-alex', 'rec-hannah', DEMO_USER.id]
+  const istatuses = ['completed', 'completed', 'scheduled', 'completed', 'no_show', 'completed', 'cancelled', 'rescheduled', 'scheduled', 'completed']
+  const interviews: Row[] = candidates.slice(0, 16).map((c, i) => {
+    const status = istatuses[i % istatuses.length]
+    const done = status === 'completed'
+    return stampInsert('interviews', {
+      company_id: DEFAULT_COMPANY_ID,
+      candidate_id: c.id,
+      job_id: null,
+      interviewer_id: interviewers[i % interviewers.length],
+      scheduled_at: new Date(Date.now() - (i * 4 + 2) * dayMs).toISOString(),
+      duration_min: [30, 45, 60][i % 3],
+      location: i % 2 ? 'Video call' : 'On-site',
+      status,
+      feedback: done ? 'Strong communication; relevant clinical experience.' : null,
+      score: done ? 3 + (i % 3) : null,
+      created_by: DEMO_USER.id,
+    })
+  })
+  save('interviews', interviews)
+
+  const salaryFor = (role: string) =>
+    role === 'np' ? 130000 : role === 'md' ? 240000 : role === 'pa' ? 115000 :
+    role === 'rn' ? 78000 : role === 'lpn' ? 64000 : role === 'ma' ? 44000 : 60000
+  const offerCands = candidates.filter((c) => ['offer', 'accepted', 'welcome_call'].includes(c.current_stage)).slice(0, 14)
+  const ostatus = ['accepted', 'sent', 'negotiating', 'declined', 'accepted', 'sent', 'expired', 'accepted', 'accepted', 'sent', 'accepted', 'negotiating']
+  const offers: Row[] = offerCands.map((c, i) => stampInsert('offers', {
+    company_id: DEFAULT_COMPANY_ID,
+    candidate_id: c.id,
+    job_id: null,
+    salary: salaryFor(c.role) + (i % 5) * 1500,
+    bonus: i % 3 === 0 ? 2000 : null,
+    start_date: c.start_date ?? null,
+    status: ostatus[i % ostatus.length],
+    sent_at: new Date(Date.now() - (i * 3 + 5) * dayMs).toISOString(),
+    approved_by: DEMO_USER.id,
+    approved_at: new Date(Date.now() - (i * 3 + 6) * dayMs).toISOString(),
+    created_by: DEMO_USER.id,
+  }))
+  save('offers', offers)
 
   localStorage.setItem(SEEDED, '1')
 }
