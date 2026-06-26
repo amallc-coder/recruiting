@@ -42,6 +42,7 @@ const LIVE = (c: Candidate) => !['active', 'declined', 'no_response'].includes(c
 export interface ExecutiveData {
   kpis: { openJobs: number; activeCandidates: number; applications: number; offers: number; hires: number; avgTimeToHire: number | null }
   funnel: { stage: string; count: number }[]
+  conversion: { from: string; to: string; rate: number }[]
   appsOverTime: { label: string; count: number }[]
   leaderboard: { name: string; pipeline: number; hires: number }[]
   sources: { source: string; count: number }[]
@@ -86,6 +87,19 @@ export async function getExecutive(days: number | null): Promise<ExecutiveData> 
     count: candidates.filter((c) => c.current_stage === stage).length,
   }))
 
+  // Stage-to-stage conversion. In the linear pipeline a candidate at stage K has
+  // reached every earlier stage, so "reached[i]" = candidates whose current stage
+  // index >= i (terminal "active" counts as the final stage). Declined/no-response
+  // are excluded since their drop-off stage isn't known without history.
+  const idxOf = (c: Candidate) =>
+    c.current_stage === 'active' ? PIPELINE_STAGES.length - 1 : PIPELINE_STAGES.indexOf(c.current_stage)
+  const reached = PIPELINE_STAGES.map((_, i) => candidates.filter((c) => idxOf(c) >= i).length)
+  const conversion = PIPELINE_STAGES.slice(0, -1).map((stage, i) => ({
+    from: STAGE_LABELS[stage],
+    to: STAGE_LABELS[PIPELINE_STAGES[i + 1]],
+    rate: reached[i] ? Math.round((reached[i + 1] / reached[i]) * 100) : 0,
+  }))
+
   // Applications over the last 8 weeks (or candidates if no applications yet).
   const series = periodApps.length ? periodApps.map((a) => a.created_at) : periodCands.map((c) => c.created_at)
   const appsOverTime = weeklyBuckets(series, 8)
@@ -107,7 +121,7 @@ export async function getExecutive(days: number | null): Promise<ExecutiveData> 
   }
   const sources = Object.entries(srcMap).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count)
 
-  return { kpis, funnel, appsOverTime, leaderboard, sources }
+  return { kpis, funnel, conversion, appsOverTime, leaderboard, sources }
 }
 
 function weeklyBuckets(isoDates: (string | null | undefined)[], weeks: number): { label: string; count: number }[] {

@@ -88,6 +88,25 @@ function ExecutiveView({ days }: { days: number | null }) {
         <StatCard label="Avg time to hire" value={k.avgTimeToHire == null ? '—' : `${k.avgTimeToHire}d`} />
       </div>
 
+      <div className="card p-5">
+        <h2 className="mb-3 text-sm font-semibold text-ink">Funnel conversion</h2>
+        {data.conversion.every((c) => c.rate === 0) ? (
+          <div className="text-sm text-muted">Not enough pipeline data yet.</div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {data.conversion.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="rounded-lg border border-line bg-paper px-3 py-2 text-center">
+                  <div className="text-lg font-semibold tnum text-ink">{c.rate}%</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted">{c.from} → {c.to}</div>
+                </div>
+                {i < data.conversion.length - 1 && <span className="text-line">›</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Hiring funnel">
           <BarChart data={data.funnel}>
