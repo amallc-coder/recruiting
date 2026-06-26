@@ -6,8 +6,8 @@ import { Trophy, TrendingUp, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Spinner, StatCard } from '../components/ui'
 import {
-  PERIODS, getExecutive, getRecruiter, logAudit,
-  type ExecutiveData, type RecruiterData,
+  PERIODS, getExecutive, getRecruiter, getPipeline, logAudit,
+  type ExecutiveData, type RecruiterData, type PipelineData,
 } from '../lib/analytics'
 
 const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
@@ -27,9 +27,12 @@ function ChartCard({ title, children, height = 280, empty }: {
   )
 }
 
+type AdminView = 'executive' | 'pipeline'
+
 export function Analytics() {
   const { isAdmin, profile } = useAuth()
   const [days, setDays] = useState<number | null>(90)
+  const [view, setView] = useState<AdminView>('executive')
 
   return (
     <div className="space-y-6">
@@ -38,26 +41,117 @@ export function Analytics() {
           <h1 className="text-2xl font-semibold text-ink">{isAdmin ? 'Analytics' : 'My performance'}</h1>
           <p className="text-sm text-muted">
             {isAdmin
-              ? 'Company-wide hiring health, funnel, and recruiter performance.'
+              ? 'Company-wide hiring health, funnel, pipeline velocity, and recruiter performance.'
               : 'Your hiring metrics and how you compare to the team — peers stay anonymous.'}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => setDays(p.days)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                days === p.days ? 'bg-ink text-paper' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <div className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
+              {([['executive', 'Executive'], ['pipeline', 'Pipeline']] as [AdminView, string][]).map(([v, label]) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    view === v ? 'bg-ink text-paper' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => setDays(p.days)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  days === p.days ? 'bg-ink text-paper' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {isAdmin ? <ExecutiveView days={days} /> : <RecruiterView userId={profile?.id ?? ''} days={days} />}
+      {isAdmin
+        ? (view === 'executive' ? <ExecutiveView days={days} /> : <PipelineView days={days} />)
+        : <RecruiterView userId={profile?.id ?? ''} days={days} />}
+    </div>
+  )
+}
+
+function PipelineView({ days }: { days: number | null }) {
+  const [data, setData] = useState<PipelineData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    getPipeline(days).then((d) => { if (active) { setData(d); setLoading(false) } })
+    logAudit('dashboard_viewed', { view: 'pipeline', days })
+    return () => { active = false }
+  }, [days])
+
+  if (loading || !data) return <Spinner label="Analyzing pipeline…" />
+  const bottleneck = data.aging.find((a) => a.bottleneck)
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Active hires" value={data.totalActive} tone="good" />
+        <StatCard label="Avg time to hire" value={data.avgTimeToHire == null ? '—' : `${data.avgTimeToHire}d`} />
+        <StatCard label="Bottleneck stage" value={bottleneck ? bottleneck.stage : '—'} tone={bottleneck ? 'warn' : 'default'} />
+        <StatCard label="Bottleneck aging" value={bottleneck ? `${bottleneck.avgDays}d` : '—'} tone={bottleneck ? 'warn' : 'default'} />
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-3 text-sm font-semibold text-ink">Stage conversion</h2>
+        {data.conversion.every((c) => c.rate === 0) ? (
+          <div className="text-sm text-muted">Not enough pipeline data yet.</div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {data.conversion.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="rounded-lg border border-line bg-paper px-3 py-2 text-center">
+                  <div className="text-lg font-semibold tnum text-ink">{c.rate}%</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted">{c.from} → {c.to}</div>
+                </div>
+                {i < data.conversion.length - 1 && <span className="text-line">›</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="Candidates per stage">
+          <BarChart data={data.perStage}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
+            <XAxis dataKey="stage" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={60} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Bar isAnimationActive={false} dataKey="count" radius={[6, 6, 0, 0]}>
+              {data.perStage.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+            </Bar>
+          </BarChart>
+        </ChartCard>
+
+        <ChartCard title="Avg days in stage (aging)" empty={data.aging.every((a) => a.count === 0) ? 'No active candidates' : undefined}>
+          <BarChart data={data.aging} layout="vertical" margin={{ left: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
+            <YAxis type="category" dataKey="stage" width={120} tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar isAnimationActive={false} dataKey="avgDays" radius={[0, 6, 6, 0]}>
+              {data.aging.map((a, i) => <Cell key={i} fill={a.bottleneck ? '#be4b43' : '#cd7c4f'} />)}
+            </Bar>
+          </BarChart>
+        </ChartCard>
+      </div>
     </div>
   )
 }

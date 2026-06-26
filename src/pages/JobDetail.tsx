@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { formatSalary, submitApplication, setApplicationStage } from '../lib/ats'
 import {
-  STAGES, STAGE_LABELS, EMPLOYMENT_LABELS, WORKPLACE_LABELS, ROLE_LABELS,
+  STAGES, STAGE_LABELS, PIPELINE_STAGES, EMPLOYMENT_LABELS, WORKPLACE_LABELS, ROLE_LABELS,
   type Job, type Application, type Profile, type Facility, type Stage,
 } from '../lib/types'
 import { EmptyState, Modal, Spinner, StageBadge } from '../components/ui'
@@ -51,6 +51,20 @@ export function JobDetail() {
     () => facilities.find((f) => f.id === job?.facility_id)?.name ?? null,
     [facilities, job],
   )
+
+  // Per-job funnel + source mix, computed from this job's applications.
+  const jobStats = useMemo(() => {
+    const idx = (s: Stage) => (s === 'active' ? PIPELINE_STAGES.length - 1 : PIPELINE_STAGES.indexOf(s))
+    const interviewIdx = PIPELINE_STAGES.indexOf('interview')
+    const total = apps.length
+    const interviewed = apps.filter((a) => idx(a.stage) >= interviewIdx && a.stage !== 'declined' && a.stage !== 'no_response').length
+    const offers = apps.filter((a) => a.stage === 'offer' || a.stage === 'accepted').length
+    const hires = apps.filter((a) => a.stage === 'active').length
+    const srcMap: Record<string, number> = {}
+    for (const a of apps) { const s = (a.source || 'Unknown').trim() || 'Unknown'; srcMap[s] = (srcMap[s] ?? 0) + 1 }
+    const sources = Object.entries(srcMap).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count)
+    return { total, interviewed, offers, hires, sources }
+  }, [apps])
 
   async function setStatus(status: Job['status']) {
     if (!job) return
@@ -169,6 +183,42 @@ export function JobDetail() {
           </dl>
         </aside>
       </div>
+
+      {/* Per-job dashboard */}
+      {apps.length > 0 && (
+        <div className="card p-5">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Job performance</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Applicants', value: jobStats.total },
+              { label: 'Interviewed', value: jobStats.interviewed },
+              { label: 'Offers', value: jobStats.offers },
+              { label: 'Hires', value: jobStats.hires },
+            ].map((s) => (
+              <div key={s.label} className="rounded-lg border border-line bg-paper px-3 py-2.5">
+                <div className="text-2xl font-semibold tnum text-ink">{s.value}</div>
+                <div className="stat-label">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {jobStats.sources.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-medium text-muted">Sources</div>
+              <div className="space-y-1.5">
+                {jobStats.sources.map((s) => (
+                  <div key={s.source} className="flex items-center gap-2">
+                    <div className="w-28 shrink-0 truncate text-xs text-muted" title={s.source}>{s.source}</div>
+                    <div className="h-4 flex-1 overflow-hidden rounded bg-paper">
+                      <div className="h-full rounded bg-sage-400" style={{ width: `${Math.max(4, (s.count / jobStats.total) * 100)}%` }} />
+                    </div>
+                    <div className="w-6 text-right text-xs tnum text-muted">{s.count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Applicants */}
       <div className="flex flex-wrap items-center justify-between gap-3">

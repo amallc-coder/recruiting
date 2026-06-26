@@ -39,6 +39,20 @@ function inPeriod(iso: string | null | undefined, days: number | null): boolean 
 
 const LIVE = (c: Candidate) => !['active', 'declined', 'no_response'].includes(c.current_stage)
 
+// Stage-to-stage conversion in the linear pipeline: a candidate at stage K has
+// reached every earlier stage (terminal "active" = final stage). Declined /
+// no-response are excluded since their drop-off stage isn't known without history.
+function pipelineConversion(candidates: Candidate[]): { from: string; to: string; rate: number }[] {
+  const idxOf = (c: Candidate) =>
+    c.current_stage === 'active' ? PIPELINE_STAGES.length - 1 : PIPELINE_STAGES.indexOf(c.current_stage)
+  const reached = PIPELINE_STAGES.map((_, i) => candidates.filter((c) => idxOf(c) >= i).length)
+  return PIPELINE_STAGES.slice(0, -1).map((stage, i) => ({
+    from: STAGE_LABELS[stage],
+    to: STAGE_LABELS[PIPELINE_STAGES[i + 1]],
+    rate: reached[i] ? Math.round((reached[i + 1] / reached[i]) * 100) : 0,
+  }))
+}
+
 export interface ExecutiveData {
   kpis: { openJobs: number; activeCandidates: number; applications: number; offers: number; hires: number; avgTimeToHire: number | null }
   funnel: { stage: string; count: number }[]
@@ -87,18 +101,7 @@ export async function getExecutive(days: number | null): Promise<ExecutiveData> 
     count: candidates.filter((c) => c.current_stage === stage).length,
   }))
 
-  // Stage-to-stage conversion. In the linear pipeline a candidate at stage K has
-  // reached every earlier stage, so "reached[i]" = candidates whose current stage
-  // index >= i (terminal "active" counts as the final stage). Declined/no-response
-  // are excluded since their drop-off stage isn't known without history.
-  const idxOf = (c: Candidate) =>
-    c.current_stage === 'active' ? PIPELINE_STAGES.length - 1 : PIPELINE_STAGES.indexOf(c.current_stage)
-  const reached = PIPELINE_STAGES.map((_, i) => candidates.filter((c) => idxOf(c) >= i).length)
-  const conversion = PIPELINE_STAGES.slice(0, -1).map((stage, i) => ({
-    from: STAGE_LABELS[stage],
-    to: STAGE_LABELS[PIPELINE_STAGES[i + 1]],
-    rate: reached[i] ? Math.round((reached[i + 1] / reached[i]) * 100) : 0,
-  }))
+  const conversion = pipelineConversion(candidates)
 
   // Applications over the last 8 weeks (or candidates if no applications yet).
   const series = periodApps.length ? periodApps.map((a) => a.created_at) : periodCands.map((c) => c.created_at)
@@ -214,6 +217,51 @@ export async function getRecruiter(userId: string, days: number | null): Promise
     benchmark: { avg: Math.round(avg * 10) / 10, median, top: activities.length ? Math.max(...activities) : 0 },
     leaderboard,
     personalFunnel,
+  }
+}
+
+export interface PipelineData {
+  perStage: { stage: string; count: number }[]
+  conversion: { from: string; to: string; rate: number }[]
+  aging: { stage: string; avgDays: number; count: number; bottleneck: boolean }[]
+  avgTimeToHire: number | null
+  totalActive: number
+}
+
+export async function getPipeline(days: number | null): Promise<PipelineData> {
+  const { data } = await supabase.from('candidates').select('*')
+  const candidates = ((data as Candidate[]) ?? []).filter((c) => inPeriod(c.created_at, days))
+
+  const perStage = PIPELINE_STAGES.map((stage) => ({
+    stage: STAGE_LABELS[stage],
+    count: candidates.filter((c) => c.current_stage === stage).length,
+  }))
+
+  // Stage aging: average days candidates have sat in their current stage
+  // (now − last update). The stage with the highest aging is the bottleneck.
+  const agingRaw = PIPELINE_STAGES.filter((s) => s !== 'active').map((stage) => {
+    const here = candidates.filter((c) => c.current_stage === stage)
+    const days = here.map((c) => (Date.now() - new Date(c.updated_at || c.created_at).getTime()) / 86400_000)
+    const avg = days.length ? days.reduce((s, n) => s + n, 0) / days.length : 0
+    return { stage: STAGE_LABELS[stage], avgDays: Math.round(avg), count: here.length }
+  })
+  const maxAging = Math.max(0, ...agingRaw.filter((a) => a.count > 0).map((a) => a.avgDays))
+  const aging = agingRaw.map((a) => ({ ...a, bottleneck: a.count > 0 && a.avgDays === maxAging && maxAging > 0 }))
+
+  const tth: number[] = []
+  for (const c of candidates) {
+    if (c.current_stage === 'active' && c.start_date && c.created_at) {
+      const d = (new Date(c.start_date).getTime() - new Date(c.created_at).getTime()) / 86400_000
+      if (d >= 0 && d < 400) tth.push(d)
+    }
+  }
+
+  return {
+    perStage,
+    conversion: pipelineConversion(candidates),
+    aging,
+    avgTimeToHire: tth.length ? Math.round(tth.reduce((s, n) => s + n, 0) / tth.length) : null,
+    totalActive: candidates.filter((c) => c.current_stage === 'active').length,
   }
 }
 
