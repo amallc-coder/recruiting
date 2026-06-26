@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
-import { Trophy, TrendingUp, Lock, Plus } from 'lucide-react'
+import { Trophy, TrendingUp, Lock, Plus, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { downloadCsv } from '../lib/export'
 import { Spinner, StatCard, Modal } from '../components/ui'
 import { DEFAULT_COMPANY_ID, COST_CATEGORIES, COST_CATEGORY_LABELS, type CostCategory } from '../lib/types'
 import {
@@ -13,6 +14,20 @@ import {
 } from '../lib/analytics'
 
 const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
+
+function ExportButton({ filename, rows, label = 'Export CSV', meta }: {
+  filename: string; rows: Record<string, unknown>[]; label?: string; meta?: Record<string, unknown>
+}) {
+  return (
+    <button
+      className="btn-secondary py-1.5"
+      disabled={rows.length === 0}
+      onClick={() => { downloadCsv(filename, rows); logAudit('export_created', { filename, ...meta }) }}
+    >
+      <Download size={15} /> {label}
+    </button>
+  )
+}
 
 function ChartCard({ title, children, height = 280, empty }: {
   title: string; children: React.ReactElement; height?: number; empty?: string
@@ -111,7 +126,8 @@ function FinanceView({ days }: { days: number | null }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <ExportButton filename="spend-by-category.csv" rows={data.byCategory as unknown as Record<string, unknown>[]} meta={{ view: 'finance' }} />
         <button className="btn-secondary" onClick={() => setAdding(true)}><Plus size={15} /> Add cost</button>
       </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
@@ -218,6 +234,9 @@ function InterviewsView({ days }: { days: number | null }) {
   const k = data.kpis
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportButton filename="interviewers.csv" rows={data.interviewers as unknown as Record<string, unknown>[]} meta={{ view: 'interviews' }} />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Scheduled" value={k.scheduled} />
         <StatCard label="Completed" value={k.completed} tone="good" />
@@ -278,6 +297,9 @@ function OffersView({ days }: { days: number | null }) {
   const k = data.kpis
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportButton filename="offers-by-status.csv" rows={data.byStatus as unknown as Record<string, unknown>[]} meta={{ view: 'offers' }} />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Sent" value={k.sent} />
         <StatCard label="Accepted" value={k.accepted} tone="good" />
@@ -338,6 +360,9 @@ function PipelineView({ days }: { days: number | null }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportButton filename="pipeline-aging.csv" rows={data.aging as unknown as Record<string, unknown>[]} meta={{ view: 'pipeline' }} />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Active hires" value={data.totalActive} tone="good" />
         <StatCard label="Avg time to hire" value={data.avgTimeToHire == null ? '—' : `${data.avgTimeToHire}d`} />
@@ -410,6 +435,9 @@ function ExecutiveView({ days }: { days: number | null }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportButton filename="recruiter-leaderboard.csv" rows={data.leaderboard as unknown as Record<string, unknown>[]} meta={{ view: 'executive' }} />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Open jobs" value={k.openJobs} />
         <StatCard label="Active candidates" value={k.activeCandidates} />
