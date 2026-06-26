@@ -206,6 +206,26 @@ export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   pending: 'Pending', sent: 'Sent', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', negotiating: 'Negotiating',
 }
 
+export type CostCategory = 'job_board' | 'agency' | 'referral' | 'software' | 'recruiter' | 'other'
+
+export interface RecruitingCost {
+  id: string
+  company_id: string
+  category: CostCategory
+  vendor: string | null
+  amount: number
+  period: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const COST_CATEGORIES: CostCategory[] = ['job_board', 'agency', 'referral', 'software', 'recruiter', 'other']
+export const COST_CATEGORY_LABELS: Record<CostCategory, string> = {
+  job_board: 'Job boards', agency: 'Agency fees', referral: 'Referral bonuses',
+  software: 'Software', recruiter: 'Recruiter cost', other: 'Other',
+}
+
 export const JOB_STATUSES: JobStatus[] = ['draft', 'published', 'paused', 'closed', 'archived']
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   draft: 'Draft',

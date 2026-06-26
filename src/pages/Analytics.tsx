@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
-import { Trophy, TrendingUp, Lock } from 'lucide-react'
+import { Trophy, TrendingUp, Lock, Plus } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { Spinner, StatCard } from '../components/ui'
+import { supabase } from '../lib/supabase'
+import { Spinner, StatCard, Modal } from '../components/ui'
+import { DEFAULT_COMPANY_ID, COST_CATEGORIES, COST_CATEGORY_LABELS, type CostCategory } from '../lib/types'
 import {
-  PERIODS, getExecutive, getRecruiter, getPipeline, getInterviews, getOffers, logAudit,
-  type ExecutiveData, type RecruiterData, type PipelineData, type InterviewData, type OfferData,
+  PERIODS, getExecutive, getRecruiter, getPipeline, getInterviews, getOffers, getFinance, logAudit,
+  type ExecutiveData, type RecruiterData, type PipelineData, type InterviewData, type OfferData, type FinanceData,
 } from '../lib/analytics'
 
 const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
@@ -27,7 +29,7 @@ function ChartCard({ title, children, height = 280, empty }: {
   )
 }
 
-type AdminView = 'executive' | 'pipeline' | 'interviews' | 'offers'
+type AdminView = 'executive' | 'pipeline' | 'interviews' | 'offers' | 'finance'
 
 export function Analytics() {
   const { isAdmin, profile } = useAuth()
@@ -48,7 +50,7 @@ export function Analytics() {
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
             <div className="flex gap-1 rounded-lg border border-line bg-surface p-0.5">
-              {([['executive', 'Executive'], ['pipeline', 'Pipeline'], ['interviews', 'Interviews'], ['offers', 'Offers']] as [AdminView, string][]).map(([v, label]) => (
+              {([['executive', 'Executive'], ['pipeline', 'Pipeline'], ['interviews', 'Interviews'], ['offers', 'Offers'], ['finance', 'Finance']] as [AdminView, string][]).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -81,9 +83,125 @@ export function Analytics() {
         ? (view === 'executive' ? <ExecutiveView days={days} />
           : view === 'pipeline' ? <PipelineView days={days} />
           : view === 'interviews' ? <InterviewsView days={days} />
-          : <OffersView days={days} />)
+          : view === 'offers' ? <OffersView days={days} />
+          : <FinanceView days={days} />)
         : <RecruiterView userId={profile?.id ?? ''} days={days} />}
     </div>
+  )
+}
+
+function FinanceView({ days }: { days: number | null }) {
+  const [data, setData] = useState<FinanceData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    const d = await getFinance(days)
+    setData(d); setLoading(false)
+  }
+  useEffect(() => {
+    load()
+    logAudit('dashboard_viewed', { view: 'finance', days })
+  }, [days]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading || !data) return <Spinner label="Loading finance…" />
+  const k = data.kpis
+  const money = (n: number | null) => (n == null ? '—' : `$${n.toLocaleString()}`)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <button className="btn-secondary" onClick={() => setAdding(true)}><Plus size={15} /> Add cost</button>
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+        <StatCard label="Total spend" value={money(k.totalSpend)} hint="in period" />
+        <StatCard label="Cost per hire" value={money(k.costPerHire)} tone={k.costPerHire ? 'warn' : 'default'} />
+        <StatCard label="Cost per interview" value={money(k.costPerInterview)} />
+        <StatCard label="Cost per offer" value={money(k.costPerOffer)} />
+        <StatCard label="Hires" value={k.hires} tone="good" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Spend by category"
+          height={Math.max(220, data.byCategory.length * 44)}
+          empty={data.byCategory.length === 0 ? 'No costs recorded yet' : undefined}
+        >
+          <BarChart data={data.byCategory} layout="vertical" margin={{ left: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
+            <XAxis type="number" tick={{ fontSize: 12 }} />
+            <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar isAnimationActive={false} dataKey="amount" radius={[0, 6, 6, 0]}>
+              {data.byCategory.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+            </Bar>
+          </BarChart>
+        </ChartCard>
+        <ChartCard title="Monthly spend trend">
+          <LineChart data={data.trend}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip />
+            <Line isAnimationActive={false} type="monotone" dataKey="amount" stroke="#cd7c4f" strokeWidth={2} dot={{ r: 3 }} />
+          </LineChart>
+        </ChartCard>
+      </div>
+      {adding && <AddCostModal onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />}
+    </div>
+  )
+}
+
+function AddCostModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [category, setCategory] = useState<CostCategory>('job_board')
+  const [vendor, setVendor] = useState('')
+  const [amount, setAmount] = useState('')
+  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7))
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!amount) return
+    setSaving(true)
+    await supabase.from('recruiting_costs').insert({
+      company_id: DEFAULT_COMPANY_ID,
+      category,
+      vendor: vendor.trim() || null,
+      amount: Number(amount),
+      period: `${period}-01`,
+    })
+    setSaving(false)
+    onSaved()
+  }
+
+  return (
+    <Modal title="Add recruiting cost" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Category</label>
+            <select className="input" value={category} onChange={(e) => setCategory(e.target.value as CostCategory)}>
+              {COST_CATEGORIES.map((c) => <option key={c} value={c}>{COST_CATEGORY_LABELS[c]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Month</label>
+            <input className="input" type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="label">Vendor <span className="font-normal text-muted">(optional)</span></label>
+          <input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Indeed" />
+        </div>
+        <div>
+          <label className="label">Amount ($)</label>
+          <input className="input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving || !amount}>{saving ? 'Saving…' : 'Add cost'}</button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

@@ -981,6 +981,35 @@ create policy "offers_access" on public.offers
   );
 
 -- =============================================================================
+-- RECRUITING COSTS — inputs for the Finance / cost-per-hire dashboard
+-- =============================================================================
+create table if not exists public.recruiting_costs (
+  id          uuid primary key default gen_random_uuid(),
+  company_id  uuid not null default '00000000-0000-0000-0000-000000000001'
+                references public.companies(id) on delete cascade,
+  category    text not null
+                check (category in ('job_board','agency','referral','software','recruiter','other')),
+  vendor      text,
+  amount      numeric not null default 0,
+  period      date,                 -- first-of-month bucket
+  notes       text,
+  created_by  uuid references public.profiles(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists idx_costs_period on public.recruiting_costs(period);
+
+drop trigger if exists trg_touch_costs on public.recruiting_costs;
+create trigger trg_touch_costs before update on public.recruiting_costs
+  for each row execute function public.touch_updated_at();
+
+-- Finance is sensitive: admin-only.
+alter table public.recruiting_costs enable row level security;
+drop policy if exists "costs_admin" on public.recruiting_costs;
+create policy "costs_admin" on public.recruiting_costs
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================

@@ -12,7 +12,9 @@ import { supabase, demoMode } from './supabase'
 import {
   PIPELINE_STAGES, STAGE_LABELS,
   INTERVIEW_STATUSES, INTERVIEW_STATUS_LABELS, OFFER_STATUSES, OFFER_STATUS_LABELS,
+  COST_CATEGORIES, COST_CATEGORY_LABELS,
   type Candidate, type Application, type Job, type Profile, type Interview, type Offer,
+  type RecruitingCost,
 } from './types'
 
 export interface Period { label: string; days: number | null }
@@ -352,6 +354,50 @@ export async function getOffers(days: number | null): Promise<OfferData> {
     .sort((a, b) => parseInt(a.range.slice(1)) - parseInt(b.range.slice(1)))
 
   return { kpis, byStatus, acceptanceTrend, salaryBuckets }
+}
+
+export interface FinanceData {
+  kpis: { totalSpend: number; costPerHire: number | null; costPerInterview: number | null; costPerOffer: number | null; hires: number }
+  byCategory: { category: string; amount: number }[]
+  trend: { label: string; amount: number }[]
+}
+
+export async function getFinance(days: number | null): Promise<FinanceData> {
+  const [{ data: costData }, { data: cData }, { data: iData }, { data: oData }] = await Promise.all([
+    supabase.from('recruiting_costs').select('*'),
+    supabase.from('candidates').select('*'),
+    supabase.from('interviews').select('*'),
+    supabase.from('offers').select('*'),
+  ])
+  const costs = ((costData as RecruitingCost[]) ?? []).filter((c) => inPeriod(c.period || c.created_at, days))
+  const candidates = ((cData as Candidate[]) ?? []).filter((c) => inPeriod(c.created_at, days))
+  const interviews = ((iData as Interview[]) ?? []).filter((i) => i.status === 'completed')
+  const offers = ((oData as Offer[]) ?? []).filter((o) => o.status !== 'pending')
+
+  const totalSpend = costs.reduce((s, c) => s + (c.amount || 0), 0)
+  const hires = candidates.filter((c) => c.current_stage === 'active').length
+  const per = (n: number) => (n > 0 ? Math.round(totalSpend / n) : null)
+
+  const catMap: Record<string, number> = {}
+  for (const c of costs) catMap[c.category] = (catMap[c.category] ?? 0) + (c.amount || 0)
+  const byCategory = COST_CATEGORIES.map((cat) => ({ category: COST_CATEGORY_LABELS[cat], amount: Math.round(catMap[cat] ?? 0) }))
+    .filter((x) => x.amount > 0)
+
+  // Monthly spend trend (last 6 months).
+  const now = new Date()
+  const trend = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = d.toISOString().slice(0, 7)
+    const amount = costs.filter((c) => (c.period || c.created_at || '').slice(0, 7) === key).reduce((s, c) => s + (c.amount || 0), 0)
+    return { label: d.toLocaleDateString(undefined, { month: 'short' }), amount: Math.round(amount) }
+  })
+
+  return {
+    kpis: { totalSpend: Math.round(totalSpend), costPerHire: per(hires), costPerInterview: per(interviews.length), costPerOffer: per(offers.length), hires },
+    byCategory,
+    trend,
+  }
 }
 
 /** Best-effort audit write for permission-sensitive actions. */

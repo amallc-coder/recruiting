@@ -12,7 +12,7 @@ import { DEFAULT_COMPANY_ID } from './types'
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v6'
+const SEEDED = 'demo_seeded_v7'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -60,6 +60,7 @@ const TABLES = [
   'webhook_events',
   'interviews',
   'offers',
+  'recruiting_costs',
 ]
 
 function load(table: string): Row[] {
@@ -577,6 +578,29 @@ function seedIfNeeded() {
     created_by: DEMO_USER.id,
   }))
   save('offers', offers)
+
+  // ---- Recruiting costs (last 3 months, for the Finance dashboard) ----
+  const monthStart = (back: number) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - back, 1)
+    return d.toISOString().slice(0, 10)
+  }
+  const costRows: [string, string, number][] = [
+    ['job_board', 'Indeed', 4200], ['job_board', 'LinkedIn', 3800],
+    ['agency', 'Regional staffing', 9500], ['referral', 'Employee referrals', 3000],
+    ['software', 'Clinilytics ATS', 1200], ['recruiter', 'Recruiter salaries (allocated)', 18000],
+  ]
+  const costs: Row[] = [0, 1, 2].flatMap((back) =>
+    costRows.map(([category, vendor, amount]) => stampInsert('recruiting_costs', {
+      company_id: DEFAULT_COMPANY_ID,
+      category,
+      vendor,
+      amount: amount + back * 250,
+      period: monthStart(back),
+      created_by: DEMO_USER.id,
+    })),
+  )
+  save('recruiting_costs', costs)
 
   localStorage.setItem(SEEDED, '1')
 }
