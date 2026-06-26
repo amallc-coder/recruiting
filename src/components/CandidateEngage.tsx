@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Sparkles, Phone, MessageSquare, Mail, FileText, Check, Trash2, Loader2,
+  Sparkles, Phone, PhoneCall, MessageSquare, Mail, FileText, Check, Trash2, Loader2,
   AlertTriangle, ArrowDownLeft, ArrowUpRight, StickyNote,
 } from 'lucide-react'
+import { supabase, demoMode } from '../lib/supabase'
 import { Modal } from './ui'
 import {
   completeAndAnalyze, createScreening, deleteScreening,
@@ -238,6 +239,19 @@ function ScreeningCard({
     } finally { setBusy(null) }
   }
 
+  // Place a fully-agentic Vapi call / text. Server-side; needs VAPI_API_KEY set.
+  async function dispatch(mode: 'call' | 'sms') {
+    setBusy(mode)
+    try {
+      const { data, error } = await supabase.functions.invoke('vapi-call', { body: { screening_id: screening.id, mode } })
+      const errMsg = (error as { context?: { error?: string } } | null)?.context?.error || (data as { error?: string })?.error || (error?.message)
+      if (errMsg) { alert(`Could not start ${mode === 'sms' ? 'text' : 'call'}: ${errMsg}`); return }
+      onChanged()
+    } catch (e) {
+      alert(`Could not start ${mode === 'sms' ? 'text' : 'call'}: ${String(e instanceof Error ? e.message : e)}`)
+    } finally { setBusy(null) }
+  }
+
   return (
     <div className="card p-4">
       <button className="flex w-full items-center justify-between text-left" onClick={() => setOpen((o) => !o)}>
@@ -278,6 +292,26 @@ function ScreeningCard({
               <button className="btn-secondary" onClick={() => persist({ status: 'approved', approved_at: new Date().toISOString() })}>
                 <Check size={15} /> Approve
               </button>
+            )}
+            {!demoMode && screening.status !== 'draft' && (
+              <>
+                <button
+                  className="btn-secondary"
+                  title={candidate.phone ? 'Place an AI screening call via Vapi' : 'Candidate has no phone number'}
+                  disabled={!candidate.phone || busy === 'call'}
+                  onClick={() => dispatch('call')}
+                >
+                  {busy === 'call' ? <Loader2 size={15} className="animate-spin" /> : <PhoneCall size={15} />} AI call
+                </button>
+                <button
+                  className="btn-secondary"
+                  title={candidate.phone ? 'Send the screening by text via Vapi' : 'Candidate has no phone number'}
+                  disabled={!candidate.phone || busy === 'sms'}
+                  onClick={() => dispatch('sms')}
+                >
+                  {busy === 'sms' ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />} Text
+                </button>
+              </>
             )}
             <button className="btn-secondary" onClick={() => { if (confirm('Delete this screening?')) deleteScreening(screening.id).then(onChanged) }}>
               <Trash2 size={15} />
@@ -436,9 +470,10 @@ function Banner({ kind, children }: { kind: 'error' | 'info'; children: React.Re
 function VendorNote() {
   return (
     <p className="text-xs text-muted">
-      Fully-agentic phone calls and automatic SMS/email sending connect through a voice/messaging vendor
-      (Vapi, Bland, or Retell + Twilio). Until one is connected, run the screening manually and paste the
-      transcript above — analysis and the matching feedback loop work either way.
+      <strong>AI call</strong> / <strong>Text</strong> place a fully-agentic Vapi screening (needs a Vapi
+      number + <code>VAPI_API_KEY</code> set on the project). The transcript returns automatically, gets
+      analyzed, and feeds matching. No Vapi yet? Run the screening manually and paste the transcript above —
+      analysis and the matching loop work either way.
     </p>
   )
 }
