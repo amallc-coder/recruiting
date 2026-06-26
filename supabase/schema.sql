@@ -427,6 +427,9 @@ create policy "history_select" on public.candidate_stage_history
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
   check (role in ('admin','recruiter','supervisor','hiring_manager','interviewer','viewer'));
+-- Placeholder recruiters: created from an imported sheet, no login until an
+-- email is set and they're invited.
+alter table public.profiles add column if not exists placeholder boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- COMPANIES — multi-tenant root (one default company for now)
