@@ -49,6 +49,9 @@ const ALIASES: Record<Field, string[]> = {
 }
 
 const norm = (s: string) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+// Collapse internal whitespace but keep case — so "Corey  Weinhaus" and
+// "Corey Weinhaus" are treated as the same recruiter (avoids duplicate users).
+const cleanName = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim()
 
 export function autoMap(headers: string[]): Record<string, Field> {
   const map: Record<string, Field> = {}
@@ -140,11 +143,11 @@ export function teamSheetRecruiters(sheets: ParsedSheet[]): string[] {
     const recI = sheet.headers.map((h) => norm(h)).findIndex((h) => /^recruiter$/.test(h))
     let any = false
     for (const row of sheet.rows) {
-      const v = recI >= 0 ? String(row[sheet.headers[recI]] ?? '').trim() : ''
+      const v = recI >= 0 ? cleanName(row[sheet.headers[recI]]) : ''
       if (v) { names.add(v); any = true }
     }
     // Fall back to the tab name (which is the recruiter) when the column is blank.
-    if (!any && sheet.rows.length) names.add(sheet.name.trim())
+    if (!any && sheet.rows.length) names.add(cleanName(sheet.name))
   }
   return [...names].filter((n) => n && n.length > 1).sort()
 }
@@ -171,7 +174,7 @@ export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
   const out: MappedCandidate[] = []
   for (const row of sheet.rows) {
     const cells = sheet.headers.map((h) => row[h] ?? '')
-    const recruiter = (recI >= 0 ? cells[recI] : '') || sheet.name
+    const recruiter = cleanName((recI >= 0 ? cells[recI] : '') || sheet.name)
     const facilityText = facI >= 0 ? cells[facI] : ''
     const position = String(posI >= 0 ? cells[posI] : '').trim()
     const role = mapRole(position)
@@ -274,7 +277,7 @@ export function extractTeamSheetJobs(sheet: ParsedSheet): MappedJob[] {
       state: state || null,
       city: city || null,
       facilityText: String(facI >= 0 ? cells[facI] : '').trim() || null,
-      recruiter: String(recI >= 0 ? cells[recI] : '').trim() || null,
+      recruiter: cleanName(recI >= 0 ? cells[recI] : '') || null,
       role: mapRole(title),
       openings,
       openings_remaining,

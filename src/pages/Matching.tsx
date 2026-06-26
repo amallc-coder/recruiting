@@ -5,18 +5,13 @@ import { rankCandidates, type MatchResult, type MatchInput } from '../lib/match'
 import {
   ROLE_LABELS,
   type Candidate,
-  type CoverageNeed,
+  type Job,
   type Facility,
 } from '../lib/types'
 import { EmptyState, RoleBadge, Spinner, StageBadge } from '../components/ui'
 
-interface Position {
-  need: CoverageNeed
-  facility: Facility
-}
-
 export function Matching() {
-  const [needs, setNeeds] = useState<CoverageNeed[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,12 +23,12 @@ export function Matching() {
 
   async function load() {
     setLoading(true)
-    const [n, f, c] = await Promise.all([
-      supabase.from('coverage_needs').select('*'),
+    const [j, f, c] = await Promise.all([
+      supabase.from('jobs').select('*'),
       supabase.from('facilities').select('*'),
       supabase.from('candidates').select('*'),
     ])
-    setNeeds((n.data as CoverageNeed[]) ?? [])
+    setJobs((j.data as Job[]) ?? [])
     setFacilities((f.data as Facility[]) ?? [])
     setCandidates((c.data as Candidate[]) ?? [])
     setLoading(false)
@@ -43,27 +38,29 @@ export function Matching() {
     load()
   }, [])
 
-  const positions = useMemo<Position[]>(() => {
-    const facById = new Map(facilities.map((f) => [f.id, f]))
-    return needs
-      .filter((n) => n.need_count > 0)
-      .map((need) => ({ need, facility: facById.get(need.facility_id)! }))
-      .filter((p) => p.facility)
-      .sort((a, b) => a.facility.name.localeCompare(b.facility.name))
-  }, [needs, facilities])
+  const facById = useMemo(() => new Map(facilities.map((f) => [f.id, f])), [facilities])
 
-  const selected = positions.find((p) => p.need.id === selectedId) ?? null
+  // Open positions = published jobs (those still hiring first).
+  const positions = useMemo<Job[]>(() => {
+    return jobs
+      .filter((j) => j.status === 'published')
+      .sort((a, b) => (b.openings_remaining ?? b.openings ?? 1) - (a.openings_remaining ?? a.openings ?? 1) || a.title.localeCompare(b.title))
+  }, [jobs])
+
+  const selected = positions.find((j) => j.id === selectedId) ?? null
   const candidateById = useMemo(() => new Map(candidates.map((c) => [c.id, c])), [candidates])
+
+  const jobLocation = (j: Job) => j.location || facById.get(j.facility_id ?? '')?.region || ''
 
   useEffect(() => {
     setResults(null)
-    setDescription(selected?.need.description ?? '')
+    setDescription(selected?.description ?? '')
   }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveDescription() {
     if (!selected) return
     setSavingDesc(true)
-    await supabase.from('coverage_needs').update({ description }).eq('id', selected.need.id)
+    await supabase.from('jobs').update({ description }).eq('id', selected.id)
     setSavingDesc(false)
     load()
   }
@@ -72,13 +69,16 @@ export function Matching() {
     if (!selected) return
     setRanking(true)
     setResults(null)
+    // Build the full role context from the edited description + the job's
+    // responsibilities and requirements.
+    const fullText = [description, selected.responsibilities, selected.requirements].filter(Boolean).join('\n')
     const input: MatchInput = {
-      role: selected.need.role,
-      description,
-      region: selected.facility.region,
+      role: selected.role ?? 'ma',
+      description: fullText,
+      region: jobLocation(selected),
     }
-    // Prefer same-role candidates; if none, consider everyone.
-    let pool = candidates.filter((c) => c.role === selected.need.role)
+    // Prefer same-role candidates; if none (or the job has no role), consider everyone.
+    let pool = selected.role ? candidates.filter((c) => c.role === selected.role) : candidates
     if (pool.length === 0) pool = candidates
     const res = await rankCandidates(input, pool)
     setResults(res)
@@ -101,24 +101,27 @@ export function Matching() {
       {positions.length === 0 ? (
         <EmptyState
           title="No open positions"
-          hint="Set a role's Need to 1 or more on a facility to create a position to match against."
+          hint="Publish a job (Jobs → set status to Published) or import your openings to match candidates against them."
         />
       ) : (
         <div className="card space-y-4 p-5">
           <div>
-            <label className="label">Open position</label>
+            <label className="label">Open position <span className="font-normal text-muted">({positions.length} published)</span></label>
             <select
               className="input"
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
             >
               <option value="">Select a position…</option>
-              {positions.map((p) => (
-                <option key={p.need.id} value={p.need.id}>
-                  {p.facility.name} — {ROLE_LABELS[p.need.role]} (need {p.need.need_count})
-                  {p.facility.region ? ` · ${p.facility.region}` : ''}
-                </option>
-              ))}
+              {positions.map((j) => {
+                const open = j.openings_remaining ?? j.openings ?? 1
+                const loc = jobLocation(j)
+                return (
+                  <option key={j.id} value={j.id}>
+                    {j.title}{j.role ? ` · ${ROLE_LABELS[j.role]}` : ''}{loc ? ` · ${loc}` : ''} (open {open})
+                  </option>
+                )
+              })}
             </select>
           </div>
 
