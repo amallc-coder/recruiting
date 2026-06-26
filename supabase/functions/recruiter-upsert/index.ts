@@ -45,7 +45,8 @@ Deno.serve(async (req: Request) => {
 
   const { full_name } = await req.json().catch(() => ({}))
   if (!full_name || !String(full_name).trim()) return json({ error: 'Missing full_name' }, 400)
-  const name = String(full_name).trim()
+  // Collapse internal whitespace so "Corey  Weinhaus" matches "Corey Weinhaus".
+  const name = String(full_name).replace(/\s+/g, ' ').trim()
 
   // Already exists by name? Return it (idempotent-ish).
   const { data: existing } = await admin.from('profiles').select('id,email').ilike('full_name', name).limit(1).maybeSingle()
