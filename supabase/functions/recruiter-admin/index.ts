@@ -47,6 +47,13 @@ Deno.serve(async (req: Request) => {
     const userId = String(body.user_id ?? '')
     const email = String(body.email ?? '').trim().toLowerCase()
     if (!userId || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Valid user_id and email required' }, 400)
+    // Reject placeholder/unroutable addresses so a real login can't be set to one.
+    if (/@placeholder\.|\.invalid$/i.test(email)) return json({ error: 'Use a real, routable email — not a placeholder.' }, 400)
+
+    // Confine this to recruiter accounts so an admin's login email can never be
+    // rewritten through here (no horizontal account takeover among admins).
+    const { data: target } = await admin.from('profiles').select('role').eq('id', userId).single()
+    if (!target || target.role !== 'recruiter') return json({ error: 'Can only set the login email for recruiter accounts.' }, 403)
 
     const { error: uErr } = await admin.auth.admin.updateUserById(userId, { email, email_confirm: true })
     if (uErr) return json({ error: uErr.message }, 400)

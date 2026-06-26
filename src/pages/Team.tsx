@@ -11,6 +11,21 @@ interface RecruiterRegion {
   region: string
 }
 
+// Placeholder recruiters carry an unroutable sentinel email until a real one is set.
+const isPlaceholderEmail = (email: string | null | undefined) =>
+  !email || /@placeholder\.|\.invalid$/i.test(email)
+
+// Pull the structured { error } body off a Functions HTTP error (non-2xx
+// responses arrive as an error with the JSON in error.context, not in data).
+async function functionErrorMessage(err: unknown, fallback: string): Promise<string> {
+  try {
+    const ctx = (err as { context?: { json?: () => Promise<{ error?: string }> } })?.context
+    const body = ctx?.json ? await ctx.json() : null
+    if (body?.error) return body.error
+  } catch { /* ignore */ }
+  return (err as { message?: string })?.message || fallback
+}
+
 export function Team() {
   const { profile: me } = useAuth()
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -71,9 +86,6 @@ export function Team() {
   }
 
   const regionsFor = (id: string) => regions.filter((r) => r.recruiter_id === id).map((r) => r.region)
-
-  const isPlaceholderEmail = (email: string | null | undefined) =>
-    !email || /@placeholder\.|\.invalid$/i.test(email)
 
   async function sendReset(p: Profile) {
     if (demoMode) { setNotice({ ok: false, msg: 'Local mode can’t send email — connect Supabase.' }); return }
@@ -256,7 +268,7 @@ function EmailModal({ profile, onClose, onSaved }: {
   onClose: () => void
   onSaved: (msg: string) => void
 }) {
-  const isPlaceholder = !profile.email || /@placeholder\.|\.invalid$/i.test(profile.email)
+  const isPlaceholder = isPlaceholderEmail(profile.email)
   const [email, setEmail] = useState(isPlaceholder ? '' : profile.email)
   const [reset, setReset] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -265,11 +277,12 @@ function EmailModal({ profile, onClose, onSaved }: {
   async function save() {
     const next = email.trim().toLowerCase()
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next)) { setError('Enter a valid email address.'); return }
+    if (isPlaceholderEmail(next)) { setError('Use a real, routable email — not a placeholder.'); return }
     setSaving(true); setError(null)
-    const { data, error: fErr } = await supabase.functions.invoke('recruiter-admin', {
+    const { error: fErr } = await supabase.functions.invoke('recruiter-admin', {
       body: { action: 'update_email', user_id: profile.id, email: next },
     })
-    if (fErr || (data && data.error)) { setSaving(false); setError((data && data.error) || fErr?.message || 'Could not update email.'); return }
+    if (fErr) { setSaving(false); setError(await functionErrorMessage(fErr, 'Could not update email.')); return }
     let msg = `Login email set to ${next}.`
     if (reset) {
       const { error: rErr } = await supabase.auth.resetPasswordForEmail(next, {
