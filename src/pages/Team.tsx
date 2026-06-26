@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ShieldCheck, User as UserIcon, Download, X, UserPlus } from 'lucide-react'
+import { ShieldCheck, User as UserIcon, Download, X, UserPlus, Mail, KeyRound, Loader2 } from 'lucide-react'
 import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { downloadCsv } from '../lib/export'
@@ -19,6 +19,8 @@ export function Team() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
+  const [notice, setNotice] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [accountEdit, setAccountEdit] = useState<Profile | null>(null)
 
   async function load() {
     setLoading(true)
@@ -70,6 +72,25 @@ export function Team() {
 
   const regionsFor = (id: string) => regions.filter((r) => r.recruiter_id === id).map((r) => r.region)
 
+  const isPlaceholderEmail = (email: string | null | undefined) =>
+    !email || /@placeholder\.|\.invalid$/i.test(email)
+
+  async function sendReset(p: Profile) {
+    if (demoMode) { setNotice({ ok: false, msg: 'Local mode can’t send email — connect Supabase.' }); return }
+    if (isPlaceholderEmail(p.email)) {
+      setNotice({ ok: false, msg: `${p.full_name || 'This user'} still has a placeholder email — set a real one first, then send the reset.` })
+      return
+    }
+    setSavingId(p.id); setNotice(null)
+    const { error } = await supabase.auth.resetPasswordForEmail(p.email, {
+      redirectTo: window.location.origin + window.location.pathname + '#/login',
+    })
+    setSavingId(null)
+    setNotice(error
+      ? { ok: false, msg: `Couldn’t send reset: ${error.message}` }
+      : { ok: true, msg: `Password-reset email sent to ${p.email}.` })
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -101,11 +122,18 @@ export function Team() {
       </div>
 
       <div className="card border-sage-100 bg-sage-50 p-4 text-sm text-sage-700">
-        <strong>Adding people:</strong> create their account in Supabase → Authentication → Users →
-        <em> Add user</em> (email + password, mark confirmed). They appear here on first sign-in. Then
-        set their role and assign the regions they cover — recruiters only see facilities, needs, and
-        candidates in their assigned regions.
+        <strong>Recruiters &amp; logins:</strong> imported recruiters appear as <em>placeholders</em> (assigned
+        work, no login). Give one access by <strong>editing their email</strong> to a real address, then
+        <strong> Send password reset</strong> — they’ll get a link to set their own password. You can also
+        <em> Invite teammate</em> to add someone fresh.
       </div>
+
+      {notice && (
+        <div className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm ${notice.ok ? 'bg-sage-50 text-sage-700' : 'bg-rust-50 text-rust-500'}`}>
+          <span className="flex-1">{notice.msg}</span>
+          <button className="text-muted hover:text-ink" onClick={() => setNotice(null)}><X size={15} /></button>
+        </div>
+      )}
 
       {loading ? (
         <Spinner label="Loading team…" />
@@ -127,13 +155,26 @@ export function Team() {
                       <UserIcon size={18} className="text-muted" />
                     )}
                     <div>
-                      <div className="font-medium text-ink">
+                      <div className="flex items-center gap-2 font-medium text-ink">
                         {p.full_name || '—'} {isSelf && <span className="text-xs text-muted">(you)</span>}
+                        {(p.placeholder || isPlaceholderEmail(p.email)) && p.role === 'recruiter' && (
+                          <span className="rounded bg-clay-50 px-1.5 py-0.5 text-[10px] font-medium text-clay-600">placeholder · no login</span>
+                        )}
                       </div>
-                      <div className="text-xs text-muted">{p.email}</div>
+                      <div className="text-xs text-muted">{isPlaceholderEmail(p.email) ? 'no email set' : p.email}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isSelf && !demoMode && (
+                      <>
+                        <button className="btn-secondary py-1" disabled={savingId === p.id} onClick={() => setAccountEdit(p)} title="Set login email">
+                          <Mail size={14} /> Email
+                        </button>
+                        <button className="btn-secondary py-1" disabled={savingId === p.id} onClick={() => sendReset(p)} title="Send password-reset email">
+                          {savingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />} Reset
+                        </button>
+                      </>
+                    )}
                     <select
                       className="rounded-md border-0 bg-transparent text-xs font-medium text-ink ring-1 ring-inset ring-line focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                       value={p.role}
@@ -199,7 +240,71 @@ export function Team() {
       {inviting && (
         <InviteModal regionOptions={regionOptions} onClose={() => setInviting(false)} onInvited={load} />
       )}
+      {accountEdit && (
+        <EmailModal
+          profile={accountEdit}
+          onClose={() => setAccountEdit(null)}
+          onSaved={(msg) => { setAccountEdit(null); setNotice({ ok: true, msg }); load() }}
+        />
+      )}
     </div>
+  )
+}
+
+function EmailModal({ profile, onClose, onSaved }: {
+  profile: Profile
+  onClose: () => void
+  onSaved: (msg: string) => void
+}) {
+  const isPlaceholder = !profile.email || /@placeholder\.|\.invalid$/i.test(profile.email)
+  const [email, setEmail] = useState(isPlaceholder ? '' : profile.email)
+  const [reset, setReset] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    const next = email.trim().toLowerCase()
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next)) { setError('Enter a valid email address.'); return }
+    setSaving(true); setError(null)
+    const { data, error: fErr } = await supabase.functions.invoke('recruiter-admin', {
+      body: { action: 'update_email', user_id: profile.id, email: next },
+    })
+    if (fErr || (data && data.error)) { setSaving(false); setError((data && data.error) || fErr?.message || 'Could not update email.'); return }
+    let msg = `Login email set to ${next}.`
+    if (reset) {
+      const { error: rErr } = await supabase.auth.resetPasswordForEmail(next, {
+        redirectTo: window.location.origin + window.location.pathname + '#/login',
+      })
+      msg += rErr ? ` (Couldn’t send reset: ${rErr.message})` : ' A password-reset email was sent so they can set their password.'
+    }
+    setSaving(false)
+    onSaved(msg)
+  }
+
+  return (
+    <Modal title={`Set login email — ${profile.full_name || 'recruiter'}`} onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
+          Set this recruiter’s real email so they can sign in. Their assigned candidates and jobs stay
+          intact. Optionally send a password-reset link so they choose their own password.
+        </p>
+        <div>
+          <label className="label">Email</label>
+          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" autoFocus />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} />
+          Send a password-reset email now
+        </label>
+        {error && <div className="rounded-lg bg-rust-50 px-3 py-2 text-sm text-rust-500">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving || !email.trim()}>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : null} Save email
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

@@ -57,7 +57,7 @@ function pipelineConversion(candidates: Candidate[]): { from: string; to: string
 }
 
 export interface ExecutiveData {
-  kpis: { openJobs: number; activeCandidates: number; applications: number; offers: number; hires: number; avgTimeToHire: number | null }
+  kpis: { openJobs: number; openPositions: number; activeCandidates: number; applications: number; offers: number; hires: number; avgTimeToHire: number | null }
   funnel: { stage: string; count: number }[]
   conversion: { from: string; to: string; rate: number }[]
   appsOverTime: { label: string; count: number }[]
@@ -90,8 +90,10 @@ export async function getExecutive(days: number | null): Promise<ExecutiveData> 
   }
   const avgTimeToHire = tth.length ? Math.round(tth.reduce((s, n) => s + n, 0) / tth.length) : null
 
+  const publishedJobs = jobs.filter((j) => j.status === 'published')
   const kpis = {
-    openJobs: jobs.filter((j) => j.status === 'published').length,
+    openJobs: publishedJobs.length,
+    openPositions: publishedJobs.reduce((s, j) => s + (j.openings_remaining ?? j.openings ?? 1), 0),
     activeCandidates: candidates.filter((c) => c.current_stage !== 'declined' && c.current_stage !== 'no_response').length,
     applications: periodApps.length,
     offers: candidates.filter((c) => c.current_stage === 'offer' || c.current_stage === 'accepted').length,

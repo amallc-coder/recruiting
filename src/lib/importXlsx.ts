@@ -253,10 +253,14 @@ export function extractTeamSheetJobs(sheet: ParsedSheet): MappedJob[] {
 
     const state = String(stateI >= 0 ? cells[stateI] : '').trim()
     const city = String(cityI >= 0 ? cells[cityI] : '').trim()
+    // "Openings" = total positions for this requisition; "Openings Remaining" =
+    // how many are still open. Parse 0 as 0 (don't fall back to 1 on a real zero).
     const openingsRaw = String(openI >= 0 ? cells[openI] : '').trim()
-    const openings = Math.max(1, Math.round(Number(openingsRaw) || 1))
+    const oNum = Number(openingsRaw)
+    const openings = openingsRaw !== '' && Number.isFinite(oNum) ? Math.max(0, Math.round(oNum)) : 1
     const remainRaw = String(remainI >= 0 ? cells[remainI] : '').trim()
-    const openings_remaining = remainRaw === '' ? null : Math.max(0, Math.round(Number(remainRaw) || 0))
+    const rNum = Number(remainRaw)
+    const openings_remaining = remainRaw === '' || !Number.isFinite(rNum) ? null : Math.max(0, Math.round(rNum))
     const close_date = dCloseI >= 0 ? mapDate(String(cells[dCloseI])) : null
     const status: 'published' | 'closed' = openings_remaining === 0 || close_date ? 'closed' : 'published'
     const dept = String((divI >= 0 ? cells[divI] : '') || (busI >= 0 ? cells[busI] : '')).trim()
