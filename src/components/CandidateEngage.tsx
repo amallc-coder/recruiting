@@ -242,13 +242,26 @@ function ScreeningCard({
   // Place a fully-agentic Vapi call / text. Server-side; needs VAPI_API_KEY set.
   async function dispatch(mode: 'call' | 'sms') {
     setBusy(mode)
+    const what = mode === 'sms' ? 'text' : 'call'
     try {
       const { data, error } = await supabase.functions.invoke('vapi-call', { body: { screening_id: screening.id, mode } })
-      const errMsg = (error as { context?: { error?: string } } | null)?.context?.error || (data as { error?: string })?.error || (error?.message)
-      if (errMsg) { alert(`Could not start ${mode === 'sms' ? 'text' : 'call'}: ${errMsg}`); return }
+      if (error) {
+        // supabase-js wraps a non-2xx response in error.context (a Response);
+        // the real message is in its JSON body, not error.message.
+        let msg = error.message
+        const ctx = (error as { context?: unknown }).context
+        if (ctx instanceof Response) {
+          try { const b = await ctx.json(); if (b?.error) msg = b.error } catch { /* keep msg */ }
+        } else if (ctx && typeof ctx === 'object' && 'error' in ctx) {
+          msg = String((ctx as { error: unknown }).error)
+        }
+        alert(`Could not start ${what}: ${msg}`)
+        return
+      }
+      if ((data as { error?: string })?.error) { alert(`Could not start ${what}: ${(data as { error: string }).error}`); return }
       onChanged()
     } catch (e) {
-      alert(`Could not start ${mode === 'sms' ? 'text' : 'call'}: ${String(e instanceof Error ? e.message : e)}`)
+      alert(`Could not start ${what}: ${String(e instanceof Error ? e.message : e)}`)
     } finally { setBusy(null) }
   }
 
