@@ -22,6 +22,7 @@ export interface MappedCandidate {
   phone: string | null
   recruiter: string | null
   facilityText: string | null
+  position: string | null
   role: ClinicalRole
   current_stage: Stage
   start_date: string | null
@@ -131,6 +132,23 @@ export function isTeamSheet(headers: string[]): boolean {
   return hasCandidate && hasReq
 }
 
+// Distinct recruiter names referenced by team-sheet rows (Recruiter column) and
+// the tab names themselves — used to build the recruiter-mapping step.
+export function teamSheetRecruiters(sheets: ParsedSheet[]): string[] {
+  const names = new Set<string>()
+  for (const sheet of sheets) {
+    const recI = sheet.headers.map((h) => norm(h)).findIndex((h) => /^recruiter$/.test(h))
+    let any = false
+    for (const row of sheet.rows) {
+      const v = recI >= 0 ? String(row[sheet.headers[recI]] ?? '').trim() : ''
+      if (v) { names.add(v); any = true }
+    }
+    // Fall back to the tab name (which is the recruiter) when the column is blank.
+    if (!any && sheet.rows.length) names.add(sheet.name.trim())
+  }
+  return [...names].filter((n) => n && n.length > 1).sort()
+}
+
 export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
   const H = sheet.headers.map((h) => norm(h))
   const find = (re: RegExp) => H.findIndex((h) => re.test(h))
@@ -155,7 +173,8 @@ export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
     const cells = sheet.headers.map((h) => row[h] ?? '')
     const recruiter = (recI >= 0 ? cells[recI] : '') || sheet.name
     const facilityText = facI >= 0 ? cells[facI] : ''
-    const role = mapRole(posI >= 0 ? cells[posI] : '')
+    const position = String(posI >= 0 ? cells[posI] : '').trim()
+    const role = mapRole(position)
     const state = stateI >= 0 ? cells[stateI] : ''
     const city = cityI >= 0 ? cells[cityI] : ''
     for (const blk of blocks) {
@@ -175,6 +194,7 @@ export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
         phone: null,
         recruiter: recruiter || null,
         facilityText: facilityText || null,
+        position: position || null,
         role,
         current_stage: stageFromDates(open, interview, offer, hire),
         start_date: mapDate(hire),
@@ -336,6 +356,7 @@ export function mapSheet(sheet: ParsedSheet, mapping: Record<string, Field>): Ma
       phone: get(row, 'phone') || null,
       recruiter: recruiter || null,
       facilityText: get(row, 'facility') || null,
+      position: get(row, 'role') || null,
       role: mapRole(get(row, 'role')),
       current_stage: mapStage(get(row, 'stage')),
       start_date: mapDate(get(row, 'start_date')),
