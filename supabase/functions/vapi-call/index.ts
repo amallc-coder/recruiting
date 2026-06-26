@@ -164,8 +164,10 @@ Deno.serve(async (req: Request) => {
       // let it barge in mid-sentence (fixes the "thank you for sharing" interrupts).
       startSpeakingPlan: { waitSeconds: 1.5, smartEndpointingEnabled: true },
       stopSpeakingPlan: { numWords: 3, voiceSeconds: 0.3, backoffSeconds: 2 },
-      // Vapi posts the end-of-call report (with transcript) to this URL.
-      server: { url: `${URL_}/functions/v1/vapi-webhook` },
+      // Vapi posts the end-of-call report (with transcript) to this URL. Send the
+      // anon key so the request authenticates whether or not the webhook has
+      // "Verify JWT" enabled (the anon key satisfies the JWT gate either way).
+      server: { url: `${URL_}/functions/v1/vapi-webhook`, headers: { Authorization: `Bearer ${ANON}`, apikey: ANON } },
       metadata: { screening_id: s.id, candidate_id: cand.id },
     },
   }
