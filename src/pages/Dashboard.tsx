@@ -6,53 +6,52 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
   PIPELINE_STAGES, STAGE_LABELS, ROLE_LABELS, CLINICAL_ROLES,
-  type Candidate, type CoverageNeed, type Profile,
+  type Candidate, type Job, type Profile,
 } from '../lib/types'
 import { Spinner, StatCard } from '../components/ui'
 
 // Warm Clinilytics data palette: sage, clay, rust, and muted neutrals.
 const BAR_COLORS = ['#6e9a6a', '#cd7c4f', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#1f1d1a']
 
+const LIVE = (c: Candidate) => !['active', 'declined', 'no_response'].includes(c.current_stage)
+// Open positions on a published job = remaining (fallback to total).
+const openCount = (j: Job) => j.openings_remaining ?? j.openings ?? 1
+
 export function Dashboard() {
   const { profile, isAdmin } = useAuth()
-  const [needs, setNeeds] = useState<CoverageNeed[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [regionByFacility, setRegionByFacility] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
     async function load() {
       setLoading(true)
-      const [n, c, p, f] = await Promise.all([
-        supabase.from('coverage_needs').select('*'),
+      const [j, c, p] = await Promise.all([
+        supabase.from('jobs').select('*'),
         supabase.from('candidates').select('*'),
         supabase.from('profiles').select('*'),
-        supabase.from('facilities').select('id, region'),
       ])
       if (!active) return
-      setNeeds((n.data as CoverageNeed[]) ?? [])
+      setJobs((j.data as Job[]) ?? [])
       setCandidates((c.data as Candidate[]) ?? [])
       setProfiles((p.data as Profile[]) ?? [])
-      const map = new Map<string, string>()
-      for (const row of (f.data as { id: string; region: string | null }[]) ?? []) {
-        if (row.region) map.set(row.id, row.region)
-      }
-      setRegionByFacility(map)
       setLoading(false)
     }
     load()
     return () => { active = false }
   }, [])
 
+  const publishedJobs = useMemo(() => jobs.filter((j) => j.status === 'published'), [jobs])
+
   const metrics = useMemo(() => {
-    const openNeeds = needs.reduce((s, n) => s + n.need_count, 0)
-    const premiumGaps = needs.filter((n) => n.need_count > 0 && (n.priority === 'premium' || n.priority === 'urgent')).length
-    const inPipeline = candidates.filter((c) => !['active', 'declined', 'no_response'].includes(c.current_stage)).length
+    const openPositions = publishedJobs.reduce((s, j) => s + openCount(j), 0)
+    const openJobs = publishedJobs.length
+    const inPipeline = candidates.filter(LIVE).length
     const active = candidates.filter((c) => c.current_stage === 'active').length
-    return { openNeeds, premiumGaps, inPipeline, active }
-  }, [needs, candidates])
+    return { openPositions, openJobs, inPipeline, active }
+  }, [publishedJobs, candidates])
 
   const funnel = useMemo(
     () => PIPELINE_STAGES.map((stage) => ({
@@ -62,34 +61,37 @@ export function Dashboard() {
     [candidates],
   )
 
-  const needsByRole = useMemo(
+  const openByRole = useMemo(
     () => CLINICAL_ROLES.map((role) => ({
       role: ROLE_LABELS[role],
-      need: needs.filter((n) => n.role === role).reduce((s, n) => s + n.need_count, 0),
-    })).filter((r) => r.need > 0),
-    [needs],
+      open: publishedJobs.filter((j) => j.role === role).reduce((s, j) => s + openCount(j), 0),
+    })).filter((r) => r.open > 0),
+    [publishedJobs],
   )
 
-  const needsByRegion = useMemo(() => {
+  const openByLocation = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const n of needs) {
-      if (n.need_count <= 0) continue
-      const region = regionByFacility.get(n.facility_id) ?? 'Unassigned'
-      map[region] = (map[region] ?? 0) + n.need_count
+    for (const j of publishedJobs) {
+      const loc = (j.location || '—').trim() || '—'
+      map[loc] = (map[loc] ?? 0) + openCount(j)
     }
-    return Object.entries(map).map(([region, need]) => ({ region, need })).sort((a, b) => b.need - a.need)
-  }, [needs, regionByFacility])
+    return Object.entries(map)
+      .map(([location, open]) => ({ location, open }))
+      .sort((a, b) => b.open - a.open)
+      .slice(0, 12)
+  }, [publishedJobs])
 
   const workload = useMemo(() => {
     if (!isAdmin) return []
     return profiles
-      .filter((p) => p.active)
+      .filter((p) => p.active && p.role === 'recruiter')
       .map((r) => ({
         name: r.full_name || r.email,
-        candidates: candidates.filter((c) => c.recruiter_id === r.id && !['active', 'declined', 'no_response'].includes(c.current_stage)).length,
+        candidates: candidates.filter((c) => c.recruiter_id === r.id && LIVE(c)).length,
       }))
       .filter((r) => r.candidates > 0)
       .sort((a, b) => b.candidates - a.candidates)
+      .slice(0, 15)
   }, [isAdmin, profiles, candidates])
 
   if (loading) return <Spinner label="Loading dashboard…" />
@@ -99,19 +101,19 @@ export function Dashboard() {
       <div>
         <h1 className="text-2xl font-semibold text-ink">{isAdmin ? 'Team Dashboard' : 'My Dashboard'}</h1>
         <p className="text-sm text-muted">
-          {isAdmin ? 'Coverage and pipeline across all regions.' : `Welcome back, ${profile?.full_name || profile?.email}. Your territory at a glance.`}
+          {isAdmin ? 'Open positions and pipeline across the team.' : `Welcome back, ${profile?.full_name || profile?.email}. Your pipeline at a glance.`}
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Open needs" value={metrics.openNeeds} hint="positions to fill" tone={metrics.openNeeds > 0 ? 'warn' : 'good'} />
-        <StatCard label="Premium / urgent gaps" value={metrics.premiumGaps} tone={metrics.premiumGaps > 0 ? 'warn' : 'default'} />
+        <StatCard label="Open positions" value={metrics.openPositions} hint={`across ${metrics.openJobs} published jobs`} tone={metrics.openPositions > 0 ? 'warn' : 'good'} />
+        <StatCard label="Open jobs" value={metrics.openJobs} />
         <StatCard label="In pipeline" value={metrics.inPipeline} hint="active candidates" />
         <StatCard label="Active hires" value={metrics.active} tone="good" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Pipeline funnel">
+        <ChartCard title="Pipeline funnel" empty={metrics.inPipeline + metrics.active === 0 ? 'No candidates yet — import or add some' : undefined}>
           <BarChart data={funnel}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
             <XAxis dataKey="stage" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={60} />
@@ -123,14 +125,14 @@ export function Dashboard() {
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="Open needs by role" empty={needsByRole.length === 0 ? 'No open needs 🎉' : undefined}>
-          <BarChart data={needsByRole}>
+        <ChartCard title="Open positions by role" empty={openByRole.length === 0 ? 'No open positions 🎉' : undefined}>
+          <BarChart data={openByRole}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e2d7" />
             <XAxis dataKey="role" tick={{ fontSize: 12 }} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
             <Tooltip />
-            <Bar isAnimationActive={false} dataKey="need" radius={[6, 6, 0, 0]}>
-              {needsByRole.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+            <Bar isAnimationActive={false} dataKey="open" radius={[6, 6, 0, 0]}>
+              {openByRole.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
             </Bar>
           </BarChart>
         </ChartCard>
@@ -138,29 +140,29 @@ export function Dashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
-          title="Open needs by region"
-          height={Math.max(220, needsByRegion.length * 36)}
-          empty={needsByRegion.length === 0 ? 'No open needs' : undefined}
+          title="Open positions by location"
+          height={Math.max(220, openByLocation.length * 32)}
+          empty={openByLocation.length === 0 ? 'No open positions' : undefined}
         >
-          <BarChart data={needsByRegion} layout="vertical" margin={{ left: 30 }}>
+          <BarChart data={openByLocation} layout="vertical" margin={{ left: 30 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-            <YAxis type="category" dataKey="region" width={120} tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="location" width={130} tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Bar isAnimationActive={false} dataKey="need" fill="#cd7c4f" radius={[0, 6, 6, 0]} />
+            <Bar isAnimationActive={false} dataKey="open" fill="#cd7c4f" radius={[0, 6, 6, 0]} />
           </BarChart>
         </ChartCard>
 
         {isAdmin && (
           <ChartCard
             title="Pipeline by recruiter"
-            height={Math.max(220, workload.length * 40)}
+            height={Math.max(220, workload.length * 32)}
             empty={workload.length === 0 ? 'No active candidates' : undefined}
           >
             <BarChart data={workload} layout="vertical" margin={{ left: 30 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e7e2d7" />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-              <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Bar isAnimationActive={false} dataKey="candidates" fill="#6e9a6a" radius={[0, 6, 6, 0]} />
             </BarChart>
