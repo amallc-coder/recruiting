@@ -171,26 +171,30 @@ export interface ConnectInput {
   mappings?: { source: string; target: string }[]
 }
 
-export async function connectIntegration(input: ConnectInput): Promise<{ error: string | null }> {
+export async function connectIntegration(input: ConnectInput): Promise<{ error: string | null; id: string | null }> {
   const p = input.provider
+  const authType = input.auth_type ?? p.authType
+  // OAuth connections stay 'pending' until the provider redirect completes; in
+  // demo mode (no Edge Functions) we mark them connected immediately.
+  const pendingOAuth = authType === 'oauth2' && !demoMode
   const row = {
     company_id: DEFAULT_COMPANY_ID,
     name: input.name?.trim() || p.name,
     provider: p.provider,
     category: p.category,
-    status: 'connected' as IntegrationStatus,
-    auth_type: input.auth_type ?? p.authType,
+    status: (pendingOAuth ? 'pending' : 'connected') as IntegrationStatus,
+    auth_type: authType,
     config_json: input.config ?? {},
     base_url: input.base_url ?? null,
     webhook_url: webhookUrlFor(p.provider),
     sync_direction: input.sync_direction ?? p.defaultDirection,
     sync_frequency: input.sync_frequency ?? 'manual',
-    is_enabled: true,
+    is_enabled: !pendingOAuth,
   }
   const { data, error } = await supabase.from('integrations').insert(row).select('id')
-  if (error) return { error: error.message }
+  if (error) return { error: error.message, id: null }
   const id = ((data as { id: string }[]) ?? [])[0]?.id
-  if (!id) return { error: 'Could not create integration.' }
+  if (!id) return { error: 'Could not create integration.', id: null }
 
   // Store secrets in their own (write-only) table and link them.
   if (input.credentials && Object.keys(input.credentials).length) {
@@ -208,9 +212,28 @@ export async function connectIntegration(input: ConnectInput): Promise<{ error: 
     )
   }
 
-  await writeLog(id, 'connect', 'success', `Connected ${row.name}.`)
+  await writeLog(id, 'connect', 'success', pendingOAuth ? `Created ${row.name} — awaiting OAuth.` : `Connected ${row.name}.`)
   await logAudit('integration_connected', { provider: p.provider, name: row.name })
-  return { error: null }
+  return { error: null, id }
+}
+
+// Edge-function helper (real mode only; the demo client has no .functions).
+function fns(): { invoke: (name: string, opts: { body: unknown }) => Promise<{ data: unknown; error: { message?: string } | null }> } | null {
+  const f = (supabase as unknown as { functions?: unknown }).functions
+  return f && typeof (f as { invoke?: unknown }).invoke === 'function'
+    ? (f as { invoke: (name: string, opts: { body: unknown }) => Promise<{ data: unknown; error: { message?: string } | null }> })
+    : null
+}
+
+/** Kick off the OAuth consent redirect for an integration (real mode). */
+export async function startOAuth(integrationId: string, provider: string): Promise<{ error: string | null }> {
+  const f = fns()
+  if (!f) return { error: 'OAuth needs the deployed integration-oauth Edge Function.' }
+  const { data, error } = await f.invoke('integration-oauth', { body: { integration_id: integrationId, provider } })
+  if (error) return { error: error.message ?? 'Could not start OAuth.' }
+  const url = (data as { url?: string; error?: string })?.url
+  if (url) { window.location.href = url; return { error: null } }
+  return { error: (data as { error?: string })?.error ?? 'No authorization URL returned.' }
 }
 
 export async function updateIntegration(id: string, patch: Partial<Integration>): Promise<void> {
@@ -235,6 +258,15 @@ export async function removeIntegration(i: Integration): Promise<void> {
  * before a provider is wired to actually call out).
  */
 export async function testConnection(i: Integration): Promise<{ ok: boolean; message: string }> {
+  // Prefer the real server-side test; fall back to local validation if the
+  // Edge Function isn't deployed.
+  if (!demoMode) {
+    const f = fns()
+    if (f) {
+      const { data, error } = await f.invoke('integration-sync', { body: { integration_id: i.id, action: 'test' } })
+      if (!error && data) { const d = data as { ok: boolean; message: string }; return { ok: d.ok, message: d.message } }
+    }
+  }
   const needsUrl = i.provider === 'custom_rest'
   const hasCreds = !!i.credentials_reference || i.auth_type === 'none' || i.auth_type === 'oauth2'
   let ok = true
@@ -247,6 +279,13 @@ export async function testConnection(i: Integration): Promise<{ ok: boolean; mes
 }
 
 export async function runSync(i: Integration): Promise<{ ok: boolean; message: string }> {
+  if (!demoMode) {
+    const f = fns()
+    if (f) {
+      const { data, error } = await f.invoke('integration-sync', { body: { integration_id: i.id, action: 'sync' } })
+      if (!error && data) { const d = data as { ok: boolean; message: string }; await logAudit('integration_synced', { id: i.id }); return { ok: d.ok, message: d.message } }
+    }
+  }
   const now = new Date().toISOString()
   const message = `Manual sync queued (${i.sync_direction}). Records move once the provider Edge Function is deployed.`
   await supabase.from('integrations').update({ last_sync_at: now }).eq('id', i.id)

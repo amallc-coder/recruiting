@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Search, Plus, Plug, CheckCircle2, AlertTriangle, RefreshCw, Trash2, Link2, Copy, Loader2, X,
 } from 'lucide-react'
+import { demoMode } from '../lib/supabase'
 import { Modal, Spinner, EmptyState } from '../components/ui'
 import {
   PROVIDERS, CATEGORY_LABELS, AUTH_LABELS, SYNC_FREQUENCIES, TRANSFORM_RULES, ATS_TARGET_FIELDS,
-  listIntegrations, connectIntegration, disconnectIntegration, removeIntegration, updateIntegration,
+  listIntegrations, connectIntegration, startOAuth, disconnectIntegration, removeIntegration, updateIntegration,
   testConnection, runSync, listLogs, listMappings, saveMappings, webhookUrlFor, getProvider,
   type Integration, type IntegrationCategory, type ProviderDef, type AuthType, type SyncDirection,
   type IntegrationLog, type FieldMapping,
@@ -26,12 +27,27 @@ export function Integrations() {
   const [connect, setConnect] = useState<ProviderDef | 'custom' | null>(null)
   const [detail, setDetail] = useState<Integration | null>(null)
 
+  const [flash, setFlash] = useState<{ ok: boolean; msg: string } | null>(null)
+
   async function load() {
     setLoading(true)
     setIntegrations(await listIntegrations())
     setLoading(false)
   }
   useEffect(() => { load() }, [])
+
+  // Pick up the OAuth callback result from the hash query (#/integrations?connected=…).
+  useEffect(() => {
+    const h = window.location.hash
+    const qi = h.indexOf('?')
+    if (qi < 0) return
+    const params = new URLSearchParams(h.slice(qi + 1))
+    const connected = params.get('connected')
+    const err = params.get('error')
+    if (connected) setFlash({ ok: true, msg: `Connected ${connected.replace('_', ' ')}.` })
+    else if (err) setFlash({ ok: false, msg: decodeURIComponent(err) })
+    if (connected || err) window.history.replaceState(null, '', h.slice(0, qi))
+  }, [])
 
   const byProvider = useMemo(() => {
     const m = new Map<string, Integration>()
@@ -65,6 +81,14 @@ export function Integrations() {
           <button className="btn-primary" onClick={() => setConnect('custom')}><Plus size={16} /> Custom integration</button>
         </div>
       </div>
+
+      {flash && (
+        <div className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm ${flash.ok ? 'bg-sage-50 text-sage-700' : 'bg-rust-50 text-rust-500'}`}>
+          {flash.ok ? <CheckCircle2 size={16} className="mt-0.5" /> : <AlertTriangle size={16} className="mt-0.5" />}
+          <span>{flash.msg}</span>
+          <button className="ml-auto text-muted hover:text-ink" onClick={() => setFlash(null)}><X size={15} /></button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {(['all', ...categories] as (IntegrationCategory | 'all')[]).map((c) => (
@@ -197,14 +221,20 @@ function ConnectModal({ provider, onClose, onConnected }: {
   async function save() {
     if (!name.trim()) { setError('Give the integration a name.'); return }
     setSaving(true); setError(null)
-    const { error } = await connectIntegration({
+    const { error, id } = await connectIntegration({
       provider: { ...pdef, authType },
       name, base_url: baseUrl || undefined, auth_type: authType,
       sync_direction: direction, sync_frequency: frequency,
       credentials: Object.keys(creds).length ? creds : undefined,
     })
+    if (error) { setSaving(false); setError(error); return }
+    // OAuth providers (real mode): hand off to the provider consent screen.
+    if (!demoMode && authType === 'oauth2' && id) {
+      const r = await startOAuth(id, pdef.provider)
+      if (r.error) { setSaving(false); setError(r.error); return }
+      return // browser is redirecting to the provider
+    }
     setSaving(false)
-    if (error) { setError(error); return }
     onConnected()
   }
 
