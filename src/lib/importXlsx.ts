@@ -87,18 +87,104 @@ export function mapStage(raw: string): Stage {
 
 export function mapRole(raw: string): ClinicalRole {
   const s = norm(raw)
+  if (!s) return 'ma'
   if (/lpn|licensed practical/.test(s)) return 'lpn'
-  if (/\bnp\b|nurse practitioner|aprn|fnp/.test(s)) return 'np'
-  if (/\bpa\b|physician assistant/.test(s)) return 'pa'
+  if (/nurse practitioner|\bnp\b|aprn|\bfnp\b|crnp/.test(s)) return 'np'
+  if (/physician assistant|\bpa\b|pa-c/.test(s)) return 'pa'
   if (/psych/.test(s)) return 'psych_np'
   if (/wound/.test(s)) return 'wound'
-  if (/\brn\b|registered nurse/.test(s)) return 'rn'
-  if (/physician|\bmd\b|\bdo\b|doctor/.test(s)) return 'md'
-  if (/tech|imaging|x-?ray|ct|mri|ultrasound|phlebotom|echo/.test(s)) return 'tech'
-  if (/recept|scribe|schedul|front desk|clerk|admin/.test(s)) return 'admin'
-  if (/manager|director|account|payroll|hr|operations|coordinator/.test(s)) return 'ops'
-  if (/\bma\b|medical assistant/.test(s)) return 'ma'
+  // Nursing leadership reads as RN before the generic "director/manager" → ops.
+  if (/director of nursing|\bdon\b|\badon\b|\bmds\b|infection prevent|charge nurse|nurse manager/.test(s)) return 'rn'
+  if (/registered nurse|\brn\b/.test(s)) return 'rn'
+  if (/cna|certified nursing assistant|nursing assistant|nurse aide|medication technician|med tech|\bqma\b|\bcma\b|caregiver|resident aide|restorative/.test(s)) return 'ma'
+  if (/medical assistant|\bma\b/.test(s)) return 'ma'
+  if (/phlebotom|imaging|x-?ray|ct tech|mri|ultrasound|sonograph|\becho\b|radiolog|lab tech|technologist/.test(s)) return 'tech'
+  if (/physician|\bmd\b|\bdo\b|doctor|hospitalist|medical director/.test(s)) return 'md'
+  if (/recept|scribe|schedul|front desk|clerk|office manager|secretary|data entry|medical records/.test(s)) return 'admin'
+  if (/administrator|\bnha\b|director|manager|account|payroll|\bhr\b|human resources|operations|coordinator|officer|chief|recruit|social worker|dietary|activit|housekeep|maintenance|laundry|cook|recovery|labor relations|supervisor|analyst|specialist|payable|receivable|controller|marketing|admission/.test(s)) return 'ops'
   return 'ma'
+}
+
+// Derive a pipeline Stage from the team sheet's per-candidate date columns
+// (Open / Interview / Offer / Hire). Hire present = a completed hire (active).
+function stageFromDates(open: string, interview: string, offer: string, hire: string): Stage {
+  const has = (v: string) => String(v ?? '').trim() !== ''
+  const flag = (v: string) => /no show|declin|withdrew|not interested|pass|rejected/i.test(String(v))
+  if (flag(interview) || flag(offer)) return 'no_response'
+  if (has(hire)) return 'active'
+  if (has(offer)) return 'offer'
+  if (has(interview)) return 'interview'
+  if (has(open)) return 'sourced'
+  return 'sourced'
+}
+
+// ---- "Recruitment Team Sheet" wide format -----------------------------------
+// Each row is an OPENING (facility + position + recruiter); candidates are laid
+// out horizontally in repeating blocks: "Candidate N", "CN Open Date",
+// "CN Interview Date", "CN Offer Date", "CN Hire Date". We unpivot to one
+// candidate record per non-empty name.
+
+export function isTeamSheet(headers: string[]): boolean {
+  const hs = headers.map((h) => norm(h))
+  const hasCandidate = hs.some((h) => /^candidate ?1$/.test(h))
+  const hasReq = hs.some((h) => /facility name|clinic name/.test(h)) || hs.includes('position')
+  return hasCandidate && hasReq
+}
+
+export function unpivotTeamSheet(sheet: ParsedSheet): MappedCandidate[] {
+  const H = sheet.headers.map((h) => norm(h))
+  const find = (re: RegExp) => H.findIndex((h) => re.test(h))
+  const stateI = find(/^state$/)
+  const cityI = find(/^city|region/)
+  const facI = find(/facility name|clinic name|^facility$/)
+  const posI = find(/^position$/)
+  const recI = find(/^recruiter$/)
+
+  // Map each "Candidate N" column to its four date columns.
+  const blocks: { name: number; open: number; interview: number; offer: number; hire: number }[] = []
+  sheet.headers.forEach((h, i) => {
+    const m = norm(h).match(/^candidate ?(\d+)$/)
+    if (!m) return
+    const n = m[1]
+    const dcol = (kind: string) => H.findIndex((x) => new RegExp(`^c ?${n} ${kind} date$`).test(x))
+    blocks.push({ name: i, open: dcol('open'), interview: dcol('interview'), offer: dcol('offer'), hire: dcol('hire') })
+  })
+
+  const out: MappedCandidate[] = []
+  for (const row of sheet.rows) {
+    const cells = sheet.headers.map((h) => row[h] ?? '')
+    const recruiter = (recI >= 0 ? cells[recI] : '') || sheet.name
+    const facilityText = facI >= 0 ? cells[facI] : ''
+    const role = mapRole(posI >= 0 ? cells[posI] : '')
+    const state = stateI >= 0 ? cells[stateI] : ''
+    const city = cityI >= 0 ? cells[cityI] : ''
+    for (const blk of blocks) {
+      const name = String(cells[blk.name] ?? '').trim()
+      if (!name || /^candidate ?\d+$/i.test(name)) continue
+      // Skip junk that leaks into candidate columns: bare initials, numbers,
+      // or a stray date like "17-Jun".
+      if (name.length < 2 || !/[a-z]/i.test(name)) continue
+      if (/^\d{1,2}[-/][a-z]{3}/i.test(name) || /^\d{1,2}[/\-]\d/.test(name)) continue
+      const open = blk.open >= 0 ? String(cells[blk.open]) : ''
+      const interview = blk.interview >= 0 ? String(cells[blk.interview]) : ''
+      const offer = blk.offer >= 0 ? String(cells[blk.offer]) : ''
+      const hire = blk.hire >= 0 ? String(cells[blk.hire]) : ''
+      out.push({
+        full_name: name,
+        email: null,
+        phone: null,
+        recruiter: recruiter || null,
+        facilityText: facilityText || null,
+        role,
+        current_stage: stageFromDates(open, interview, offer, hire),
+        start_date: mapDate(hire),
+        state: state || null,
+        city: city || null,
+        sheet: sheet.name,
+      })
+    }
+  }
+  return out
 }
 
 // Excel serial date or text date -> ISO yyyy-mm-dd (best effort).
