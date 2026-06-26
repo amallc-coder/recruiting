@@ -1084,3 +1084,96 @@ create policy "offers_access" on public.offers
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================
+
+-- =============================================================================
+-- AI screening + the candidate<->recruiter communication log (added later).
+-- Applied live via migrations: ai_screening_and_communications,
+-- candidates_screening_summary, touch_updated_at_search_path.
+-- =============================================================================
+alter table public.candidates add column if not exists screening_summary text;
+alter table public.candidates add column if not exists last_screened_at timestamptz;
+
+create table if not exists public.screenings (
+  id            uuid primary key default gen_random_uuid(),
+  candidate_id  uuid not null references public.candidates(id) on delete cascade,
+  job_id        uuid references public.jobs(id) on delete set null,
+  recruiter_id  uuid references public.profiles(id) on delete set null,
+  status        text not null default 'draft',     -- draft|approved|sent|completed|analyzed|cancelled
+  channel       text not null default 'phone',      -- phone|sms|email|manual
+  questions     jsonb not null default '[]'::jsonb,
+  responses     jsonb not null default '[]'::jsonb,
+  ai_summary    text,
+  ai_score      integer,
+  ai_flags      jsonb default '[]'::jsonb,
+  transcript    text,
+  external_ref  text,
+  approved_by   uuid references public.profiles(id) on delete set null,
+  approved_at   timestamptz,
+  sent_at       timestamptz,
+  completed_at  timestamptz,
+  created_by    uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists screenings_candidate_idx on public.screenings(candidate_id);
+create index if not exists screenings_recruiter_idx on public.screenings(recruiter_id);
+create index if not exists screenings_job_idx on public.screenings(job_id);
+
+create table if not exists public.communications (
+  id            uuid primary key default gen_random_uuid(),
+  candidate_id  uuid not null references public.candidates(id) on delete cascade,
+  job_id        uuid references public.jobs(id) on delete set null,
+  screening_id  uuid references public.screenings(id) on delete set null,
+  recruiter_id  uuid references public.profiles(id) on delete set null,
+  channel       text not null,                      -- email|sms|call|note
+  direction     text not null default 'outbound',   -- outbound|inbound|internal
+  subject       text,
+  body          text not null default '',
+  ai_generated  boolean not null default false,
+  external_ref  text,
+  metadata      jsonb default '{}'::jsonb,
+  occurred_at   timestamptz not null default now(),
+  created_by    uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+create index if not exists communications_candidate_idx on public.communications(candidate_id);
+create index if not exists communications_recruiter_idx on public.communications(recruiter_id);
+create index if not exists communications_occurred_idx on public.communications(occurred_at desc);
+
+create or replace function public.touch_updated_at() returns trigger
+language plpgsql set search_path = '' as $$
+begin new.updated_at = now(); return new; end $$;
+drop trigger if exists screenings_touch on public.screenings;
+create trigger screenings_touch before update on public.screenings
+  for each row execute function public.touch_updated_at();
+
+alter table public.screenings enable row level security;
+alter table public.communications enable row level security;
+
+drop policy if exists screenings_select on public.screenings;
+drop policy if exists screenings_insert on public.screenings;
+drop policy if exists screenings_update on public.screenings;
+drop policy if exists screenings_delete on public.screenings;
+create policy screenings_select on public.screenings for select
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy screenings_insert on public.screenings for insert
+  with check (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy screenings_update on public.screenings for update
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid())
+  with check (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy screenings_delete on public.screenings for delete
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+
+drop policy if exists communications_select on public.communications;
+drop policy if exists communications_insert on public.communications;
+drop policy if exists communications_update on public.communications;
+drop policy if exists communications_delete on public.communications;
+create policy communications_select on public.communications for select
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy communications_insert on public.communications for insert
+  with check (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy communications_update on public.communications for update
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid())
+  with check (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());
+create policy communications_delete on public.communications for delete
+  using (public.is_admin() or recruiter_id = auth.uid() or created_by = auth.uid());

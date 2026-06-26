@@ -33,6 +33,16 @@ const STOPWORDS = new Set([
   'from', 'work', 'role', 'position', 'job', 'candidate', 'experience', 'years',
 ])
 
+// The full text we reason over for a candidate: their résumé PLUS the rolling
+// screening/communication context. This is what makes "everything communicated
+// back and forth" feed into matching.
+export function candidateMatchText(c: Pick<Candidate, 'resume_text' | 'screening_summary'>): string {
+  return [c.resume_text ?? '', c.screening_summary ?? '']
+    .filter((s) => s && s.trim())
+    .join('\n\n')
+    .trim()
+}
+
 function tokens(text: string): Set<string> {
   return new Set(
     (text || '')
@@ -67,7 +77,7 @@ export function heuristicMatch(position: MatchInput, candidate: Candidate): Matc
 
   // Keyword overlap between résumé and position verbiage (0–35).
   const posTokens = tokens(position.description)
-  const resTokens = tokens(candidate.resume_text ?? '')
+  const resTokens = tokens(candidateMatchText(candidate))
   if (posTokens.size > 0 && resTokens.size > 0) {
     const overlap = [...posTokens].filter((t) => resTokens.has(t))
     const ratio = overlap.length / posTokens.size
@@ -75,7 +85,7 @@ export function heuristicMatch(position: MatchInput, candidate: Candidate): Matc
     if (overlap.length) strengths.push(`Matches: ${overlap.slice(0, 6).join(', ')}`)
     const missing = [...posTokens].filter((t) => !resTokens.has(t))
     if (missing.length) gaps.push(`Not in résumé: ${missing.slice(0, 6).join(', ')}`)
-  } else if (!candidate.resume_text) {
+  } else if (!candidate.resume_text && !candidate.screening_summary) {
     gaps.push('No résumé text to compare')
   }
 
@@ -106,7 +116,7 @@ export async function rankCandidates(
             id: c.id,
             role: c.role,
             region: c.region,
-            resume_text: c.resume_text ?? '',
+            resume_text: candidateMatchText(c),
             rating: c.rating,
           })),
         },
