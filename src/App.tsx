@@ -4,10 +4,13 @@ import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
+import { Careers } from './pages/Careers'
 import { Dashboard } from './pages/Dashboard'
 import { Facilities } from './pages/Facilities'
 import { FacilityDetail } from './pages/FacilityDetail'
 import { Candidates } from './pages/Candidates'
+import { Jobs } from './pages/Jobs'
+import { JobDetail } from './pages/JobDetail'
 import { Matching } from './pages/Matching'
 import { Positions } from './pages/Positions'
 import { Setup } from './pages/Setup'
@@ -22,6 +25,9 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Public career page — no authentication required. */}
+          <Route path="/careers" element={<Careers />} />
+          <Route path="/careers/:slug" element={<Careers />} />
           <Route
             element={
               <ProtectedRoute>
@@ -33,6 +39,8 @@ export default function App() {
             <Route path="/facilities" element={<Facilities />} />
             <Route path="/facilities/:id" element={<FacilityDetail />} />
             <Route path="/candidates" element={<Candidates />} />
+            <Route path="/jobs" element={<Jobs />} />
+            <Route path="/jobs/:id" element={<JobDetail />} />
             <Route path="/matching" element={<Matching />} />
             <Route path="/positions" element={<Positions />} />
             <Route

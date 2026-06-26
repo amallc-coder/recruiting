@@ -97,6 +97,95 @@ export interface StageHistory {
   created_at: string
 }
 
+// ---- ATS layer: companies, jobs, applications --------------------------------
+
+// The single default tenant until the multi-company workspace phase lands.
+export const DEFAULT_COMPANY_ID = '00000000-0000-0000-0000-000000000001'
+
+export type JobStatus = 'draft' | 'published' | 'paused' | 'closed' | 'archived'
+export type EmploymentType =
+  | 'full_time' | 'part_time' | 'contract' | 'per_diem' | 'temporary' | 'internship'
+export type Workplace = 'onsite' | 'hybrid' | 'remote'
+
+export interface Job {
+  id: string
+  company_id: string
+  title: string
+  department: string | null
+  location: string | null
+  employment_type: EmploymentType
+  workplace: Workplace
+  salary_min: number | null
+  salary_max: number | null
+  salary_unit: 'year' | 'hour'
+  description: string | null
+  responsibilities: string | null
+  requirements: string | null
+  benefits: string | null
+  hiring_manager_id: string | null
+  assigned_recruiter_id: string | null
+  facility_id: string | null
+  role: ClinicalRole | null
+  status: JobStatus
+  visibility: 'public' | 'internal'
+  slug: string | null
+  open_date: string | null
+  close_date: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Application {
+  id: string
+  company_id: string
+  job_id: string
+  candidate_id: string | null
+  full_name: string
+  email: string | null
+  phone: string | null
+  linkedin: string | null
+  portfolio: string | null
+  cover_letter: string | null
+  resume_url: string | null
+  resume_text: string | null
+  source: string | null
+  custom_answers: Record<string, unknown>
+  stage: Stage
+  assigned_recruiter_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const JOB_STATUSES: JobStatus[] = ['draft', 'published', 'paused', 'closed', 'archived']
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  paused: 'Paused',
+  closed: 'Closed',
+  archived: 'Archived',
+}
+
+export const EMPLOYMENT_TYPES: EmploymentType[] = [
+  'full_time', 'part_time', 'contract', 'per_diem', 'temporary', 'internship',
+]
+export const EMPLOYMENT_LABELS: Record<EmploymentType, string> = {
+  full_time: 'Full-time',
+  part_time: 'Part-time',
+  contract: 'Contract',
+  per_diem: 'Per diem',
+  temporary: 'Temporary',
+  internship: 'Internship',
+}
+
+export const WORKPLACE_TYPES: Workplace[] = ['onsite', 'hybrid', 'remote']
+export const WORKPLACE_LABELS: Record<Workplace, string> = {
+  onsite: 'On-site',
+  hybrid: 'Hybrid',
+  remote: 'Remote',
+}
+
 // ---- Reference data & labels -------------------------------------------------
 
 export const CLINICAL_ROLES: ClinicalRole[] = [

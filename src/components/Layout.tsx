@@ -77,8 +77,9 @@ export function Layout() {
   // Product tabs (everyone) in the lower bar; admin tools live under the Admin menu.
   const tabs = [
     { to: '/', label: 'Dashboard', end: true },
-    { to: '/facilities', label: 'Facilities', end: false },
+    { to: '/jobs', label: 'Jobs', end: false },
     { to: '/candidates', label: 'Candidates', end: false },
+    { to: '/facilities', label: 'Facilities', end: false },
     { to: '/matching', label: 'Matching', end: false },
     { to: '/positions', label: 'Positions', end: false },
   ]

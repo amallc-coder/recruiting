@@ -414,6 +414,240 @@ create policy "history_select" on public.candidate_stage_history
   );
 
 -- =============================================================================
+-- ATS EXTENSION — generic company / jobs / applications / analytics
+-- =============================================================================
+-- Adds the generic Applicant Tracking layer (companies -> jobs -> applications)
+-- on top of the provider-staffing core. Forward-looking columns
+-- (company_id, assigned_recruiter_id, created_by, updated_by) are included now
+-- so the later RBAC-isolation and analytics phases bolt on without a migration.
+-- Idempotent: safe to re-run.
+
+-- Widen the role set to support the full RBAC model later. Existing rows keep
+-- their role; the app still treats only 'admin' specially for now.
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('admin','recruiter','supervisor','hiring_manager','interviewer','viewer'));
+
+-- ---------------------------------------------------------------------------
+-- COMPANIES — multi-tenant root (one default company for now)
+-- ---------------------------------------------------------------------------
+create table if not exists public.companies (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  slug        text unique,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+insert into public.companies (id, name, slug)
+values ('00000000-0000-0000-0000-000000000001', 'American Medical Administrators', 'ama')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- JOBS — openings posted by a company
+-- ---------------------------------------------------------------------------
+create table if not exists public.jobs (
+  id              uuid primary key default gen_random_uuid(),
+  company_id      uuid not null default '00000000-0000-0000-0000-000000000001'
+                    references public.companies(id) on delete cascade,
+  title           text not null,
+  department      text,
+  location        text,
+  employment_type text not null default 'full_time'
+                    check (employment_type in ('full_time','part_time','contract','per_diem','temporary','internship')),
+  workplace       text not null default 'onsite'
+                    check (workplace in ('onsite','hybrid','remote')),
+  salary_min      numeric,
+  salary_max      numeric,
+  salary_unit     text not null default 'year' check (salary_unit in ('year','hour')),
+  description      text,
+  responsibilities text,
+  requirements    text,
+  benefits        text,
+  hiring_manager_id     uuid references public.profiles(id) on delete set null,
+  assigned_recruiter_id uuid references public.profiles(id) on delete set null,
+  facility_id     uuid references public.facilities(id) on delete set null,
+  role            text check (role in ('lpn','ma','np','pa','md','psych_np','wound','rn','tech','admin','ops')),
+  status          text not null default 'draft'
+                    check (status in ('draft','published','paused','closed','archived')),
+  visibility      text not null default 'public' check (visibility in ('public','internal')),
+  slug            text,
+  open_date       date,
+  close_date      date,
+  created_by      uuid references public.profiles(id) on delete set null,
+  updated_by      uuid references public.profiles(id) on delete set null,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists idx_jobs_company   on public.jobs(company_id);
+create index if not exists idx_jobs_status     on public.jobs(status);
+create index if not exists idx_jobs_recruiter  on public.jobs(assigned_recruiter_id);
+create unique index if not exists uq_jobs_slug on public.jobs(slug) where slug is not null;
+
+-- ---------------------------------------------------------------------------
+-- APPLICATIONS — a person applying to a job (career page or manual add)
+-- ---------------------------------------------------------------------------
+create table if not exists public.applications (
+  id            uuid primary key default gen_random_uuid(),
+  company_id    uuid not null default '00000000-0000-0000-0000-000000000001'
+                  references public.companies(id) on delete cascade,
+  job_id        uuid not null references public.jobs(id) on delete cascade,
+  candidate_id  uuid references public.candidates(id) on delete set null,
+  full_name     text not null,
+  email         text,
+  phone         text,
+  linkedin      text,
+  portfolio     text,
+  cover_letter  text,
+  resume_url    text,
+  resume_text   text,
+  source        text default 'Career Site',
+  custom_answers jsonb not null default '{}'::jsonb,
+  stage         text not null default 'sourced',
+  assigned_recruiter_id uuid references public.profiles(id) on delete set null,
+  created_by    uuid references public.profiles(id) on delete set null,
+  updated_by    uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_applications_job       on public.applications(job_id);
+create index if not exists idx_applications_candidate on public.applications(candidate_id);
+
+-- ---------------------------------------------------------------------------
+-- ANALYTICS_EVENTS — immutable event log powering future dashboards
+-- ---------------------------------------------------------------------------
+create table if not exists public.analytics_events (
+  id             uuid primary key default gen_random_uuid(),
+  company_id     uuid references public.companies(id) on delete cascade,
+  event_type     text not null,
+  candidate_id   uuid,
+  job_id         uuid,
+  application_id uuid,
+  user_id        uuid,
+  from_stage     text,
+  to_stage       text,
+  payload        jsonb not null default '{}'::jsonb,
+  created_at     timestamptz not null default now()
+);
+create index if not exists idx_events_company on public.analytics_events(company_id);
+create index if not exists idx_events_type    on public.analytics_events(event_type);
+create index if not exists idx_events_created on public.analytics_events(created_at);
+
+-- On application insert: auto-create a linked candidate (so the applicant lands
+-- in the existing pipeline) and log an immutable event. SECURITY DEFINER so an
+-- anonymous career-page submission can create the candidate without broad RLS.
+create or replace function public.application_after_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  new_candidate_id uuid;
+  job_role text;
+  job_facility uuid;
+  job_recruiter uuid;
+begin
+  if new.candidate_id is null then
+    select role, facility_id, assigned_recruiter_id
+      into job_role, job_facility, job_recruiter
+      from public.jobs where id = new.job_id;
+
+    insert into public.candidates
+      (full_name, role, email, phone, source, facility_id, recruiter_id,
+       current_stage, resume_text, created_by)
+    values
+      (new.full_name, coalesce(job_role, 'lpn'), new.email, new.phone,
+       coalesce(new.source, 'Career Site'), job_facility,
+       coalesce(new.assigned_recruiter_id, job_recruiter),
+       coalesce(new.stage, 'sourced'),
+       coalesce(new.resume_text, new.full_name), new.created_by)
+    returning id into new_candidate_id;
+
+    update public.applications set candidate_id = new_candidate_id where id = new.id;
+  end if;
+
+  insert into public.analytics_events
+    (company_id, event_type, candidate_id, job_id, application_id, user_id, to_stage, payload)
+  values
+    (new.company_id, 'application_submitted',
+     coalesce(new.candidate_id, new_candidate_id), new.job_id, new.id, auth.uid(),
+     coalesce(new.stage, 'sourced'), jsonb_build_object('source', new.source));
+  return new;
+end;
+$$;
+drop trigger if exists trg_application_after_insert on public.applications;
+create trigger trg_application_after_insert
+  after insert on public.applications
+  for each row execute function public.application_after_insert();
+
+-- updated_at touch triggers for the new tables.
+drop trigger if exists trg_touch_companies on public.companies;
+create trigger trg_touch_companies before update on public.companies
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_touch_jobs on public.jobs;
+create trigger trg_touch_jobs before update on public.jobs
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_touch_applications on public.applications;
+create trigger trg_touch_applications before update on public.applications
+  for each row execute function public.touch_updated_at();
+
+-- ---- RLS for the ATS tables ----
+alter table public.companies        enable row level security;
+alter table public.jobs             enable row level security;
+alter table public.applications     enable row level security;
+alter table public.analytics_events enable row level security;
+
+-- companies: any signed-in user reads; only admins write.
+drop policy if exists "companies_read" on public.companies;
+create policy "companies_read" on public.companies
+  for select using (auth.uid() is not null);
+drop policy if exists "companies_admin" on public.companies;
+create policy "companies_admin" on public.companies
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- jobs: the public (incl. anonymous) can read PUBLISHED + PUBLIC jobs for the
+-- career page; any signed-in user can browse all jobs (refined in the RBAC
+-- phase); admins and the assigned recruiter can write.
+drop policy if exists "jobs_read" on public.jobs;
+create policy "jobs_read" on public.jobs
+  for select using (
+    (status = 'published' and visibility = 'public')
+    or auth.uid() is not null
+  );
+drop policy if exists "jobs_write" on public.jobs;
+create policy "jobs_write" on public.jobs
+  for all using (public.is_admin() or assigned_recruiter_id = auth.uid())
+  with check (public.is_admin() or assigned_recruiter_id = auth.uid());
+
+-- applications: anyone may INSERT (career-page apply); admins and the owning
+-- recruiter / hiring manager can read and manage.
+drop policy if exists "applications_insert_public" on public.applications;
+create policy "applications_insert_public" on public.applications
+  for insert with check (true);
+drop policy if exists "applications_select" on public.applications;
+create policy "applications_select" on public.applications
+  for select using (
+    public.is_admin()
+    or assigned_recruiter_id = auth.uid()
+    or exists (select 1 from public.jobs j where j.id = job_id
+               and (j.assigned_recruiter_id = auth.uid() or j.hiring_manager_id = auth.uid()))
+  );
+drop policy if exists "applications_update" on public.applications;
+create policy "applications_update" on public.applications
+  for update using (
+    public.is_admin()
+    or assigned_recruiter_id = auth.uid()
+    or exists (select 1 from public.jobs j where j.id = job_id and j.assigned_recruiter_id = auth.uid())
+  ) with check (true);
+drop policy if exists "applications_delete" on public.applications;
+create policy "applications_delete" on public.applications
+  for delete using (public.is_admin());
+
+-- analytics_events: admins read; authenticated app code + definer triggers write.
+drop policy if exists "events_read" on public.analytics_events;
+create policy "events_read" on public.analytics_events
+  for select using (public.is_admin());
+drop policy if exists "events_insert" on public.analytics_events;
+create policy "events_insert" on public.analytics_events
+  for insert with check (true);
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================
