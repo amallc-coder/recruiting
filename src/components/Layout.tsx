@@ -79,6 +79,7 @@ export function Layout() {
     { to: '/', label: 'Dashboard', end: true },
     { to: '/jobs', label: 'Jobs', end: false },
     { to: '/candidates', label: 'Candidates', end: false },
+    { to: '/analytics', label: 'Analytics', end: false },
     { to: '/facilities', label: 'Facilities', end: false },
     { to: '/matching', label: 'Matching', end: false },
     { to: '/positions', label: 'Positions', end: false },

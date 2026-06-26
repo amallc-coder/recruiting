@@ -648,6 +648,120 @@ create policy "events_insert" on public.analytics_events
   for insert with check (true);
 
 -- =============================================================================
+-- ANALYTICS & RBAC BENCHMARKING
+-- =============================================================================
+-- Audit trail of permission-sensitive actions + a SECURITY DEFINER benchmark
+-- function so a recruiter can see how they rank WITHOUT their client ever
+-- reading peers' raw rows (the function returns aggregates + anonymous labels
+-- only). Idempotent.
+
+create table if not exists public.audit_logs (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid,
+  action      text not null,
+  entity_type text,
+  entity_id   uuid,
+  meta        jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_audit_created on public.audit_logs(created_at);
+create index if not exists idx_audit_action  on public.audit_logs(action);
+
+alter table public.audit_logs enable row level security;
+drop policy if exists "audit_admin_read" on public.audit_logs;
+create policy "audit_admin_read" on public.audit_logs
+  for select using (public.is_admin());
+drop policy if exists "audit_insert" on public.audit_logs;
+create policy "audit_insert" on public.audit_logs
+  for insert with check (auth.uid() is not null);
+
+-- Audit candidate reassignment and role changes (definer-run so the row is
+-- always written regardless of the actor's table privileges).
+create or replace function public.audit_candidate_reassign()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (tg_op = 'UPDATE' and new.recruiter_id is distinct from old.recruiter_id) then
+    insert into public.audit_logs (user_id, action, entity_type, entity_id, meta)
+    values (auth.uid(), 'candidate_reassigned', 'candidate', new.id,
+            jsonb_build_object('from', old.recruiter_id, 'to', new.recruiter_id));
+  end if;
+  return new;
+end; $$;
+drop trigger if exists trg_audit_candidate_reassign on public.candidates;
+create trigger trg_audit_candidate_reassign after update on public.candidates
+  for each row execute function public.audit_candidate_reassign();
+
+create or replace function public.audit_role_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (tg_op = 'UPDATE' and new.role is distinct from old.role) then
+    insert into public.audit_logs (user_id, action, entity_type, entity_id, meta)
+    values (auth.uid(), 'role_changed', 'profile', new.id,
+            jsonb_build_object('from', old.role, 'to', new.role));
+  end if;
+  return new;
+end; $$;
+drop trigger if exists trg_audit_role_change on public.profiles;
+create trigger trg_audit_role_change after update on public.profiles
+  for each row execute function public.audit_role_change();
+
+-- Recruiter benchmark: returns the caller's own metrics plus team aggregates and
+-- an ANONYMOUS leaderboard (peers shown as "Peer N" by rank, never by id/name).
+-- SECURITY DEFINER so it can read across recruiters to compute aggregates while
+-- exposing nothing that identifies a peer. Recruiters call this instead of
+-- selecting peer rows (which RLS forbids).
+create or replace function public.recruiter_dashboard(days int default null)
+returns jsonb language plpgsql security definer set search_path = public stable as $$
+declare
+  uid uuid := auth.uid();
+  since timestamptz := case when days is null then '-infinity'::timestamptz
+                            else now() - make_interval(days => days) end;
+  me_activity numeric;
+  cnt int;
+  rnk int;
+  result jsonb;
+begin
+  create temp table _act on commit drop as
+    select p.id as rid,
+           count(c.*) filter (where c.created_at >= since) as activity,
+           count(c.*) filter (where c.current_stage = 'active') as hires,
+           count(c.*) filter (where c.current_stage in ('offer','accepted')) as offers,
+           count(c.*) filter (where c.current_stage not in ('active','declined','no_response')) as pipeline
+    from public.profiles p
+    left join public.candidates c on c.recruiter_id = p.id
+    where p.active and p.role = 'recruiter'
+    group by p.id;
+
+  select activity into me_activity from _act where rid = uid;
+  me_activity := coalesce(me_activity, 0);
+  select count(*) into cnt from _act;
+  select count(*) + 1 into rnk from _act where activity > me_activity;
+
+  result := jsonb_build_object(
+    'me', coalesce((select to_jsonb(x) from (
+             select coalesce(activity,0) as activity, coalesce(hires,0) as hires,
+                    coalesce(offers,0) as offers, coalesce(pipeline,0) as pipeline
+             from _act where rid = uid) x), '{"activity":0,"hires":0,"offers":0,"pipeline":0}'::jsonb),
+    'rank', rnk,
+    'of', cnt,
+    'percentile', case when cnt > 1 then round(100.0 * (cnt - rnk) / (cnt - 1)) else 100 end,
+    'benchmark', (select jsonb_build_object(
+                    'avg', round(coalesce(avg(activity),0), 1),
+                    'median', coalesce(percentile_cont(0.5) within group (order by activity), 0),
+                    'top', coalesce(max(activity), 0)) from _act),
+    'leaderboard', coalesce((
+      select jsonb_agg(jsonb_build_object('label', label, 'value', activity) order by activity desc)
+      from (
+        select activity,
+               case when rid = uid then 'You'
+                    else 'Peer ' || row_number() over (order by activity desc) end as label
+        from _act
+      ) z), '[]'::jsonb)
+  );
+  return result;
+end; $$;
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================

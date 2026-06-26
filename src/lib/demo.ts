@@ -52,6 +52,7 @@ const TABLES = [
   'jobs',
   'applications',
   'analytics_events',
+  'audit_logs',
 ]
 
 function load(table: string): Row[] {

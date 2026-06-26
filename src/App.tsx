@@ -11,6 +11,7 @@ import { FacilityDetail } from './pages/FacilityDetail'
 import { Candidates } from './pages/Candidates'
 import { Jobs } from './pages/Jobs'
 import { JobDetail } from './pages/JobDetail'
+import { Analytics } from './pages/Analytics'
 import { Matching } from './pages/Matching'
 import { Positions } from './pages/Positions'
 import { Setup } from './pages/Setup'
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/candidates" element={<Candidates />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/matching" element={<Matching />} />
             <Route path="/positions" element={<Positions />} />
             <Route
