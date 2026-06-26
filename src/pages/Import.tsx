@@ -232,8 +232,19 @@ export function Import() {
         }
       }
       if (jobRows.length) {
+        // The 'openings' columns are recent; if the live DB hasn't run the
+        // latest schema yet, retry the insert without them so it still works.
+        const stripOpenings = (r: Record<string, unknown>) => {
+          const c = { ...r }; delete c.openings; delete c.openings_remaining; return c
+        }
+        let dropOpenings = false
         for (let i = 0; i < jobRows.length; i += 200) {
-          const { error: jErr } = await supabase.from('jobs').insert(jobRows.slice(i, i + 200))
+          const batch = jobRows.slice(i, i + 200).map((r) => (dropOpenings ? stripOpenings(r) : r))
+          let { error: jErr } = await supabase.from('jobs').insert(batch)
+          if (jErr && !dropOpenings && /openings|schema cache/i.test(jErr.message)) {
+            dropOpenings = true
+            ;({ error: jErr } = await supabase.from('jobs').insert(batch.map(stripOpenings)))
+          }
           if (jErr) throw new Error(jErr.message)
         }
       }
