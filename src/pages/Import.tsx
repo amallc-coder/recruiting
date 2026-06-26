@@ -37,7 +37,7 @@ const stripFac = (s: string) =>
 const uid = () => ((crypto as Crypto & { randomUUID?: () => string }).randomUUID?.() ?? 'id-' + Math.random().toString(36).slice(2))
 
 interface ImportResult {
-  imported: number; skipped: number; facMatched: number; jobs: number; linked: number
+  imported: number; skipped: number; reassigned: number; facMatched: number; jobs: number; linked: number
   assigned: number; placeholders: string[]; unassignedRecruiters: string[]
 }
 
@@ -200,26 +200,40 @@ export function Import() {
         return matchRecruiter(name, allProfiles)?.id ?? null
       }
 
-      // ---- Candidates ----
-      const dedupKey = (name: string, email: string | null, facility: string | null) =>
-        norm(name) + '|' + norm(email || facility || '')
-      const seen = new Set<string>()
+      // ---- Candidates (dedup by name + email/facility; re-assign existing) ----
+      const matchKey = (name: string, email: string | null, facilityId: string | null) =>
+        norm(name) + '|' + norm(email || facilityId || '')
+      const existingByKey = new Map<string, { id: string; recruiter_id: string | null; facility_id: string | null }>()
       if (dedup) {
-        const { data: existing } = await supabase.from('candidates').select('full_name,email')
-        for (const c of (existing as { full_name: string; email: string | null }[]) ?? [])
-          seen.add(dedupKey(c.full_name, c.email, null))
+        const { data: existing } = await supabase.from('candidates').select('id,full_name,email,recruiter_id,facility_id')
+        for (const c of (existing as { id: string; full_name: string; email: string | null; recruiter_id: string | null; facility_id: string | null }[]) ?? []) {
+          const k = matchKey(c.full_name, c.email, c.facility_id)
+          if (!existingByKey.has(k)) existingByKey.set(k, { id: c.id, recruiter_id: c.recruiter_id, facility_id: c.facility_id })
+        }
       }
 
       let facMatched = 0, assigned = 0
+      const batchSeen = new Set<string>()
+      const updates: { id: string; patch: Record<string, unknown> }[] = []
       const rows: Record<string, unknown>[] = []
       const candMeta: { id: string; key: string; full_name: string; email: string | null; phone: string | null; stage: string }[] = []
       for (const m of mapped) {
-        const dk = dedupKey(m.full_name, m.email, m.facilityText)
-        if (dedup && seen.has(dk)) continue
-        seen.add(dk)
         const facility_id = facMatch(m.facilityText)
-        if (facility_id) facMatched++
         const recruiter_id = recId(m.recruiter)
+        const key = matchKey(m.full_name, m.email, facility_id)
+        // Already in the database: back-fill recruiter/facility if now resolvable.
+        if (dedup && existingByKey.has(key)) {
+          const ex = existingByKey.get(key)!
+          const patch: Record<string, unknown> = {}
+          if (!ex.recruiter_id && recruiter_id) patch.recruiter_id = recruiter_id
+          if (!ex.facility_id && facility_id) patch.facility_id = facility_id
+          if (Object.keys(patch).length) updates.push({ id: ex.id, patch })
+          continue
+        }
+        // Duplicate within this upload.
+        if (dedup && batchSeen.has(key)) continue
+        batchSeen.add(key)
+        if (facility_id) facMatched++
         if (recruiter_id) assigned++
         const id = uid()
         rows.push({
@@ -289,6 +303,11 @@ export function Import() {
         const { error: insErr } = await supabase.from('candidates').insert(rows.slice(i, i + 200))
         if (insErr) throw new Error(insErr.message)
       }
+      // Back-fill assignments on candidates that already existed.
+      for (let i = 0; i < updates.length; i += 25) {
+        await Promise.all(updates.slice(i, i + 25).map((u) => supabase.from('candidates').update(u.patch).eq('id', u.id)))
+      }
+      const reassigned = updates.length
       if (jobRows.length) {
         const strip = (r: Record<string, unknown>) => { const c = { ...r }; delete c.openings; delete c.openings_remaining; return c }
         let drop = false
@@ -320,8 +339,8 @@ export function Import() {
       }
 
       setResult({
-        imported: rows.length, skipped: mapped.length - rows.length, facMatched, jobs: jobRows.length,
-        linked, assigned, placeholders, unassignedRecruiters: unassignedRec,
+        imported: rows.length, skipped: Math.max(0, mapped.length - rows.length - reassigned), reassigned,
+        facMatched, jobs: jobRows.length, linked, assigned, placeholders, unassignedRecruiters: unassignedRec,
       })
     } catch (e) {
       setError('Import failed: ' + (e instanceof Error ? e.message : String(e)) +
@@ -364,6 +383,7 @@ export function Import() {
             {' '}{result.facMatched} matched to a facility
             {result.jobs > 0 && <>, <strong>{result.jobs}</strong> job openings created</>}
             {result.linked > 0 && <>, {result.linked} linked to their opening</>}
+            {result.reassigned > 0 && <>, <strong>{result.reassigned}</strong> existing candidates re-assigned</>}
             {result.placeholders.length > 0 && <>, {result.placeholders.length} placeholder recruiters created</>}.
             {' '}{result.skipped > 0 && <>Skipped {result.skipped} (duplicates or no name). </>}
             {result.unassignedRecruiters.length > 0 && (
@@ -371,9 +391,15 @@ export function Import() {
                 Unassigned recruiters (create them on the Team screen, then re-import to assign): {result.unassignedRecruiters.join(', ')}
               </div>
             )}
-            <div className="mt-1">
+            <div className="mt-1 flex items-center gap-3">
               <a href="#/candidates" className="font-semibold underline">View candidates →</a>
-              {result.jobs > 0 && <> · <a href="#/jobs" className="font-semibold underline">View jobs →</a></>}
+              {result.jobs > 0 && <a href="#/jobs" className="font-semibold underline">View jobs →</a>}
+              <button
+                className="font-semibold underline"
+                onClick={() => { setResult(null); setSheets(null); setMapping({}); setRecruiterMap({}) }}
+              >
+                Import another file
+              </button>
             </div>
           </div>
         </div>
