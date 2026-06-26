@@ -176,6 +176,7 @@ export function JobDetail() {
         <aside className="card h-fit p-5 text-sm">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Details</h2>
           <dl className="space-y-2.5">
+            <Row label="Openings" value={job.openings_remaining != null && job.openings_remaining !== job.openings ? `${job.openings_remaining} of ${job.openings} open` : String(job.openings)} />
             <Row label="Recruiter" value={nameOf(job.assigned_recruiter_id)} />
             <Row label="Hiring manager" value={nameOf(job.hiring_manager_id)} />
             {facilityName && <Row label="Facility" value={facilityName} />}

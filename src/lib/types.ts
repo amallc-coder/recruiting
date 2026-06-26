@@ -131,6 +131,8 @@ export interface Job {
   slug: string | null
   open_date: string | null
   close_date: string | null
+  openings: number
+  openings_remaining: number | null
   created_by: string | null
   updated_by: string | null
   created_at: string

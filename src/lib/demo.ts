@@ -12,7 +12,7 @@ import { DEFAULT_COMPANY_ID } from './types'
 type Row = Record<string, any>
 
 const FLAG = 'demo_mode'
-const SEEDED = 'demo_seeded_v7'
+const SEEDED = 'demo_seeded_v8'
 const PREFIX = 'demo:'
 
 export const DEMO_USER = { id: 'demo-admin', email: 'demo@reliant.local' }
@@ -494,6 +494,8 @@ function seedIfNeeded() {
       benefits: null,
       status: i % 6 === 0 ? 'draft' : 'published',
       visibility: 'public',
+      openings: Math.max(1, Math.ceil(r.openings_count)),
+      openings_remaining: Math.max(1, Math.ceil(r.openings_count)),
       slug: slug(r.position) + '-' + r.facility_id.slice(0, 4),
       created_by: DEMO_USER.id,
       updated_by: null,

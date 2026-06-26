@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { supabase, demoMode } from '../lib/supabase'
-import { ROLE_LABELS, STAGE_LABELS, type Facility, type Profile } from '../lib/types'
+import { ROLE_LABELS, STAGE_LABELS, DEFAULT_COMPANY_ID, type Facility, type Profile } from '../lib/types'
+import { slugify } from '../lib/ats'
 import {
-  parseWorkbook, autoMap, mapSheet, isTeamSheet, unpivotTeamSheet,
-  type Field, type ParsedSheet, type MappedCandidate,
+  parseWorkbook, autoMap, mapSheet, isTeamSheet, unpivotTeamSheet, extractTeamSheetJobs,
+  type Field, type ParsedSheet, type MappedCandidate, type MappedJob,
 } from '../lib/importXlsx'
 
 // Tabs in a "Recruitment Team Sheet" that are NOT individual recruiters: the
@@ -38,7 +39,8 @@ export function Import() {
   const [mapping, setMapping] = useState<Record<string, Field>>({})
   const [dedup, setDedup] = useState(true)
   const [createRecruiters, setCreateRecruiters] = useState(true)
-  const [result, setResult] = useState<{ imported: number; skipped: number; facMatched: number; recruiters: number } | null>(null)
+  const [importJobs, setImportJobs] = useState(true)
+  const [result, setResult] = useState<{ imported: number; skipped: number; facMatched: number; recruiters: number; jobs: number } | null>(null)
 
   async function onFile(file: File) {
     setError(null); setResult(null); setBusy(true)
@@ -74,6 +76,22 @@ export function Import() {
     if (teamMode) return teamSources.flatMap(unpivotTeamSheet)
     return sheets.flatMap((s) => mapSheet(s, mapping))
   }, [sheets, mapping, teamMode, teamSources])
+
+  // In team mode, every row is also an OPENING — extract jobs (deduped by
+  // title + location) so they can be pulled into the Jobs database too.
+  const teamJobs: MappedJob[] = useMemo(() => {
+    if (!sheets || !teamMode) return []
+    const seen = new Set<string>()
+    const out: MappedJob[] = []
+    for (const j of teamSources.flatMap(extractTeamSheetJobs)) {
+      const k = norm(j.title) + '|' + norm(j.location || j.facilityText || '')
+      if (seen.has(k)) continue
+      seen.add(k); out.push(j)
+    }
+    return out
+  }, [sheets, teamMode, teamSources])
+
+  const totalOpenings = useMemo(() => teamJobs.reduce((s, j) => s + j.openings, 0), [teamJobs])
 
   const allHeaders = useMemo(() => {
     const seen = new Set<string>()
@@ -172,6 +190,39 @@ export function Import() {
         })
       }
 
+      // ---- Openings -> Jobs (from the same team-sheet rows) ----
+      const jobRows: Record<string, unknown>[] = []
+      if (teamMode && importJobs && teamJobs.length) {
+        const { data: existingJobs } = await supabase.from('jobs').select('title,location')
+        const jseen = new Set<string>()
+        for (const j of (existingJobs as { title: string; location: string | null }[]) ?? [])
+          jseen.add(norm(j.title) + '|' + norm(j.location ?? ''))
+        for (const j of teamJobs) {
+          const k = norm(j.title) + '|' + norm(j.location || j.facilityText || '')
+          if (jseen.has(k)) continue
+          jseen.add(k)
+          const rec = resolveRecruiter(j.recruiter)
+          jobRows.push({
+            company_id: DEFAULT_COMPANY_ID,
+            title: j.title,
+            department: j.department,
+            location: j.location,
+            employment_type: 'full_time',
+            workplace: 'onsite',
+            role: j.role,
+            facility_id: facMatch(j.facilityText),
+            assigned_recruiter_id: rec.id,
+            status: j.status,
+            visibility: 'public',
+            openings: j.openings,
+            openings_remaining: j.openings_remaining,
+            open_date: j.open_date,
+            close_date: j.close_date,
+            slug: slugify(j.title) + '-' + Math.random().toString(36).slice(2, 6),
+          })
+        }
+      }
+
       if (newProfiles.length) await supabase.from('profiles').insert(newProfiles)
       if (rows.length) {
         // chunk inserts to stay friendly to storage / network
@@ -180,7 +231,13 @@ export function Import() {
           if (insErr) throw new Error(insErr.message)
         }
       }
-      setResult({ imported: rows.length, skipped: mapped.length - rows.length, facMatched, recruiters: newProfiles.length })
+      if (jobRows.length) {
+        for (let i = 0; i < jobRows.length; i += 200) {
+          const { error: jErr } = await supabase.from('jobs').insert(jobRows.slice(i, i + 200))
+          if (jErr) throw new Error(jErr.message)
+        }
+      }
+      setResult({ imported: rows.length, skipped: mapped.length - rows.length, facMatched, recruiters: newProfiles.length, jobs: jobRows.length })
     } catch (e) {
       setError('Import failed: ' + (e instanceof Error ? e.message : String(e)) +
         (demoMode ? ' (Local mode stores in this browser — very large files can exceed its storage; connect Supabase for big imports.)' : ''))
@@ -222,9 +279,11 @@ export function Import() {
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           <div>
             Imported <strong>{result.imported}</strong> candidates ({result.facMatched} matched to a facility
-            {result.recruiters > 0 && <>, {result.recruiters} new recruiters created</>}).{' '}
+            {result.recruiters > 0 && <>, {result.recruiters} new recruiters created</>})
+            {result.jobs > 0 && <> and <strong>{result.jobs}</strong> job openings</>}.{' '}
             {result.skipped > 0 && <>Skipped {result.skipped} (duplicates or no name).</>}{' '}
             <a href="#/candidates" className="font-semibold underline">View candidates →</a>
+            {result.jobs > 0 && <> · <a href="#/jobs" className="font-semibold underline">View jobs →</a></>}
           </div>
         </div>
       )}
@@ -236,7 +295,7 @@ export function Import() {
               <FileSpreadsheet size={18} className="text-brand-600" />
               <span className="font-medium text-ink">{sheets.length} tab{sheets.length !== 1 ? 's' : ''}</span>
               <span className="text-muted">·</span>
-              <span className="text-muted">{mapped.length} candidate rows detected</span>
+              <span className="text-muted">{mapped.length} candidates{teamJobs.length > 0 ? ` · ${teamJobs.length} openings` : ''} detected</span>
               <button className="btn-secondary ml-auto py-1" onClick={() => { setSheets(null); setMapping({}) }}>Choose a different file</button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -259,11 +318,19 @@ export function Import() {
                     each opening’s candidates (Candidate 1, 2, 3 …) are unpivoted into individual records, with the
                     recruiter, facility, position, and pipeline stage pulled from the Open / Interview / Offer / Hire
                     dates. The rollup “All Data”, backup, and list tabs are skipped to avoid duplicates.
+                    {teamJobs.length > 0 && (
+                      <> Each row is also an <strong>opening</strong>: {teamJobs.length} distinct jobs
+                      ({totalOpenings} total openings) — title, location, facility, recruiter, and open/closed
+                      status — can be pulled into the Jobs database alongside what’s there.</>
+                    )}
                   </span>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
                 <label className="flex items-center gap-1.5"><input type="checkbox" checked={dedup} onChange={(e) => setDedup(e.target.checked)} /> Skip duplicates (name + facility)</label>
+                {teamJobs.length > 0 && (
+                  <label className="flex items-center gap-1.5"><input type="checkbox" checked={importJobs} onChange={(e) => setImportJobs(e.target.checked)} /> Also create {teamJobs.length} job openings</label>
+                )}
                 {demoMode && <label className="flex items-center gap-1.5"><input type="checkbox" checked={createRecruiters} onChange={(e) => setCreateRecruiters(e.target.checked)} /> Create a recruiter for each new name</label>}
               </div>
             </div>
