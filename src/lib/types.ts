@@ -84,9 +84,74 @@ export interface Candidate {
   checklist: Record<string, boolean>
   rating: number | null
   notes: string | null
+  // Rolling context built from screening analyses + the communication log.
+  // Blended into matching so everything learned about a candidate sharpens fit.
+  screening_summary?: string | null
+  last_screened_at?: string | null
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export interface Screening {
+  id: string
+  candidate_id: string
+  job_id: string | null
+  recruiter_id: string | null
+  status: 'draft' | 'approved' | 'sent' | 'completed' | 'analyzed' | 'cancelled'
+  channel: 'phone' | 'sms' | 'email' | 'manual'
+  questions: ScreeningQuestion[]
+  responses: ScreeningResponse[]
+  ai_summary: string | null
+  ai_score: number | null
+  ai_flags: ScreeningFlag[]
+  transcript: string | null
+  external_ref: string | null
+  approved_by: string | null
+  approved_at: string | null
+  sent_at: string | null
+  completed_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ScreeningQuestion {
+  id: string
+  question: string
+  rationale?: string
+  competency?: string
+}
+
+export interface ScreeningResponse {
+  question_id: string
+  answer: string
+  asked_at?: string | null
+  answered_at?: string | null
+}
+
+export interface ScreeningFlag {
+  type: string
+  detail: string
+  severity: 'low' | 'medium' | 'high'
+}
+
+export interface Communication {
+  id: string
+  candidate_id: string
+  job_id: string | null
+  screening_id: string | null
+  recruiter_id: string | null
+  channel: 'email' | 'sms' | 'call' | 'note'
+  direction: 'outbound' | 'inbound' | 'internal'
+  subject: string | null
+  body: string
+  ai_generated: boolean
+  external_ref: string | null
+  metadata: Record<string, unknown>
+  occurred_at: string
+  created_by: string | null
+  created_at: string
 }
 
 export interface StageHistory {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Download, Pencil, Trash2, Search, RefreshCw } from 'lucide-react'
+import { Plus, Download, Pencil, Trash2, Search, RefreshCw, Sparkles } from 'lucide-react'
 import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useProfiles } from '../hooks/useProfiles'
@@ -15,9 +15,11 @@ import {
   checklistForRole,
   type Candidate,
   type ClinicalRole,
+  type Job,
   type Stage,
 } from '../lib/types'
 import { EmptyState, Modal, RoleBadge, Spinner } from '../components/ui'
+import { CandidateEngage } from '../components/CandidateEngage'
 
 const EMPTY: Partial<Candidate> = {
   full_name: '',
@@ -44,6 +46,8 @@ export function Candidates() {
   const [stageFilter, setStageFilter] = useState<Stage | 'all' | 'active_pipeline'>('all')
   const [roleFilter, setRoleFilter] = useState<ClinicalRole | 'all'>('all')
   const [editing, setEditing] = useState<Partial<Candidate> | null>(null)
+  const [engaging, setEngaging] = useState<Candidate | null>(null)
+  const [jobs, setJobs] = useState<Job[]>([])
   const [view, setView] = useState<'table' | 'board'>('table')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
@@ -74,6 +78,13 @@ export function Candidates() {
 
   useEffect(() => {
     load()
+    // Published openings power the screening builder's "Opening" picker.
+    supabase
+      .from('jobs')
+      .select('*')
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setJobs((data as Job[]) ?? []))
   }, [])
 
   const filtered = useMemo(() => {
@@ -258,6 +269,9 @@ export function Candidates() {
                     <td className="px-4 py-3 text-muted">{c.start_date ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <button className="rounded p-1.5 text-muted hover:bg-brand-50 hover:text-ink" onClick={() => setEngaging(c)} aria-label="AI screening & communication" title="AI screening & communication">
+                          <Sparkles size={16} />
+                        </button>
                         <button className="rounded p-1.5 text-muted hover:bg-brand-50 hover:text-ink" onClick={() => setEditing(c)} aria-label="Edit">
                           <Pencil size={16} />
                         </button>
@@ -283,6 +297,16 @@ export function Candidates() {
           currentUserId={profile!.id}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load() }}
+        />
+      )}
+
+      {engaging && (
+        <CandidateEngage
+          candidate={engaging}
+          jobs={jobs}
+          recruiterId={profile!.id}
+          onClose={() => setEngaging(null)}
+          onUpdated={load}
         />
       )}
     </div>
