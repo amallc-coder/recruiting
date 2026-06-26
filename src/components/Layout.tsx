@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database } from 'lucide-react'
+import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database, Plug } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
@@ -87,6 +87,7 @@ export function Layout() {
   const adminLinks = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },
+    { to: '/integrations', label: 'Integrations', icon: Plug },
     ...(!demoMode ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
   ]
 

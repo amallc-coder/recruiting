@@ -762,6 +762,134 @@ begin
 end; $$;
 
 -- =============================================================================
+-- INTEGRATIONS — modular framework for external platform connections
+-- =============================================================================
+-- Stores integration configs, (server-managed) credentials, field mappings,
+-- activity/error logs, and inbound webhook events. Admin-only via RLS. Live API
+-- calls + OAuth + webhook verification run in Edge Functions (service role);
+-- the frontend never reads raw credential values back. Idempotent.
+
+create table if not exists public.integrations (
+  id            uuid primary key default gen_random_uuid(),
+  company_id    uuid not null default '00000000-0000-0000-0000-000000000001'
+                  references public.companies(id) on delete cascade,
+  name          text not null,
+  provider      text not null,         -- 'indeed','checkr','custom_rest', …
+  category      text not null,
+  status        text not null default 'pending'
+                  check (status in ('connected','disconnected','error','pending')),
+  auth_type     text not null default 'api_key'
+                  check (auth_type in ('api_key','bearer','oauth2','basic','webhook_secret','custom_header','none')),
+  config_json   jsonb not null default '{}'::jsonb,
+  credentials_reference uuid,          -- -> integration_credentials.id
+  base_url      text,
+  webhook_url   text,
+  sync_direction text default 'inbound'
+                  check (sync_direction in ('inbound','outbound','bidirectional')),
+  sync_frequency text default 'manual',
+  last_sync_at  timestamptz,
+  is_enabled    boolean not null default false,
+  created_by    uuid references public.profiles(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_integrations_company on public.integrations(company_id);
+
+-- Secrets live in their own table so RLS can lock them down hard. In production
+-- these are encrypted and only read by Edge Functions (service role); the
+-- frontend writes them but never selects them back.
+create table if not exists public.integration_credentials (
+  id             uuid primary key default gen_random_uuid(),
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  encrypted_credentials jsonb not null default '{}'::jsonb,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create table if not exists public.integration_logs (
+  id             uuid primary key default gen_random_uuid(),
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  event_type     text,
+  status         text,
+  message        text,
+  request_payload  jsonb,
+  response_payload jsonb,
+  created_at     timestamptz not null default now()
+);
+create index if not exists idx_integration_logs_integration on public.integration_logs(integration_id);
+
+create table if not exists public.integration_field_mappings (
+  id             uuid primary key default gen_random_uuid(),
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  source_field   text not null,
+  target_field   text not null,
+  transformation_rule text,
+  is_required    boolean not null default false,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists idx_field_mappings_integration on public.integration_field_mappings(integration_id);
+
+create table if not exists public.webhook_events (
+  id             uuid primary key default gen_random_uuid(),
+  integration_id uuid references public.integrations(id) on delete set null,
+  event_type     text,
+  source_platform text,
+  payload        jsonb not null default '{}'::jsonb,
+  processed_status text not null default 'pending'
+                  check (processed_status in ('pending','processing','completed','failed')),
+  error_message  text,
+  created_at     timestamptz not null default now(),
+  processed_at   timestamptz
+);
+create index if not exists idx_webhook_events_status on public.webhook_events(processed_status);
+
+drop trigger if exists trg_touch_integrations on public.integrations;
+create trigger trg_touch_integrations before update on public.integrations
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_touch_int_creds on public.integration_credentials;
+create trigger trg_touch_int_creds before update on public.integration_credentials
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_touch_field_mappings on public.integration_field_mappings;
+create trigger trg_touch_field_mappings before update on public.integration_field_mappings
+  for each row execute function public.touch_updated_at();
+
+-- RLS: integrations are admin-only. Credentials are the most sensitive — admins
+-- may write them, but a read policy is intentionally NOT granted to anon/auth
+-- (only the service role used by Edge Functions can read them).
+alter table public.integrations              enable row level security;
+alter table public.integration_credentials   enable row level security;
+alter table public.integration_logs          enable row level security;
+alter table public.integration_field_mappings enable row level security;
+alter table public.webhook_events            enable row level security;
+
+drop policy if exists "integrations_admin" on public.integrations;
+create policy "integrations_admin" on public.integrations
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- Credentials: admins may INSERT/UPDATE/DELETE but there is no SELECT policy,
+-- so credential values can never be read back through the public API.
+drop policy if exists "int_creds_admin_write" on public.integration_credentials;
+create policy "int_creds_admin_write" on public.integration_credentials
+  for insert with check (public.is_admin());
+drop policy if exists "int_creds_admin_update" on public.integration_credentials;
+create policy "int_creds_admin_update" on public.integration_credentials
+  for update using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "int_creds_admin_delete" on public.integration_credentials;
+create policy "int_creds_admin_delete" on public.integration_credentials
+  for delete using (public.is_admin());
+
+drop policy if exists "integration_logs_admin" on public.integration_logs;
+create policy "integration_logs_admin" on public.integration_logs
+  for all using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "field_mappings_admin" on public.integration_field_mappings;
+create policy "field_mappings_admin" on public.integration_field_mappings
+  for all using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "webhook_events_admin" on public.webhook_events;
+create policy "webhook_events_admin" on public.webhook_events
+  for all using (public.is_admin()) with check (public.is_admin());
+
+-- =============================================================================
 -- Done. Create users in Supabase Auth (first sign-in becomes admin), then use
 -- the in-app Team screen to set roles and assign each recruiter's regions.
 -- =============================================================================

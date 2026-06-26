@@ -14,6 +14,8 @@ import { JobDetail } from './pages/JobDetail'
 import { Analytics } from './pages/Analytics'
 import { Matching } from './pages/Matching'
 import { Positions } from './pages/Positions'
+import { Integrations } from './pages/Integrations'
+import { ApiDocs } from './pages/ApiDocs'
 import { Setup } from './pages/Setup'
 // Lazy-loaded: pulls in the SheetJS parser only when the Import screen is opened.
 const Import = lazy(() => import('./pages/Import').then((m) => ({ default: m.Import })))
@@ -52,6 +54,22 @@ export default function App() {
                   <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading importer…</div>}>
                     <Import />
                   </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/integrations"
+              element={
+                <ProtectedRoute adminOnly>
+                  <Integrations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/api-docs"
+              element={
+                <ProtectedRoute adminOnly>
+                  <ApiDocs />
                 </ProtectedRoute>
               }
             />

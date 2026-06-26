@@ -53,6 +53,11 @@ const TABLES = [
   'applications',
   'analytics_events',
   'audit_logs',
+  'integrations',
+  'integration_credentials',
+  'integration_logs',
+  'integration_field_mappings',
+  'webhook_events',
 ]
 
 function load(table: string): Row[] {
