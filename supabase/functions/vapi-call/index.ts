@@ -34,6 +34,11 @@ const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!
 const VAPI_KEY = Deno.env.get('VAPI_API_KEY')
 const VAPI_PHONE_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID')
+// Voice is configurable without code changes. Set these in Supabase secrets:
+//   VAPI_VOICE_ID        e.g. "Clara"   (defaults to Elliot)
+//   VAPI_VOICE_PROVIDER  e.g. "vapi" | "11labs" | "playht"  (defaults to vapi)
+const VOICE_ID = Deno.env.get('VAPI_VOICE_ID') || 'Elliot'
+const VOICE_PROVIDER = Deno.env.get('VAPI_VOICE_PROVIDER') || 'vapi'
 
 // Normalize a US phone to E.164 (+1XXXXXXXXXX). Returns null if it can't.
 function e164(raw: string | null): string | null {
@@ -156,9 +161,12 @@ Deno.serve(async (req: Request) => {
     phoneNumberId: phoneId,
     customer: { number: phone, name: cand.full_name ?? undefined },
     assistant: {
+      // Wait for the person to actually answer and speak before the agent talks,
+      // so it doesn't start mid-ring or talk over their "hello".
+      firstMessageMode: 'assistant-waits-for-user',
       firstMessage: `Hi, this is Jordan with American Medical Administrators. May I speak with ${cand.full_name?.split(' ')[0] || 'you'}?`,
       model: { provider: 'openai', model: 'gpt-4o', messages: [{ role: 'system', content: prompt }] },
-      voice: { provider: 'vapi', voiceId: 'Elliot' },
+      voice: { provider: VOICE_PROVIDER, voiceId: VOICE_ID },
       endCallFunctionEnabled: true,
       // Wait for the candidate to fully finish before the agent speaks, and don't
       // let it barge in mid-sentence (fixes the "thank you for sharing" interrupts).
