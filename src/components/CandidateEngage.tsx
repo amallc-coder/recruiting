@@ -219,6 +219,17 @@ function ScreeningCard({
   )
   const Icon = CHANNEL_ICON[screening.channel] ?? FileText
 
+  // When the screening row updates (e.g. a call transcript + extracted answers
+  // arrive via the webhook and the panel is reloaded), resync the local fields.
+  useEffect(() => {
+    setResponses(screening.questions.map((q) => screening.responses.find((r) => r.question_id === q.id) ?? { question_id: q.id, answer: '' }))
+    setTranscript(screening.transcript ?? '')
+    if (screening.status === 'analyzed' && screening.ai_summary) {
+      setAnalysis({ summary: screening.ai_summary, score: screening.ai_score ?? 0, recommendation: 'hold', strengths: [], concerns: [], flags: screening.ai_flags ?? [] })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screening.updated_at])
+
   async function persist(patch: Partial<Screening>) {
     await updateScreening(screening.id, patch)
     onChanged()

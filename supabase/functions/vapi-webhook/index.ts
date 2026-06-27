@@ -27,27 +27,33 @@ const WEBHOOK_SECRET = Deno.env.get('VAPI_WEBHOOK_SECRET')
 
 const ANALYZE_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['summary', 'score', 'flags', 'recommendation', 'strengths', 'concerns'],
+  required: ['summary', 'score', 'flags', 'recommendation', 'strengths', 'concerns', 'answers'],
   properties: {
     summary: { type: 'string' }, score: { type: 'integer' },
     recommendation: { type: 'string', enum: ['advance', 'hold', 'reject'] },
     strengths: { type: 'array', items: { type: 'string' } },
     concerns: { type: 'array', items: { type: 'string' } },
     flags: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['type', 'detail', 'severity'], properties: { type: { type: 'string' }, detail: { type: 'string' }, severity: { type: 'string', enum: ['low', 'medium', 'high'] } } } },
+    // The candidate's answer to each question, pulled from the transcript.
+    answers: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['question_id', 'answer'], properties: { question_id: { type: 'string' }, answer: { type: 'string' } } } },
   },
 }
 
-async function analyze(transcript: string, questions: { question: string }[], cand: { full_name?: string; role?: string }) {
+async function analyze(transcript: string, questions: { id?: string; question: string }[], cand: { full_name?: string; role?: string }) {
   if (!ANTHROPIC_KEY) return null
   const a = new Anthropic({ apiKey: ANTHROPIC_KEY })
+  const qList = questions.map((q, i) => `${i + 1}. [id:${q.id ?? ''}] ${q.question}`).join('\n')
   const prompt =
     `You are an expert clinical-staffing recruiter analyzing a screening CALL transcript. ` +
     `Produce a recruiter-facing analysis: summary (2-4 sentences), score 0-100 fit, ` +
     `recommendation (advance|hold|reject), strengths, concerns, and flags ` +
     `(license_expired, availability_mismatch, comp_gap, location_conflict, inconsistent_answer) ` +
-    `with severity. Base everything ONLY on what the candidate actually said; if incomplete, keep the score conservative.\n\n` +
+    `with severity. ALSO, for "answers", return the candidate's answer to EACH question — use the ` +
+    `exact question id given, summarize what they actually said in 1-2 sentences, and use an empty ` +
+    `string if a question wasn't answered. ` +
+    `Base everything ONLY on what the candidate actually said; if incomplete, keep the score conservative.\n\n` +
     `CANDIDATE: ${cand.full_name ?? 'n/a'} (${cand.role ?? 'n/a'})\n` +
-    `INTENDED QUESTIONS:\n${questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}\n\n` +
+    `QUESTIONS (use the id shown for each answer):\n${qList}\n\n` +
     `TRANSCRIPT:\n${transcript}`
   try {
     const resp = await a.messages.create({
@@ -112,10 +118,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const a = transcript ? await analyze(transcript, questions, cand ?? {}) : null
+    // Map the extracted answers back onto each question so the answer boxes fill.
+    let responses: { question_id: string; answer: string }[] | undefined
+    if (a?.answers) {
+      const byId = new Map((a.answers as { question_id: string; answer: string }[]).map((x) => [x.question_id, x.answer]))
+      responses = questions.map((q) => ({ question_id: (q as { id?: string }).id ?? '', answer: byId.get((q as { id?: string }).id ?? '') ?? '' }))
+    }
     await admin.from('screenings').update({
       transcript: transcript || null,
       status: a ? 'analyzed' : 'completed',
       completed_at: new Date().toISOString(),
+      ...(responses ? { responses } : {}),
       ...(a ? { ai_summary: a.summary, ai_score: a.score, ai_flags: a.flags } : {}),
     }).eq('id', s.id)
 
