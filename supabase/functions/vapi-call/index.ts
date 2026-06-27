@@ -34,6 +34,11 @@ const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!
 const VAPI_KEY = Deno.env.get('VAPI_API_KEY')
 const VAPI_PHONE_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID')
+// Voice is configurable without code changes. Set these in Supabase secrets:
+//   VAPI_VOICE_ID        e.g. "Clara"   (defaults to Elliot)
+//   VAPI_VOICE_PROVIDER  e.g. "vapi" | "11labs" | "playht"  (defaults to vapi)
+const VOICE_ID = Deno.env.get('VAPI_VOICE_ID') || 'Elliot'
+const VOICE_PROVIDER = Deno.env.get('VAPI_VOICE_PROVIDER') || 'vapi'
 
 // Normalize a US phone to E.164 (+1XXXXXXXXXX). Returns null if it can't.
 function e164(raw: string | null): string | null {
@@ -48,15 +53,34 @@ function e164(raw: string | null): string | null {
 function systemPrompt(candidateName: string, jobTitle: string, questions: { question: string }[]) {
   const list = questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')
   return (
-    `You are a friendly, professional recruiting assistant for American Medical Administrators, ` +
+    `You are Jordan, a friendly, professional recruiting assistant for American Medical Administrators, ` +
     `calling ${candidateName || 'the candidate'} about a ${jobTitle || 'clinical'} opportunity. ` +
     `Your job is to conduct a brief phone screening.\n\n` +
+    `Identity:\n` +
+    `- Introduce yourself by name as "Jordan, calling on behalf of American Medical Administrators."\n` +
+    `- NEVER say placeholder text such as "[your name]", "your name", or "[company]". Use the real names above.\n\n` +
+    `Conversation style — VERY IMPORTANT:\n` +
+    `- Let the candidate FULLY finish speaking. Wait for a clear pause before you respond.\n` +
+    `- Never talk over them or interrupt mid-sentence. Do not use filler like "thank you for sharing that" ` +
+    `until they have completely finished their answer.\n` +
+    `- Ask exactly ONE question, then stop talking and wait for their full answer.\n` +
+    `- Keep your own turns short (1-2 sentences).\n\n` +
+    `Opening disclosure (say this near the start, right after confirming who you are speaking with):\n` +
+    `- "Before we start, I want to let you know this is an AI-assisted call and it's being recorded ` +
+    `for quality and accuracy. Is that okay with you?" Wait for their consent. If they decline recording, ` +
+    `let them know a human recruiter will follow up instead, thank them, and end the call.\n` +
+    `- Because this is AI-assisted, if anything is unclear or you mishear, briefly apologize and ask them ` +
+    `to repeat — be gracious and patient.\n\n` +
     `Guidelines:\n` +
-    `- Greet them warmly, confirm you're speaking with the right person, and ask if it's a good time.\n` +
-    `- Ask the questions below ONE AT A TIME, conversationally. Acknowledge each answer before moving on.\n` +
+    `- Greet them warmly, confirm you're speaking with the right person, give the disclosure above, and ask if it's a good time.\n` +
+    `- Ask the questions below ONE AT A TIME, conversationally. Briefly acknowledge each answer before moving on.\n` +
     `- Do NOT ask about protected characteristics (age, marital/family status, health, religion, national origin).\n` +
     `- Keep it under ~8 minutes. If they're busy, offer to call back.\n` +
-    `- At the end, thank them and say a recruiter will follow up. Then end the call.\n\n` +
+    `Closing (do this before ending the call):\n` +
+    `- Once you've gone through the questions, ASK: "Is there anything else you'd like me to pass along to ` +
+    `the recruiter before I let you go?" and listen to their full answer.\n` +
+    `- Then briefly recap any key follow-ups, thank them sincerely for their time, let them know a recruiter ` +
+    `will be in touch with next steps, and end the call warmly.\n\n` +
     `Screening questions:\n${list}`
   )
 }
@@ -137,12 +161,21 @@ Deno.serve(async (req: Request) => {
     phoneNumberId: phoneId,
     customer: { number: phone, name: cand.full_name ?? undefined },
     assistant: {
-      firstMessage: `Hi, may I speak with ${cand.full_name?.split(' ')[0] || 'the candidate'}?`,
+      // Wait for the person to actually answer and speak before the agent talks,
+      // so it doesn't start mid-ring or talk over their "hello".
+      firstMessageMode: 'assistant-waits-for-user',
+      firstMessage: `Hi, this is Jordan with American Medical Administrators. May I speak with ${cand.full_name?.split(' ')[0] || 'you'}?`,
       model: { provider: 'openai', model: 'gpt-4o', messages: [{ role: 'system', content: prompt }] },
-      voice: { provider: 'vapi', voiceId: 'Elliot' },
+      voice: { provider: VOICE_PROVIDER, voiceId: VOICE_ID },
       endCallFunctionEnabled: true,
-      // Vapi posts the end-of-call report (with transcript) to this URL.
-      server: { url: `${URL_}/functions/v1/vapi-webhook` },
+      // Wait for the candidate to fully finish before the agent speaks, and don't
+      // let it barge in mid-sentence (fixes the "thank you for sharing" interrupts).
+      startSpeakingPlan: { waitSeconds: 1.5, smartEndpointingEnabled: true },
+      stopSpeakingPlan: { numWords: 3, voiceSeconds: 0.3, backoffSeconds: 2 },
+      // Vapi posts the end-of-call report (with transcript) to this URL. Send the
+      // anon key so the request authenticates whether or not the webhook has
+      // "Verify JWT" enabled (the anon key satisfies the JWT gate either way).
+      server: { url: `${URL_}/functions/v1/vapi-webhook`, headers: { Authorization: `Bearer ${ANON}`, apikey: ANON } },
       metadata: { screening_id: s.id, candidate_id: cand.id },
     },
   }

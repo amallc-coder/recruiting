@@ -1,0 +1,189 @@
+/* ===========================================================================
+   Clinilytics design system — standalone theme
+   ---------------------------------------------------------------------------
+   Warm "paper" canvas + charcoal "ink", with sage / clay / rust accents.
+   Fonts: Inter (UI) + JetBrains Mono (labels/numbers).
+
+   Drop this file into any site:  <link rel="stylesheet" href="clinilytics-theme.css">
+   Then use the design tokens (var(--ink), etc.) and the component classes
+   (.btn-primary, .card, .input, .badge-sage, ...). No Tailwind required.
+   =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ---- Design tokens -------------------------------------------------------- */
+:root {
+  /* Canvas + text */
+  --paper:   #f4f1ea;   /* page background          */
+  --surface: #fcfbf8;   /* cards, inputs            */
+  --ink:     #1f1d1a;   /* primary text / dark btns */
+  --muted:   #6b6660;   /* secondary text           */
+  --line:    #e7e2d7;   /* borders / hairlines      */
+
+  /* Brand = warm-charcoal scale (emphasis, not blue) */
+  --brand-50:  #f1efe9;
+  --brand-100: #e4e0d5;
+  --brand-200: #ccc5b5;
+  --brand-300: #a9a18d;
+  --brand-400: #736b5e;
+  --brand-500: #4c463d;
+  --brand-600: #2a2620;
+  --brand-700: #1d1a15;
+  --brand-800: #16130f;
+  --brand-900: #0f0d0a;
+
+  /* Status / data accents */
+  --sage-50:  #e9efe5;  --sage-100: #d3e0cd;  --sage-500: #6e9a6a;  --sage-600: #577f54;  --sage-700: #456343;
+  --clay-50:  #f5e7d9;  --clay-100: #ecd1bc;  --clay-500: #cd7c4f;  --clay-600: #b4663b;
+  --rust-50:  #f4ddd9;  --rust-100: #ebc3bd;  --rust-500: #be4b43;  --rust-600: #9f3a33;
+
+  /* Type */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Shape + elevation */
+  --radius-sm: 0.375rem;  /* 6px  */
+  --radius:    0.5rem;    /* 8px  */
+  --radius-lg: 0.75rem;   /* 12px */
+  --radius-xl: 1rem;      /* 16px */
+  --shadow-card: 0 1px 2px rgba(31, 29, 26, 0.04), 0 1px 1px rgba(31, 29, 26, 0.03);
+}
+
+/* ---- Base ----------------------------------------------------------------- */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { color: var(--ink); font-weight: 600; letter-spacing: -0.01em; }
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Tabular figures for data-dense numbers. */
+.tnum { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+
+/* ---- Buttons -------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.875rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Primary = charcoal ink */
+.btn-primary { background-color: var(--ink); color: var(--paper); }
+.btn-primary:hover:not(:disabled) { background-color: var(--brand-500); }
+
+/* Secondary = light surface with hairline ring */
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.btn-secondary:hover:not(:disabled) { background-color: var(--brand-50); }
+
+/* Danger */
+.btn-danger { background-color: var(--rust-500); color: #fff; }
+.btn-danger:hover:not(:disabled) { background-color: var(--rust-600); }
+
+/* ---- Form controls -------------------------------------------------------- */
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow 0.15s ease;
+}
+.input::placeholder { color: rgba(107, 102, 96, 0.6); }
+.input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(31, 29, 26, 0.4);
+}
+textarea.input { min-height: 4.5rem; resize: vertical; }
+
+.label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Signature uppercase mono micro-label (stat captions). */
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+/* ---- Cards / surfaces ----------------------------------------------------- */
+.card {
+  background-color: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card), inset 0 0 0 1px var(--line);
+}
+.card-pad { padding: 1.25rem; }
+
+/* ---- Pills (segmented toggles) ------------------------------------------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pill-active { background-color: var(--ink); color: var(--paper); }
+.pill-idle { color: var(--muted); background: transparent; }
+.pill-idle:hover { background-color: var(--brand-50); color: var(--ink); }
+
+/* ---- Status badges -------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.badge-muted { background-color: var(--brand-50);  color: var(--muted); }
+.badge-sage  { background-color: var(--sage-100);  color: var(--sage-700); }
+.badge-clay  { background-color: var(--clay-100);  color: var(--clay-600); }
+.badge-rust  { background-color: var(--rust-50);   color: var(--rust-500); }
+
+/* ---- Handy color/utility helpers ----------------------------------------- */
+.text-ink { color: var(--ink); }
+.text-muted { color: var(--muted); }
+.bg-paper { background-color: var(--paper); }
+.bg-surface { background-color: var(--surface); }
+.hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
