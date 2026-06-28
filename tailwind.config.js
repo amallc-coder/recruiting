@@ -26,8 +26,9 @@ export default {
         },
         // Data + status accents.
         sage: { 50: '#e9efe5', 100: '#d3e0cd', 500: '#6e9a6a', 600: '#577f54', 700: '#456343' },
-        clay: { 50: '#f5e7d9', 100: '#ecd1bc', 500: '#cd7c4f', 600: '#b4663b' },
-        rust: { 50: '#f4ddd9', 100: '#ebc3bd', 500: '#be4b43', 600: '#9f3a33' },
+        // 700 shades added for WCAG-AA text on the matching 50 tints.
+        clay: { 50: '#f5e7d9', 100: '#ecd1bc', 500: '#cd7c4f', 600: '#b4663b', 700: '#8a4e2d' },
+        rust: { 50: '#f4ddd9', 100: '#ebc3bd', 500: '#be4b43', 600: '#9f3a33', 700: '#7f2d27' },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

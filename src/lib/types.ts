@@ -1,4 +1,6 @@
-export type Role = 'admin' | 'recruiter'
+// App access roles (distinct from ClinicalRole below). The DB CHECK constraint
+// is a superset that also tolerates legacy values; the app reasons about these.
+export type Role = 'admin' | 'recruiter' | 'coordinator' | 'hiring_manager' | 'compliance'
 
 export type ClinicalRole =
   | 'lpn' | 'ma' | 'np' | 'pa' | 'md' | 'psych_np' | 'wound'

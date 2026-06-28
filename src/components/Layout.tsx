@@ -1,9 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database, Plug } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Briefcase,
+  UserRound,
+  BarChart3,
+  Building2,
+  Sparkles,
+  ClipboardList,
+  Users,
+  Upload,
+  Plug,
+  Database,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Search,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
+import { roleCan, roleLabel, type Capability } from '../lib/roles'
 
 function Wordmark() {
   return (
@@ -48,8 +67,59 @@ function DemoBanner() {
   )
 }
 
-const tabClass = ({ isActive }: { isActive: boolean }) =>
-  `whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+// Command-search placeholder: real controlled state + ⌘K/Ctrl+K focus and Esc to
+// clear. It does not execute searches yet (the command palette is a follow-up).
+function CommandSearch() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  return (
+    <form
+      role="search"
+      onSubmit={(e) => e.preventDefault()}
+      className="relative hidden min-w-0 flex-1 md:block md:max-w-md"
+    >
+      <Search size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      <input
+        ref={inputRef}
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setQuery('')
+            inputRef.current?.blur()
+          }
+        }}
+        aria-label="Search candidates, jobs, and facilities"
+        aria-keyshortcuts="Meta+K Control+K"
+        placeholder="Search…  (⌘K)"
+        className="input h-9 py-0 pl-9 pr-3"
+      />
+    </form>
+  )
+}
+
+function initials(name?: string | null, email?: string | null): string {
+  const src = (name || email || '?').trim()
+  const parts = src.split(/\s+/)
+  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return src.slice(0, 2).toUpperCase()
+}
+
+const navItemClass = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
     isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'
   }`
 
@@ -57,16 +127,6 @@ export function Layout() {
   const { profile, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const [adminOpen, setAdminOpen] = useState(false)
-  const adminRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (adminRef.current && !adminRef.current.contains(e.target as Node)) setAdminOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
 
   async function handleSignOut() {
     await signOut()
@@ -74,150 +134,136 @@ export function Layout() {
     navigate('/login')
   }
 
-  // Product tabs (everyone) in the lower bar; admin tools live under the Admin menu.
-  const tabs = [
-    { to: '/', label: 'Dashboard', end: true },
-    { to: '/jobs', label: 'Jobs', end: false },
-    { to: '/candidates', label: 'Candidates', end: false },
-    { to: '/analytics', label: 'Analytics', end: false },
-    { to: '/facilities', label: 'Facilities', end: false },
-    { to: '/matching', label: 'Matching', end: false },
-    { to: '/positions', label: 'Positions', end: false },
+  // Product nav, filtered by the role's capabilities; admin tools below.
+  const role = profile?.role ?? null
+  const allTabs: { to: string; label: string; end: boolean; cap: Capability; icon: LucideIcon }[] = [
+    { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
+    { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs', icon: Briefcase },
+    { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
+    { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
+    { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
+    { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
+    { to: '/positions', label: 'Positions', end: false, cap: 'view_positions', icon: ClipboardList },
   ]
-  const adminLinks = [
+  const tabs = allTabs.filter((t) => roleCan(role, t.cap))
+  const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },
     { to: '/integrations', label: 'Integrations', icon: Plug },
     ...(!demoMode ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
   ]
 
+  // Nav body shared by the desktop sidebar and the mobile drawer.
+  const renderNav = (onNavigate?: () => void) => (
+    <>
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
+        {tabs.map(({ to, label, end, icon: Icon }) => (
+          <NavLink key={to} to={to} end={end} onClick={onNavigate} className={navItemClass}>
+            <Icon size={16} aria-hidden /> {label}
+          </NavLink>
+        ))}
+        {isAdmin && (
+          <div className="pt-4">
+            <div className="px-3 pb-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-muted">
+              Admin
+            </div>
+            {adminLinks.map(({ to, label, icon: Icon }) => (
+              <NavLink key={to} to={to} onClick={onNavigate} className={navItemClass}>
+                <Icon size={16} aria-hidden /> {label}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </nav>
+
+      <div className="mt-auto border-t border-line p-3">
+        <div className="flex items-center gap-2.5 px-1 py-1">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-ink">
+            {initials(profile?.full_name, profile?.email)}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-ink">{profile?.full_name || profile?.email}</div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{roleLabel(profile?.role)}</div>
+          </div>
+        </div>
+        <button onClick={handleSignOut} className="btn-secondary mt-2 w-full justify-center py-1.5">
+          <LogOut size={15} /> Sign out
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <DemoBanner />
 
-      <header className="sticky top-0 z-30">
-        {/* ── Top layer: brand + account controls ── */}
-        <div className="border-b border-line bg-surface/90 backdrop-blur">
-          <div className="mx-auto flex h-12 max-w-[1440px] items-center gap-3 px-4">
+      <div className="flex flex-1">
+        {/* ── Left nav (desktop) ── */}
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface md:flex">
+          <div className="flex h-12 items-center border-b border-line px-4">
             <Wordmark />
-
-            <div className="ml-auto flex items-center gap-2">
-              {/* live status */}
-              <span className="hidden items-center gap-1.5 px-1.5 text-sm text-muted sm:inline-flex">
-                <span className={`h-2 w-2 rounded-full ${demoMode ? 'bg-clay-500' : 'bg-sage-500'}`} />
-                {demoMode ? 'Local' : 'Live'}
-              </span>
-
-              {/* settings */}
-              {isAdmin && (
-                <NavLink
-                  to={demoMode ? '/team' : '/setup'}
-                  title="Settings"
-                  className={({ isActive }) =>
-                    `hidden h-8 w-8 items-center justify-center rounded-md border border-line bg-surface hover:bg-brand-50 sm:inline-flex ${isActive ? 'text-ink' : 'text-muted hover:text-ink'}`
-                  }
-                >
-                  <Settings size={16} />
-                </NavLink>
-              )}
-
-              {/* Admin menu */}
-              {isAdmin && (
-                <div className="relative hidden sm:block" ref={adminRef}>
-                  <button
-                    onClick={() => setAdminOpen((v) => !v)}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm font-medium text-ink hover:bg-brand-50"
-                  >
-                    Admin
-                    <ChevronDown size={13} className={adminOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                  </button>
-                  {adminOpen && (
-                    <div className="absolute right-0 z-40 mt-1.5 w-48 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-lg">
-                      <div className="border-b border-line px-3 py-2">
-                        <div className="truncate text-sm font-medium text-ink">{profile?.full_name || profile?.email}</div>
-                        <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{profile?.role}</div>
-                      </div>
-                      {adminLinks.map(({ to, label, icon: Icon }) => (
-                        <NavLink
-                          key={to}
-                          to={to}
-                          onClick={() => setAdminOpen(false)}
-                          className={({ isActive }) =>
-                            `flex items-center gap-2 px-3 py-2 text-sm ${isActive ? 'bg-brand-50 text-ink' : 'text-muted hover:bg-brand-50 hover:text-ink'}`
-                          }
-                        >
-                          <Icon size={15} /> {label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button
-                onClick={handleSignOut}
-                className="hidden items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm font-medium text-ink hover:bg-brand-50 sm:inline-flex"
-              >
-                <LogOut size={15} /> Sign out
-              </button>
-
-              {/* mobile toggle */}
-              <button className="text-muted md:hidden" onClick={() => setOpen((v) => !v)} aria-label="Menu">
-                {open ? <X size={22} /> : <Menu size={22} />}
-              </button>
-            </div>
           </div>
-        </div>
+          {renderNav()}
+        </aside>
 
-        {/* ── Bottom layer: product navigation ── */}
-        <div className="hidden border-b border-line bg-surface md:block">
-          <nav className="mx-auto flex h-11 max-w-[1440px] items-center gap-1 overflow-x-auto px-4">
-            {tabs.map(({ to, label, end }) => (
-              <NavLink key={to} to={to} end={end} className={tabClass}>
-                {label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-
-        {/* ── Mobile drawer ── */}
+        {/* ── Left nav (mobile drawer) ── */}
         {open && (
-          <div className="border-b border-line bg-surface px-3 py-2 md:hidden">
-            <div className="grid grid-cols-2 gap-1">
-              {tabs.map(({ to, label, end }) => (
-                <NavLink key={to} to={to} end={end} onClick={() => setOpen(false)} className={tabClass}>
-                  {label}
-                </NavLink>
-              ))}
-              {isAdmin && adminLinks.map(({ to, label }) => (
-                <NavLink key={to} to={to} onClick={() => setOpen(false)} className={tabClass}>
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-            <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
-              <div className="text-xs">
-                <div className="font-medium text-ink">{profile?.full_name || profile?.email}</div>
-                <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{profile?.role}</div>
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden />
+            <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-surface shadow-xl">
+              <div className="flex h-12 items-center justify-between border-b border-line px-4">
+                <Wordmark />
+                <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-muted hover:text-ink">
+                  <X size={20} />
+                </button>
               </div>
-              <button onClick={handleSignOut} className="btn-secondary py-1.5">
-                <LogOut size={15} /> Sign out
-              </button>
-            </div>
+              {renderNav(() => setOpen(false))}
+            </aside>
           </div>
         )}
-      </header>
 
-      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6">
-        <Outlet />
-      </main>
+        {/* ── Main column ── */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
+            <div className="flex h-12 items-center gap-3 px-4">
+              <button className="text-muted md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+                <Menu size={22} />
+              </button>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2 px-4 py-4 font-mono text-[11px] tracking-wide text-muted sm:px-6">
-          <span>© 2026 Clinilytics ATS — for American Medical Administrators</span>
-          <span className="hidden sm:inline">{demoMode ? 'local workspace' : 'pcpkhdfgmjrzvwfkcznn.supabase.co'}</span>
+              <CommandSearch />
+
+              <div className="ml-auto flex items-center gap-2">
+                <span className="hidden items-center gap-1.5 px-1.5 text-sm text-muted sm:inline-flex">
+                  <span className={`h-2 w-2 rounded-full ${demoMode ? 'bg-clay-500' : 'bg-sage-500'}`} />
+                  {demoMode ? 'Local' : 'Live'}
+                </span>
+                {isAdmin && (
+                  <NavLink
+                    to={demoMode ? '/team' : '/setup'}
+                    title="Settings"
+                    className={({ isActive }) =>
+                      `inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface hover:bg-brand-50 ${isActive ? 'text-ink' : 'text-muted hover:text-ink'}`
+                    }
+                  >
+                    <Settings size={16} />
+                  </NavLink>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6">
+            <Outlet />
+          </main>
+
+          <footer className="border-t border-line">
+            <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2 px-4 py-4 font-mono text-[11px] tracking-wide text-muted sm:px-6">
+              <span>© 2026 Clinilytics ATS — for American Medical Administrators</span>
+              <span className="hidden sm:inline">{demoMode ? 'local workspace' : 'pcpkhdfgmjrzvwfkcznn.supabase.co'}</span>
+            </div>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
