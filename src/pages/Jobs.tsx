@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Loader2, Sparkles, ExternalLink, MapPin, Users } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, selectAll } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { generateRole } from '../lib/positions'
 import { formatSalary, slugify } from '../lib/ats'
@@ -49,10 +49,10 @@ export function Jobs() {
     setLoading(true)
     const [{ data: jobData }, { data: profData }, { data: facData }, { data: appData }] =
       await Promise.all([
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }),
+        selectAll('jobs', '*', (q) => q.order('created_at', { ascending: false })),
         supabase.from('profiles').select('id,full_name,email,role'),
         supabase.from('facilities').select('id,name,city,state'),
-        supabase.from('applications').select('job_id'),
+        selectAll('applications', 'job_id'),
       ])
     setJobs((jobData as Job[]) ?? [])
     setRecruiters((profData as Profile[]) ?? [])

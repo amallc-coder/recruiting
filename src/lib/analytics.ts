@@ -8,7 +8,7 @@
 // mode this comes from the SECURITY DEFINER `recruiter_dashboard` RPC, so the
 // recruiter's client never reads a peer's raw row. In local/demo mode (where all
 // data is visible anyway) we compute the same shape client-side and mask peers.
-import { supabase, demoMode } from './supabase'
+import { supabase, demoMode, selectAll } from './supabase'
 import {
   PIPELINE_STAGES, STAGE_LABELS,
   INTERVIEW_STATUSES, INTERVIEW_STATUS_LABELS, OFFER_STATUSES, OFFER_STATUS_LABELS,
@@ -70,7 +70,7 @@ interface HistRow { candidate_id: string; to_stage: string; created_at: string }
 type Journeys = Map<string, { entered: Record<string, number>; last: number }>
 
 async function loadStageHistory(): Promise<HistRow[]> {
-  const { data } = await supabase.from('candidate_stage_history').select('candidate_id,to_stage,created_at')
+  const { data } = await selectAll('candidate_stage_history', 'candidate_id,to_stage,created_at')
   return (data as HistRow[]) ?? []
 }
 
@@ -126,9 +126,9 @@ export interface ExecutiveData {
 
 export async function getExecutive(days: number | null): Promise<ExecutiveData> {
   const [{ data: cData }, { data: aData }, { data: jData }, { data: pData }, history] = await Promise.all([
-    supabase.from('candidates').select('*'),
-    supabase.from('applications').select('*'),
-    supabase.from('jobs').select('*'),
+    selectAll('candidates', '*'),
+    selectAll('applications', '*'),
+    selectAll('jobs', '*'),
     supabase.from('profiles').select('*'),
     loadStageHistory(),
   ])
@@ -219,7 +219,7 @@ export interface RecruiterData {
 
 export async function getRecruiter(userId: string, days: number | null): Promise<RecruiterData | null> {
   // Personal funnel uses only the recruiter's own candidates (RLS-visible).
-  const { data: mine } = await supabase.from('candidates').select('*').eq('recruiter_id', userId)
+  const { data: mine } = await selectAll('candidates', '*', (q) => q.eq('recruiter_id', userId))
   const myCands = (mine as Candidate[]) ?? []
   const personalFunnel = PIPELINE_STAGES.map((stage) => ({
     stage: STAGE_LABELS[stage],
@@ -241,7 +241,7 @@ export async function getRecruiter(userId: string, days: number | null): Promise
 
   // Demo mode: all data is local, so compute + mask client-side.
   const [{ data: cData }, { data: pData }] = await Promise.all([
-    supabase.from('candidates').select('*'),
+    selectAll('candidates', '*'),
     supabase.from('profiles').select('*'),
   ])
   const candidates = (cData as Candidate[]) ?? []
@@ -290,7 +290,7 @@ export interface PipelineData {
 
 export async function getPipeline(days: number | null): Promise<PipelineData> {
   const [{ data: cData }, history] = await Promise.all([
-    supabase.from('candidates').select('*'),
+    selectAll('candidates', '*'),
     loadStageHistory(),
   ])
   const allCandidates = (cData as Candidate[]) ?? []
@@ -345,7 +345,7 @@ const JOURNEY_MILESTONES: { key: string; label: string; from: string; to: string
  *  imported records are excluded and reported separately to avoid skew. */
 export async function getJourney(days: number | null): Promise<JourneyData> {
   const [{ data: cData }, history] = await Promise.all([
-    supabase.from('candidates').select('id,source,current_stage,created_at'),
+    selectAll('candidates', 'id,source,current_stage,created_at'),
     loadStageHistory(),
   ])
   const candidates = (cData as Candidate[]) ?? []
@@ -369,7 +369,7 @@ export interface InterviewData {
 
 export async function getInterviews(days: number | null): Promise<InterviewData> {
   const [{ data: iData }, { data: pData }] = await Promise.all([
-    supabase.from('interviews').select('*'),
+    selectAll('interviews', '*'),
     supabase.from('profiles').select('id,full_name,email'),
   ])
   const interviews = ((iData as Interview[]) ?? []).filter((x) => inPeriod(x.scheduled_at || x.created_at, days))
@@ -414,7 +414,7 @@ export interface OfferData {
 }
 
 export async function getOffers(days: number | null): Promise<OfferData> {
-  const { data } = await supabase.from('offers').select('*')
+  const { data } = await selectAll('offers', '*')
   const offers = ((data as Offer[]) ?? []).filter((o) => inPeriod(o.sent_at || o.created_at, days))
 
   const by = (s: string) => offers.filter((o) => o.status === s).length
@@ -456,10 +456,10 @@ export interface FinanceData {
 
 export async function getFinance(days: number | null): Promise<FinanceData> {
   const [{ data: costData }, { data: cData }, { data: iData }, { data: oData }] = await Promise.all([
-    supabase.from('recruiting_costs').select('*'),
-    supabase.from('candidates').select('*'),
-    supabase.from('interviews').select('*'),
-    supabase.from('offers').select('*'),
+    selectAll('recruiting_costs', '*'),
+    selectAll('candidates', '*'),
+    selectAll('interviews', '*'),
+    selectAll('offers', '*'),
   ])
   const costs = ((costData as RecruitingCost[]) ?? []).filter((c) => inPeriod(c.period || c.created_at, days))
   const candidates = ((cData as Candidate[]) ?? []).filter((c) => inPeriod(c.created_at, days))

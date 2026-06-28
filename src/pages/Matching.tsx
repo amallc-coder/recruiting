@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sparkles, Save, Search } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, selectAll } from '../lib/supabase'
 import { rankCandidates, type MatchResult, type MatchInput } from '../lib/match'
 import {
   ROLE_LABELS,
@@ -24,9 +24,9 @@ export function Matching() {
   async function load() {
     setLoading(true)
     const [j, f, c] = await Promise.all([
-      supabase.from('jobs').select('*'),
+      selectAll('jobs', '*'),
       supabase.from('facilities').select('*'),
-      supabase.from('candidates').select('*'),
+      selectAll('candidates', '*'),
     ])
     setJobs((j.data as Job[]) ?? [])
     setFacilities((f.data as Facility[]) ?? [])

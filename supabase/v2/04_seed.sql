@@ -167,7 +167,7 @@ on conflict do nothing;
 
 -- ---- applications (varied stages; the stage-history trigger fills history) ----
 insert into public.applications (org_id, candidate_id, requisition_id, current_stage_id, status, applied_at)
-select '11111111-1111-1111-1111-111111111111', x.cand, x.req,
+select '11111111-1111-1111-1111-111111111111'::uuid, x.cand::uuid, x.req::uuid,
        (select id from public.pipeline_stages where role_family = x.rf and name = x.stage),
        'active', now() - x.age
 from (values

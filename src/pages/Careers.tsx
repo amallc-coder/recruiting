@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Search, MapPin, Briefcase, ArrowLeft, CheckCircle2, Loader2, ExternalLink } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/supabase'
 import { formatSalary, submitApplication } from '../lib/ats'
 import { EMPLOYMENT_LABELS, WORKPLACE_LABELS, type Job } from '../lib/types'
 
@@ -48,7 +48,7 @@ export function Careers() {
 
   useEffect(() => {
     let active = true
-    supabase.from('jobs').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+    selectAll('jobs', '*', (q) => q.order('created_at', { ascending: false })).then(({ data }) => {
       if (!active) return
       const open = ((data as Job[]) ?? []).filter((j) => j.status === 'published' && j.visibility === 'public')
       setJobs(open)

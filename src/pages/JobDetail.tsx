@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Pencil, Plus, MapPin, Briefcase, Loader2, CalendarPlus, FileText } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, selectAll } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { formatSalary, submitApplication, setApplicationStage, scheduleInterview, createOffer } from '../lib/ats'
 import {
@@ -35,7 +35,7 @@ export function JobDetail() {
     const [{ data: jobData }, { data: appData }, { data: profData }, { data: facData }] =
       await Promise.all([
         supabase.from('jobs').select('*').eq('id', id).single(),
-        supabase.from('applications').select('*').eq('job_id', id).order('created_at', { ascending: false }),
+        selectAll('applications', '*', (q) => q.eq('job_id', id).order('created_at', { ascending: false })),
         supabase.from('profiles').select('id,full_name,email,role'),
         supabase.from('facilities').select('id,name,city,state'),
       ])

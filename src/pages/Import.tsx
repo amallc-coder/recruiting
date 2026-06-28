@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { supabase, demoMode } from '../lib/supabase'
+import { supabase, demoMode, selectAll } from '../lib/supabase'
 import { ROLE_LABELS, STAGE_LABELS, DEFAULT_COMPANY_ID, type Facility, type Profile } from '../lib/types'
 import { slugify } from '../lib/ats'
 import { matchRecruiter, type RecruiterMatch } from '../lib/recruiterMatch'
@@ -205,7 +205,7 @@ export function Import() {
         norm(name) + '|' + norm(email || facilityId || '')
       const existingByKey = new Map<string, { id: string; recruiter_id: string | null; facility_id: string | null }>()
       if (dedup) {
-        const { data: existing } = await supabase.from('candidates').select('id,full_name,email,recruiter_id,facility_id')
+        const { data: existing } = await selectAll('candidates', 'id,full_name,email,recruiter_id,facility_id')
         for (const c of (existing as { id: string; full_name: string; email: string | null; recruiter_id: string | null; facility_id: string | null }[]) ?? []) {
           const k = matchKey(c.full_name, c.email, c.facility_id)
           if (!existingByKey.has(k)) existingByKey.set(k, { id: c.id, recruiter_id: c.recruiter_id, facility_id: c.facility_id })
@@ -262,7 +262,7 @@ export function Import() {
       const jobRows: Record<string, unknown>[] = []
       const jobKeyToId = new Map<string, string>()
       if (teamMode) {
-        const { data: existingJobs } = await supabase.from('jobs').select('id,title,location')
+        const { data: existingJobs } = await selectAll('jobs', 'id,title,location')
         const jseen = new Set<string>()
         for (const ej of (existingJobs as { id: string; title: string; location: string | null }[]) ?? []) {
           const k = norm(ej.title) + '|' + norm(ej.location ?? '')

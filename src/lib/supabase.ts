@@ -25,3 +25,44 @@ const realClient = createClient(url, anonKey, {
 export const supabase: SupabaseClient = demoMode
   ? (demoClient as unknown as SupabaseClient)
   : realClient
+
+/**
+ * Fetch ALL rows from a table, paginating past PostgREST's default 1000-row
+ * response cap so large tables (e.g. candidates) are never silently truncated.
+ *
+ * In demo mode the localStorage mock returns everything in one call (and has no
+ * `.range()`), so we short-circuit. For live pagination a stable `id` sort is
+ * appended after the caller's own ordering, so page boundaries can't skip or
+ * duplicate rows when the primary sort has ties (bulk-imported rows that share
+ * `created_at`). Mirrors the Supabase response shape: `{ data, error }`.
+ *
+ *   await selectAll('candidates', '*', (q) => q.order('created_at', { ascending: false }))
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function selectAll<T = any>(
+  table: string,
+  columns = '*',
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  build?: (q: any) => any,
+): Promise<{ data: T[]; error: unknown }> {
+  if (demoMode) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase.from(table).select(columns)
+    if (build) q = build(q)
+    const { data, error } = await q
+    return { data: (data as T[]) ?? [], error }
+  }
+  const PAGE = 1000
+  const all: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q: any = supabase.from(table).select(columns)
+    if (build) q = build(q)
+    const { data, error } = await q.order('id', { ascending: true }).range(from, from + PAGE - 1)
+    if (error) return { data: all, error }
+    const batch = (data as T[]) ?? []
+    all.push(...batch)
+    if (batch.length < PAGE) break
+  }
+  return { data: all, error: null }
+}
