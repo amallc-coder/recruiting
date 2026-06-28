@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -16,13 +16,13 @@ import {
   LogOut,
   Menu,
   X,
-  Search,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 import { roleCan, roleLabel, type Capability } from '../lib/roles'
+import { CommandSearch } from '../features/search'
 
 function Wordmark() {
   return (
@@ -64,50 +64,6 @@ function DemoBanner() {
         Exit
       </button>
     </div>
-  )
-}
-
-// Command-search placeholder: real controlled state + ⌘K/Ctrl+K focus and Esc to
-// clear. It does not execute searches yet (the command palette is a follow-up).
-function CommandSearch() {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [query, setQuery] = useState('')
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [])
-
-  return (
-    <form
-      role="search"
-      onSubmit={(e) => e.preventDefault()}
-      className="relative hidden min-w-0 flex-1 md:block md:max-w-md"
-    >
-      <Search size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-      <input
-        ref={inputRef}
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            setQuery('')
-            inputRef.current?.blur()
-          }
-        }}
-        aria-label="Search candidates, jobs, and facilities"
-        aria-keyshortcuts="Meta+K Control+K"
-        placeholder="Search…  (⌘K)"
-        className="input h-9 py-0 pl-9 pr-3"
-      />
-    </form>
   )
 }
 

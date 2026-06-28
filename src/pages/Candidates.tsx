@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Download, Pencil, Trash2, Search, RefreshCw, Sparkles } from 'lucide-react'
 import { supabase, demoMode } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -42,7 +43,14 @@ export function Candidates() {
   const { facilities, byId: facilityById } = useFacilities()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
+  // Seed the in-page filter from a ?q= deep link (global command search), and
+  // keep it in sync when that param changes while the page stays mounted.
+  const [searchParams] = useSearchParams()
+  const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setQuery(q)
+  }, [searchParams])
   const [stageFilter, setStageFilter] = useState<Stage | 'all' | 'active_pipeline'>('all')
   const [roleFilter, setRoleFilter] = useState<ClinicalRole | 'all'>('all')
   const [editing, setEditing] = useState<Partial<Candidate> | null>(null)
