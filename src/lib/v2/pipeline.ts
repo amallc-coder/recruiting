@@ -124,6 +124,29 @@ export async function tagCandidates(candidateIds: string[], tag: string): Promis
   return { error: null }
 }
 
+/** Candidates available to add to a requisition's pipeline. */
+export async function listSelectableCandidates(): Promise<{ id: string; full_name: string }[]> {
+  const { data } = await v2.from('candidates').select('id,full_name').order('full_name')
+  return (data as { id: string; full_name: string }[]) ?? []
+}
+
+/** Add a candidate to a requisition (creates an application in the given stage). */
+export async function addApplication(
+  requisitionId: string,
+  candidateId: string,
+  stageId: string | null,
+  orgId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await v2.from('applications').insert({
+    org_id: orgId,
+    requisition_id: requisitionId,
+    candidate_id: candidateId,
+    current_stage_id: stageId,
+    status: 'active',
+  })
+  return { error: error?.message ?? null }
+}
+
 /** Stub email action: records an outbound communication per candidate (no send yet). */
 export async function logEmails(
   candidateIds: string[],

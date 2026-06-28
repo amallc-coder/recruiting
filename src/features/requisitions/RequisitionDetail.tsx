@@ -130,7 +130,7 @@ export function RequisitionDetail() {
       {/* Pipeline */}
       <div>
         <h2 className="mb-2 text-sm font-semibold tracking-tight text-ink">Pipeline</h2>
-        <PipelineBoard requisitionId={req.id} roleFamily={req.role_family} onChanged={load} />
+        <PipelineBoard requisitionId={req.id} roleFamily={req.role_family} orgId={req.org_id} onChanged={load} />
       </div>
 
       {editing && (

@@ -10,20 +10,41 @@ import {
   closestCorners,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { GripVertical } from 'lucide-react'
-import { Button, Select, useToast } from '../../components/primitives'
+import { GripVertical, Plus } from 'lucide-react'
+import { Button, Select, Modal, useToast } from '../../components/primitives'
 import { Spinner } from '../../components/ui'
 import { PlacementBadge } from './badges'
-import { listStages, listPipeline, moveStage, bulkMove, rejectApplications, tagCandidates, logEmails } from '../../lib/v2/pipeline'
+import {
+  listStages,
+  listPipeline,
+  moveStage,
+  bulkMove,
+  rejectApplications,
+  tagCandidates,
+  logEmails,
+  listSelectableCandidates,
+  addApplication,
+} from '../../lib/v2/pipeline'
 import type { PipelineStage, PipelineCard } from '../../lib/v2/types'
 
-export function PipelineBoard({ requisitionId, roleFamily, onChanged }: { requisitionId: string; roleFamily: string; onChanged?: () => void }) {
+export function PipelineBoard({
+  requisitionId,
+  roleFamily,
+  orgId,
+  onChanged,
+}: {
+  requisitionId: string
+  roleFamily: string
+  orgId: string
+  onChanged?: () => void
+}) {
   const { toast } = useToast()
   const [stages, setStages] = useState<PipelineStage[]>([])
   const [cards, setCards] = useState<PipelineCard[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkStage, setBulkStage] = useState('')
+  const [adding, setAdding] = useState(false)
   const reverting = useRef(false)
 
   const sensors = useSensors(
@@ -130,6 +151,15 @@ export function PipelineBoard({ requisitionId, roleFamily, onChanged }: { requis
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted">
+          {cards.length} candidate{cards.length === 1 ? '' : 's'} in pipeline
+        </span>
+        <Button size="sm" variant="secondary" onClick={() => setAdding(true)} leftIcon={<Plus size={14} />}>
+          Add candidate
+        </Button>
+      </div>
+
       {selected.size > 0 && (
         <div className="sticky top-14 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface p-2 shadow-card">
           <span className="px-1 text-sm font-medium text-ink">{selected.size} selected</span>
@@ -169,7 +199,89 @@ export function PipelineBoard({ requisitionId, roleFamily, onChanged }: { requis
           ))}
         </div>
       </DndContext>
+
+      {adding && (
+        <AddCandidate
+          requisitionId={requisitionId}
+          orgId={orgId}
+          stageId={firstStageId}
+          existing={cards.map((c) => c.candidate.id)}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false)
+            reload()
+            onChanged?.()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function AddCandidate({
+  requisitionId,
+  orgId,
+  stageId,
+  existing,
+  onClose,
+  onAdded,
+}: {
+  requisitionId: string
+  orgId: string
+  stageId: string | null
+  existing: string[]
+  onClose: () => void
+  onAdded: () => void
+}) {
+  const { toast } = useToast()
+  const [cands, setCands] = useState<{ id: string; full_name: string }[]>([])
+  const [sel, setSel] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    listSelectableCandidates().then(setCands)
+  }, [])
+  const options = cands.filter((c) => !existing.includes(c.id))
+
+  async function add() {
+    if (!sel) return
+    setSaving(true)
+    const { error } = await addApplication(requisitionId, sel, stageId, orgId)
+    setSaving(false)
+    if (error) toast({ tone: 'error', title: 'Add failed', description: error })
+    else {
+      toast({ tone: 'success', title: 'Candidate added to pipeline' })
+      onAdded()
+    }
+  }
+
+  return (
+    <Modal
+      title="Add candidate to pipeline"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={add} loading={saving} disabled={!sel}>
+            Add
+          </Button>
+        </>
+      }
+    >
+      <Select
+        label="Candidate"
+        value={sel}
+        onChange={(e) => setSel(e.target.value)}
+        placeholder={options.length ? 'Select candidate…' : 'No more candidates to add'}
+      >
+        {options.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.full_name}
+          </option>
+        ))}
+      </Select>
+    </Modal>
   )
 }
 
