@@ -18,7 +18,7 @@ create extension if not exists pgcrypto;  -- gen_random_uuid()
 do $$
 begin
   create type user_role          as enum ('admin','recruiter','coordinator','hiring_manager','compliance');
-  create type requisition_status as enum ('draft','open','on_hold','filled','closed','cancelled');
+  create type requisition_status as enum ('draft','pending_approval','open','on_hold','filled','closed','cancelled');
   create type approval_status    as enum ('pending','approved','rejected');
   create type application_status as enum ('active','rejected','withdrawn','hired');
   create type candidate_status   as enum ('new','active','passive','placed','do_not_contact','archived');

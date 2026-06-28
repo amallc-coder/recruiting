@@ -8,6 +8,7 @@ import {
   Building2,
   Sparkles,
   ClipboardList,
+  FileText,
   Users,
   Upload,
   Plug,
@@ -22,6 +23,7 @@ import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 import { roleCan, roleLabel, type Capability } from '../lib/roles'
+import { v2IsBranch } from '../lib/v2/client'
 import { CommandSearch } from '../features/search'
 
 function Wordmark() {
@@ -95,13 +97,16 @@ export function Layout() {
   const allTabs: { to: string; label: string; end: boolean; cap: Capability; icon: LucideIcon }[] = [
     { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
     { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs', icon: Briefcase },
+    { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
     { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
     { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
     { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
     { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
     { to: '/positions', label: 'Positions', end: false, cap: 'view_positions', icon: ClipboardList },
   ]
-  const tabs = allTabs.filter((t) => roleCan(role, t.cap))
+  // The Requisitions workspace runs against the v2 schema; only surface it when
+  // the app is pointed at a v2 branch/preview (hidden in prod until cutover).
+  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (t.to !== '/requisitions' || v2IsBranch))
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },

@@ -12,7 +12,7 @@ export type DateString = string // 'YYYY-MM-DD'
 
 // ---- enums ----
 export type UserRole = 'admin' | 'recruiter' | 'coordinator' | 'hiring_manager' | 'compliance'
-export type RequisitionStatus = 'draft' | 'open' | 'on_hold' | 'filled' | 'closed' | 'cancelled'
+export type RequisitionStatus = 'draft' | 'pending_approval' | 'open' | 'on_hold' | 'filled' | 'closed' | 'cancelled'
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type ApplicationStatus = 'active' | 'rejected' | 'withdrawn' | 'hired'
 export type CandidateStatus = 'new' | 'active' | 'passive' | 'placed' | 'do_not_contact' | 'archived'

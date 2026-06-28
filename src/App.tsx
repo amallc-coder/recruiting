@@ -21,6 +21,8 @@ import { Setup } from './pages/Setup'
 // Lazy-loaded: pulls in the SheetJS parser only when the Import screen is opened.
 const Import = lazy(() => import('./pages/Import').then((m) => ({ default: m.Import })))
 import { Team } from './pages/Team'
+import { RequisitionsPage, RequisitionDetail } from './features/requisitions'
+import { v2IsBranch } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
 export default function App() {
@@ -49,6 +51,12 @@ export default function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/matching" element={<Matching />} />
             <Route path="/positions" element={<Positions />} />
+            {v2IsBranch && (
+              <>
+                <Route path="/requisitions" element={<RequisitionsPage />} />
+                <Route path="/requisitions/:id" element={<RequisitionDetail />} />
+              </>
+            )}
             <Route
               path="/import"
               element={
