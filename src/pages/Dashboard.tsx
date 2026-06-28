@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
-import { supabase } from '../lib/supabase'
+import { supabase, selectAll } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
   PIPELINE_STAGES, STAGE_LABELS, ROLE_LABELS, CLINICAL_ROLES,
@@ -29,8 +29,8 @@ export function Dashboard() {
     async function load() {
       setLoading(true)
       const [j, c, p] = await Promise.all([
-        supabase.from('jobs').select('*'),
-        supabase.from('candidates').select('*'),
+        selectAll('jobs', '*'),
+        selectAll('candidates', '*'),
         supabase.from('profiles').select('*'),
       ])
       if (!active) return

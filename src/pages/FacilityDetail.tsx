@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Save } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase, selectAll } from '../lib/supabase'
 import {
   CLINICAL_ROLES,
   PRIORITY_LABELS,
@@ -37,7 +37,7 @@ export function FacilityDetail() {
     const [f, n, c] = await Promise.all([
       supabase.from('facilities').select('*').eq('id', id).single(),
       supabase.from('coverage_needs').select('*').eq('facility_id', id),
-      supabase.from('candidates').select('*').eq('facility_id', id).order('created_at', { ascending: false }),
+      selectAll('candidates', '*', (q) => q.eq('facility_id', id).order('created_at', { ascending: false })),
     ])
     setFacility((f.data as Facility) ?? null)
     const existing = (n.data as CoverageNeed[]) ?? []

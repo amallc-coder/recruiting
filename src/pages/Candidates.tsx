@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Download, Pencil, Trash2, Search, RefreshCw, Sparkles } from 'lucide-react'
-import { supabase, demoMode } from '../lib/supabase'
+import { supabase, demoMode, selectAll } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useProfiles } from '../hooks/useProfiles'
 import { useFacilities } from '../hooks/useFacilities'
@@ -79,7 +79,7 @@ export function Candidates() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('candidates').select('*').order('created_at', { ascending: false })
+    const { data } = await selectAll('candidates', '*', (q) => q.order('created_at', { ascending: false }))
     setCandidates((data as Candidate[]) ?? [])
     setLoading(false)
   }
