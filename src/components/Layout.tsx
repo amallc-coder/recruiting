@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database, Plug } from 'lucide-react'
+import { LogOut, Menu, X, Settings, ChevronDown, Users, Upload, Database, Plug, Search } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
+import { roleCan, type Capability } from '../lib/roles'
 
 function Wordmark() {
   return (
@@ -53,6 +54,50 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'
   }`
 
+// Command-search placeholder: real controlled state + ⌘K/Ctrl+K focus and Esc to
+// clear. It does not execute searches yet (the command palette is a follow-up).
+function CommandSearch() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  return (
+    <form
+      role="search"
+      onSubmit={(e) => e.preventDefault()}
+      className="relative hidden min-w-0 flex-1 md:block md:max-w-sm"
+    >
+      <Search size={15} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      <input
+        ref={inputRef}
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            setQuery('')
+            inputRef.current?.blur()
+          }
+        }}
+        aria-label="Search candidates, jobs, and facilities"
+        aria-keyshortcuts="Meta+K Control+K"
+        placeholder="Search…  (⌘K)"
+        className="input h-9 py-0 pl-9 pr-3"
+      />
+    </form>
+  )
+}
+
 export function Layout() {
   const { profile, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
@@ -74,16 +119,19 @@ export function Layout() {
     navigate('/login')
   }
 
-  // Product tabs (everyone) in the lower bar; admin tools live under the Admin menu.
-  const tabs = [
-    { to: '/', label: 'Dashboard', end: true },
-    { to: '/jobs', label: 'Jobs', end: false },
-    { to: '/candidates', label: 'Candidates', end: false },
-    { to: '/analytics', label: 'Analytics', end: false },
-    { to: '/facilities', label: 'Facilities', end: false },
-    { to: '/matching', label: 'Matching', end: false },
-    { to: '/positions', label: 'Positions', end: false },
+  // Product tabs in the lower bar, filtered by the role's capabilities; admin
+  // tools live under the Admin menu. admin + recruiter keep their full set.
+  const role = profile?.role ?? null
+  const allTabs: { to: string; label: string; end: boolean; cap: Capability }[] = [
+    { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard' },
+    { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs' },
+    { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates' },
+    { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics' },
+    { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities' },
+    { to: '/matching', label: 'Matching', end: false, cap: 'view_matching' },
+    { to: '/positions', label: 'Positions', end: false, cap: 'view_positions' },
   ]
+  const tabs = allTabs.filter((t) => roleCan(role, t.cap))
   const adminLinks = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },
@@ -100,6 +148,8 @@ export function Layout() {
         <div className="border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex h-12 max-w-[1440px] items-center gap-3 px-4">
             <Wordmark />
+
+            <CommandSearch />
 
             <div className="ml-auto flex items-center gap-2">
               {/* live status */}

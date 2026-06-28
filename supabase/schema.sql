@@ -241,7 +241,7 @@ begin
     assigned_role := 'admin';
   elsif (select count(*) from public.profiles) = 0 then
     assigned_role := 'admin';
-  elsif meta_role in ('admin', 'recruiter') then
+  elsif meta_role in ('admin','recruiter','coordinator','hiring_manager','compliance','supervisor','interviewer','viewer') then
     assigned_role := meta_role;
   else
     assigned_role := 'recruiter';
@@ -422,11 +422,28 @@ create policy "history_select" on public.candidate_stage_history
 -- so the later RBAC-isolation and analytics phases bolt on without a migration.
 -- Idempotent: safe to re-run.
 
--- Widen the role set to support the full RBAC model later. Existing rows keep
--- their role; the app still treats only 'admin' specially for now.
+-- RBAC role model. The app reasons about five roles
+-- (admin/recruiter/coordinator/hiring_manager/compliance); the constraint also
+-- tolerates legacy values (supervisor/interviewer/viewer). Additive + idempotent:
+-- existing rows keep their role and no policy is loosened — the new roles are
+-- least-privilege until explicit per-role policies are added.
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
-  check (role in ('admin','recruiter','supervisor','hiring_manager','interviewer','viewer'));
+  check (role in (
+    'admin','recruiter','coordinator','hiring_manager','compliance',
+    'supervisor','interviewer','viewer'
+  ));
+
+-- Reusable predicate for future per-role RLS policies (admin always passes).
+-- Mirrors the front-end capability guards; the server stays the source of truth.
+create or replace function public.has_role(target text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and active = true and (role = 'admin' or role = target)
+  );
+$$;
 -- Placeholder recruiters: created from an imported sheet, no login until an
 -- email is set and they're invited.
 alter table public.profiles add column if not exists placeholder boolean not null default false;

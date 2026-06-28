@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './components/primitives'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
@@ -25,6 +26,7 @@ import { Team } from './pages/Team'
 export default function App() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -93,6 +95,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
+      </ToastProvider>
     </AuthProvider>
   )
 }
