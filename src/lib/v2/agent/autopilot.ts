@@ -10,6 +10,7 @@ import { currentOrgId } from '../org'
 import { listRequisitions, daysOpen } from '../requisitions'
 import { captureSnapshot } from '../kpis'
 import { createScreening, getRequisitionQuestions, generateScreeningQuestions } from '../screenings'
+import { matchCandidatesForRequisition } from '../matching'
 import { logAudit } from './audit'
 import {
   resolveTier,
@@ -209,6 +210,12 @@ export async function executeStep(step: PlanStep, approved: boolean): Promise<St
     case 'screening.draft':
       result = await execScreeningDraft(step)
       break
+    case 'match.refresh':
+      result = await execMatchRefresh(step)
+      break
+    case 'note.flag':
+      result = { ok: true, message: `Flagged for attention: ${step.target_label || step.title}.`, link: step.link }
+      break
     default:
       result = { ok: false, message: 'No handler wired for this action.', link: step.link }
   }
@@ -226,6 +233,22 @@ async function execKpiSnapshot(): Promise<StepResult> {
   const { captured, error } = await captureSnapshot()
   if (error) return { ok: false, message: `Snapshot failed: ${error}` }
   return { ok: true, message: `Captured ${captured} KPI${captured === 1 ? '' : 's'}.`, link: '/analytics' }
+}
+
+async function execMatchRefresh(step: PlanStep): Promise<StepResult> {
+  const reqId = step.target_id
+  if (!reqId || !isUuid(reqId)) return { ok: false, message: 'No requisition specified for the match refresh.' }
+  const { requisition, ranked } = await matchCandidatesForRequisition(reqId)
+  if (!requisition) return { ok: false, message: 'Requisition not found.' }
+  const top = ranked.slice(0, 5)
+  const names = top.map((r) => `${r.full_name} (${r.score})`).join(', ')
+  return {
+    ok: true,
+    message: top.length
+      ? `Refreshed shortlist for ${requisition.title}: top ${top.length} — ${names}.`
+      : `Refreshed shortlist for ${requisition.title}: no ranked candidates yet.`,
+    link: `/requisitions/${reqId}`,
+  }
 }
 
 async function execScreeningDraft(step: PlanStep): Promise<StepResult> {

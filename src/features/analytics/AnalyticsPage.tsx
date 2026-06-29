@@ -9,7 +9,7 @@ import {
   CartesianGrid,
   Cell,
 } from 'recharts'
-import { Camera, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
+import { Camera, TrendingUp, TrendingDown, Minus, AlertTriangle, Download } from 'lucide-react'
 import { Card, MultiSelect, Tabs, Button } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { loadAnalytics, loadSourceEffectiveness, type AnalyticsData, type SourceEffectivenessRow } from '../../lib/v2/analytics'
@@ -29,6 +29,23 @@ import {
 const BAR_COLORS = ['#6e9a6a', '#d2774a', '#be4b43', '#577f54', '#b4663b', '#a9a18d', '#26221f']
 const GRID_STROKE = '#e7e2d7'
 const CHART_HEIGHT = 260
+
+/** Download the current KPI set as a CSV (value/benchmark/target/prior per metric). */
+function exportKpisCsv(kpis: Kpi[]) {
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const header = ['Metric', 'Category', 'Value', 'Unit', 'Benchmark', 'Target', 'Prior', 'Formula']
+  const lines = kpis.map((k) =>
+    [k.label, k.category, k.value ?? '', k.unit, k.benchmark ?? '', k.target ?? '', k.prior ?? '', k.formula].map(esc).join(','),
+  )
+  const csv = [header.map(esc).join(','), ...lines].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `clinilytics-kpis-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 const CATEGORY_LABELS: Record<Kpi['category'], string> = {
   speed: 'Speed',
@@ -83,10 +100,18 @@ export function AnalyticsPage() {
             hiring funnel and per-recruiter performance.
           </p>
         </div>
-        <Button variant="secondary" onClick={onCapture} disabled={capturing}>
-          <Camera size={15} className="mr-1.5" />
-          {capturing ? 'Capturing…' : 'Capture snapshot'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {bundle && (
+            <Button variant="secondary" onClick={() => exportKpisCsv(bundle.kpis)}>
+              <Download size={15} className="mr-1.5" />
+              Export CSV
+            </Button>
+          )}
+          <Button variant="secondary" onClick={onCapture} disabled={capturing}>
+            <Camera size={15} className="mr-1.5" />
+            {capturing ? 'Capturing…' : 'Capture snapshot'}
+          </Button>
+        </div>
       </div>
 
       {/* Segment filters */}
