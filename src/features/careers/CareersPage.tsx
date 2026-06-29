@@ -7,7 +7,11 @@ import {
   applyToRequisition,
   salaryLabel,
   prescreenFor,
+  careerMatchScore,
+  otherMatchingRoles,
+  CAREER_MATCH_THRESHOLD,
   type PublicReq,
+  type RoleMatch,
 } from '../../lib/v2/careers'
 
 /**
@@ -62,7 +66,7 @@ export function CareersPage() {
         </div>
       </footer>
 
-      {applying && <ApplyModal req={applying} onClose={() => setApplying(null)} />}
+      {applying && <ApplyModal req={applying} allReqs={reqs} onClose={() => setApplying(null)} />}
     </div>
   )
 }
@@ -105,7 +109,13 @@ function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
   )
 }
 
-function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
+interface ApplyResult {
+  score: number
+  rejected: boolean
+  others: RoleMatch[]
+}
+
+function ApplyModal({ req, allReqs, onClose }: { req: PublicReq; allReqs: PublicReq[]; onClose: () => void }) {
   const { toast } = useToast()
   const questions = prescreenFor(req)
   const [fullName, setFullName] = useState('')
@@ -116,10 +126,19 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
   const [resumeText, setResumeText] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState(false)
+  const [result, setResult] = useState<ApplyResult | null>(null)
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const [applyingId, setApplyingId] = useState<string | null>(null)
 
   const allAnswered = questions.every((q) => (answers[q.id] ?? '').trim().length > 0)
   const canSubmit = fullName.trim().length > 0 && email.trim().length > 0 && allAnswered
+
+  function candidateText(): string {
+    return [resumeText, fullName, linkedin, ...questions.map((q) => answers[q.id] ?? '')].join(' ')
+  }
+  function screeningPayload() {
+    return questions.map((q) => ({ question_id: q.id, question: q.question, answer: (answers[q.id] ?? '').trim() }))
+  }
 
   async function submit() {
     if (fullName.trim().length === 0 || email.trim().length === 0) {
@@ -131,6 +150,9 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
       return
     }
     setSubmitting(true)
+    const text = candidateText()
+    const score = careerMatchScore(text, req)
+    const rejected = score < CAREER_MATCH_THRESHOLD
     const { error } = await applyToRequisition({
       requisitionId: req.id,
       full_name: fullName.trim(),
@@ -138,29 +160,88 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
       phone: phone.trim() || undefined,
       resume_text: resumeText.trim() || undefined,
       intake: { linkedin: linkedin.trim(), referred_by: referredBy.trim() },
-      screening: questions.map((q) => ({ question_id: q.id, question: q.question, answer: (answers[q.id] ?? '').trim() })),
+      screening: screeningPayload(),
+      status: rejected ? 'rejected' : 'active',
+      reject_reason: rejected ? `Auto-screened: ${score}% match to role requirements (below ${CAREER_MATCH_THRESHOLD}% threshold)` : undefined,
+      match_score: score,
     })
-    setSubmitting(false)
     if (error) {
+      setSubmitting(false)
       toast({ tone: 'error', title: 'Could not submit application', description: error })
       return
     }
-    toast({ tone: 'success', title: 'Application received', description: `Thanks for applying to ${req.title}.` })
-    setDone(true)
+    const others = otherMatchingRoles(text, allReqs, req.id)
+    setSubmitting(false)
+    setResult({ score, rejected, others })
   }
 
-  if (done) {
+  async function oneClickApply(m: RoleMatch) {
+    setApplyingId(m.req.id)
+    const { error } = await applyToRequisition({
+      requisitionId: m.req.id,
+      full_name: fullName.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      resume_text: resumeText.trim() || undefined,
+      intake: { linkedin: linkedin.trim(), referred_by: referredBy.trim(), one_click: true },
+      screening: screeningPayload(),
+      status: 'active',
+      match_score: m.score,
+    })
+    setApplyingId(null)
+    if (error) {
+      toast({ tone: 'error', title: 'Could not apply', description: error })
+      return
+    }
+    setAppliedIds((s) => new Set(s).add(m.req.id))
+    toast({ tone: 'success', title: `Applied to ${m.req.title}` })
+  }
+
+  if (result) {
     return (
-      <Modal
-        title="Application received"
-        onClose={onClose}
-        footer={
-          <Button onClick={onClose}>Close</Button>
-        }
-      >
-        <p className="text-sm text-ink">
-          Thanks, we received your application for <strong>{req.title}</strong>. Our recruiting team will be in touch.
-        </p>
+      <Modal title={result.rejected ? 'Thanks for applying' : 'Application received'} onClose={onClose} footer={<Button onClick={onClose}>Close</Button>}>
+        <div className="space-y-4">
+          {result.rejected ? (
+            <p className="text-sm text-ink">
+              Thanks for your interest in <strong>{req.title}</strong>. Based on your responses, this role isn't a
+              strong match right now ({result.score}% match to the listed requirements), so we won't move it forward —
+              but please see below.
+            </p>
+          ) : (
+            <p className="text-sm text-ink">
+              Thanks — we received your application for <strong>{req.title}</strong> ({result.score}% match). Our
+              recruiting team will be in touch.
+            </p>
+          )}
+
+          {result.others.length > 0 ? (
+            <div className="rounded-lg border border-line bg-paper/60 p-3">
+              <div className="text-sm font-semibold text-ink">You're a strong match for these openings</div>
+              <p className="mb-2 text-[11px] text-muted">Apply in one click — we'll reuse the details you just entered.</p>
+              <div className="space-y-2">
+                {result.others.map((m) => {
+                  const applied = appliedIds.has(m.req.id)
+                  const place = [m.req.facility?.city, m.req.facility?.state].filter(Boolean).join(', ')
+                  return (
+                    <div key={m.req.id} className="flex items-center justify-between gap-3 rounded border border-line bg-surface px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-ink">{m.req.title}</div>
+                        <div className="truncate text-xs text-muted">
+                          {[m.req.facility?.name, place].filter(Boolean).join(' · ') || m.req.role_family} · {m.score}% match
+                        </div>
+                      </div>
+                      <Button size="sm" variant={applied ? 'secondary' : 'primary'} disabled={applied} loading={applyingId === m.req.id} onClick={() => oneClickApply(m)}>
+                        {applied ? 'Applied' : 'Apply'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">We'll keep your information on file and reach out if a better-matched role opens up.</p>
+          )}
+        </div>
       </Modal>
     )
   }
