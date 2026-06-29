@@ -39,10 +39,11 @@ const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!
 const VAPI_KEY = Deno.env.get('VAPI_API_KEY')
 const VAPI_PHONE_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID')
-// Voice is configurable without code changes. Set these in Supabase secrets:
-//   VAPI_VOICE_ID        e.g. "Clara"   (defaults to Elliot)
+// Voice is configurable without code changes. Defaults to a FEMALE voice
+// (Vapi built-in "Paige"). Override in Supabase secrets:
+//   VAPI_VOICE_ID        e.g. "Paige" | "Hana" | "Neha" (female) — a voice id for the provider
 //   VAPI_VOICE_PROVIDER  e.g. "vapi" | "11labs" | "playht"  (defaults to vapi)
-const VOICE_ID = Deno.env.get('VAPI_VOICE_ID') || 'Elliot'
+const VOICE_ID = Deno.env.get('VAPI_VOICE_ID') || 'Paige'
 const VOICE_PROVIDER = Deno.env.get('VAPI_VOICE_PROVIDER') || 'vapi'
 const PUBLIC_APP_URL = (Deno.env.get('PUBLIC_APP_URL') || 'https://amallc-coder.github.io/recruiting').replace(/\/+$/, '')
 
@@ -81,7 +82,12 @@ function systemPrompt(candidateName: string, jobTitle: string, questions: { ques
     `- Greet them warmly, confirm you're speaking with the right person, give the disclosure above, and ask if it's a good time.\n` +
     `- Ask the questions below ONE AT A TIME, conversationally. Briefly acknowledge each answer before moving on.\n` +
     `- Do NOT ask about protected characteristics (age, marital/family status, health, religion, national origin).\n` +
-    `- Keep it under ~8 minutes. If they're busy, offer to call back.\n` +
+    `- Keep it under ~8 minutes.\n` +
+    `If it's NOT a good time (they're busy, driving, at work, ask to call later):\n` +
+    `- Do NOT push the questions. Apologize for catching them at a bad moment.\n` +
+    `- Ask for a SPECIFIC day and time that works for a callback (e.g. "What day and time work best — for example tomorrow at 3 PM?").\n` +
+    `- Repeat the day and time back to confirm it clearly (say the weekday, date, and time, e.g. "Great — Thursday June 12th at 3 PM, I'll call you then.").\n` +
+    `- Tell them our system will call them back at that time, thank them, and end the call. Do not ask the screening questions on this call.\n` +
     `Language:\n` +
     `- If the candidate responds in another language (for example Spanish), switch to that language and ` +
     `conduct the rest of the screening in their language, including the disclosure if you haven't given it yet. ` +
@@ -112,20 +118,30 @@ Deno.serve(async (req: Request) => {
   if (!VAPI_KEY) return json({ error: 'VAPI_API_KEY not set' }, 500)
 
   // Authenticate the caller and confirm they own the screening (or are admin).
+  // Internal: the scheduled-callback dispatcher calls us with the service-role
+  // key as the bearer — treat that as a trusted system invocation (no user).
   const authHeader = req.headers.get('Authorization') ?? ''
+  const bearer = authHeader.replace(/^Bearer\s+/i, '')
+  const internal = bearer === SERVICE
   const admin = createClient(URL_, SERVICE)
-  const caller = createClient(URL_, ANON, { global: { headers: { Authorization: authHeader } } })
-  const { data: u } = await caller.auth.getUser()
-  if (!u?.user) return json({ error: 'Not authenticated' }, 401)
-  const { data: prof } = await admin.from('users').select('role,active').eq('id', u.user.id).single()
-  if (!prof || !prof.active) return json({ error: 'Inactive account' }, 403)
+  let userId: string | null = null
+  let userRole: string | null = null
+  if (!internal) {
+    const caller = createClient(URL_, ANON, { global: { headers: { Authorization: authHeader } } })
+    const { data: u } = await caller.auth.getUser()
+    if (!u?.user) return json({ error: 'Not authenticated' }, 401)
+    const { data: prof } = await admin.from('users').select('role,active').eq('id', u.user.id).single()
+    if (!prof || !prof.active) return json({ error: 'Inactive account' }, 403)
+    userId = u.user.id
+    userRole = prof.role
+  }
 
   const { screening_id, mode = 'call' } = await req.json().catch(() => ({}))
   if (!screening_id) return json({ error: 'Missing screening_id' }, 400)
 
   const { data: s } = await admin.from('screenings').select('*').eq('id', screening_id).single()
   if (!s) return json({ error: 'Screening not found' }, 404)
-  const isOwner = prof.role === 'admin' || s.recruiter_id === u.user.id || s.created_by === u.user.id
+  const isOwner = internal || userRole === 'admin' || s.recruiter_id === userId || s.created_by === userId
   if (!isOwner) return json({ error: 'Not your screening' }, 403)
 
   const { data: cand } = await admin.from('candidates').select('*').eq('id', s.candidate_id).single()
@@ -158,7 +174,7 @@ Deno.serve(async (req: Request) => {
     if (!r.ok) return json({ error: `Vapi SMS failed: ${body?.message ?? r.status}` }, 502)
     await admin.from('communications').insert({
       candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
-      channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: u.user.id,
+      channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: userId,
       external_ref: body?.id ?? null,
     })
     return json({ ok: true, sms_id: body?.id ?? null })
@@ -187,7 +203,7 @@ Deno.serve(async (req: Request) => {
     await admin.from('screenings').update({ status: 'sent', channel: 'sms', sent_at: new Date().toISOString(), external_ref: body?.id ?? null }).eq('id', s.id)
     await admin.from('communications').insert({
       candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
-      channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: u.user.id,
+      channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: userId,
       external_ref: body?.id ?? null,
     })
     return json({ ok: true, sms_id: body?.id ?? null })
@@ -239,7 +255,7 @@ Deno.serve(async (req: Request) => {
   await admin.from('communications').insert({
     candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
     channel: 'call', direction: 'outbound', body: `AI screening call placed (${questions.length} questions).`,
-    ai_generated: true, created_by: u.user.id, external_ref: body?.id ?? null,
+    ai_generated: true, created_by: userId, external_ref: body?.id ?? null,
   })
   return json({ ok: true, call_id: body?.id ?? null })
 })
