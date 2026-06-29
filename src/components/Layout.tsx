@@ -10,6 +10,7 @@ import {
   ClipboardList,
   FileText,
   Gauge,
+  Bot,
   Users,
   Upload,
   Plug,
@@ -101,6 +102,7 @@ export function Layout() {
     { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
     { to: '/coverage', label: 'Coverage', end: false, cap: 'view_facilities', icon: Gauge },
     { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
+    { to: '/screening', label: 'Screening', end: false, cap: 'view_candidates', icon: Bot },
     { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
     { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
     { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
@@ -108,7 +110,7 @@ export function Layout() {
   ]
   // The Requisitions + Coverage workspaces run against the v2 schema; only
   // surface them when pointed at a v2 branch/preview (hidden in prod until cutover).
-  const v2Only = ['/requisitions', '/coverage']
+  const v2Only = ['/requisitions', '/coverage', '/screening']
   const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || v2IsBranch))
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
