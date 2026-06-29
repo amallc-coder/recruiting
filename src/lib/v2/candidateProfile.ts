@@ -3,6 +3,7 @@
 // communications, scorecards, AI decisions, and audit history into the shapes
 // the /candidates/:id profile page renders. v2 client only.
 import { v2 } from './client'
+import { extractResumeText } from './resumeParse'
 import type { Candidate, CredentialType } from './types'
 
 // ---- shapes ---------------------------------------------------------------
@@ -421,6 +422,44 @@ export async function uploadDocument(
 export async function setDocStatus(id: string, status: DocumentStatus): Promise<{ error: string | null }> {
   const { error } = await v2.from('candidate_documents').update({ status }).eq('id', id)
   return { error: error?.message ?? null }
+}
+
+/**
+ * Parse a résumé file (PDF/DOCX/text) and write its text to candidates.resume_text
+ * — the field the AI match engine reads. The original file is also stored as a
+ * `resume` document (best-effort); failing to store it does not block setting the
+ * text, which is the part that matters for matching.
+ */
+export async function uploadResume(
+  candidateId: string,
+  file: File,
+): Promise<{ error: string | null; chars: number }> {
+  let text: string
+  try {
+    text = await extractResumeText(file)
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not read that file.', chars: 0 }
+  }
+  if (!text.trim()) {
+    return { error: 'No text could be extracted — the file may be a scanned image.', chars: 0 }
+  }
+
+  // Store the original file as a document (best-effort).
+  const path = `${candidateId}/${Date.now()}-${file.name}`
+  const { error: upErr } = await v2.storage.from('candidate-documents').upload(path, file)
+  if (!upErr) {
+    await v2.from('candidate_documents').insert({
+      candidate_id: candidateId,
+      type: 'resume',
+      storage_path: path,
+      file_name: file.name,
+      status: 'pending',
+    })
+  }
+
+  // Set the résumé text the match engine reads.
+  const { error } = await v2.from('candidates').update({ resume_text: text }).eq('id', candidateId)
+  return { error: error?.message ?? null, chars: text.length }
 }
 
 // ---- communications -------------------------------------------------------

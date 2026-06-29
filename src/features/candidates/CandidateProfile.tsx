@@ -29,6 +29,7 @@ import {
   verifyCredential,
   requestDocument,
   uploadDocument,
+  uploadResume,
   setDocStatus,
   sendCommunication,
   findDuplicates,
@@ -225,7 +226,7 @@ export function CandidateProfile() {
 
       <Tabs tabs={tabs} defaultValue="overview" label="Candidate sections">
         {(active) => {
-          if (active === 'overview') return <OverviewTab profile={profile} />
+          if (active === 'overview') return <OverviewTab profile={profile} onChanged={load} />
           if (active === 'credentials') return <CredentialsTab profile={profile} onChanged={load} />
           if (active === 'documents') return <DocumentsTab candidateId={id} />
           if (active === 'communications') return <CommunicationsTab candidateId={id} />
@@ -240,7 +241,7 @@ export function CandidateProfile() {
 
 // ---- Overview -------------------------------------------------------------
 
-function OverviewTab({ profile }: { profile: ProfileData }) {
+function OverviewTab({ profile, onChanged }: { profile: ProfileData; onChanged: () => void }) {
   const { candidate, applications } = profile
   return (
     <div className="space-y-4">
@@ -271,6 +272,8 @@ function OverviewTab({ profile }: { profile: ProfileData }) {
           </div>
         )}
       </Card>
+
+      <ResumeCard candidate={candidate} onChanged={onChanged} />
 
       <Card className="p-5">
         <h3 className="mb-3 text-sm font-semibold tracking-tight text-ink">Applications</h3>
@@ -303,6 +306,63 @@ function OverviewTab({ profile }: { profile: ProfileData }) {
         )}
       </Card>
     </div>
+  )
+}
+
+// ---- Résumé ---------------------------------------------------------------
+
+function ResumeCard({ candidate, onChanged }: { candidate: ProfileData['candidate']; onChanged: () => void }) {
+  const { toast } = useToast()
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const resume = candidate.resume_text?.trim() ?? ''
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const { error, chars } = await uploadResume(candidate.id, file)
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+    if (error) toast({ tone: 'error', title: 'Could not import résumé', description: error })
+    else {
+      toast({ tone: 'success', title: 'Résumé imported', description: `${chars.toLocaleString()} characters — re-score to use it.` })
+      onChanged()
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm font-semibold tracking-tight text-ink">
+          <FileText size={14} className="text-muted" /> Résumé
+          {resume && <Badge tone="sage">on file</Badge>}
+        </div>
+        <label className="inline-flex">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            className="hidden"
+            onChange={onFile}
+            disabled={uploading}
+          />
+          <span className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-brand-50">
+            <Upload size={13} />
+            {uploading ? 'Reading…' : resume ? 'Replace résumé' : 'Upload résumé'}
+          </span>
+        </label>
+      </div>
+      {resume ? (
+        <p className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface p-3 text-sm text-ink/90">
+          {resume}
+        </p>
+      ) : (
+        <p className="text-sm text-muted">
+          No résumé text on file. Upload a PDF, DOCX, or text file — the text feeds the AI Match score for this candidate.
+        </p>
+      )}
+    </Card>
   )
 }
 
