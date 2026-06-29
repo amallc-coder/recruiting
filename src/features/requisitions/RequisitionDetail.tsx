@@ -7,6 +7,7 @@ import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import { ReqStatusBadge } from './badges'
 import { RequisitionForm } from './RequisitionForm'
 import { PipelineBoard } from './PipelineBoard'
+import { ScreeningQuestionsCard } from './ScreeningQuestionsCard'
 import {
   getRequisition,
   listFacilities,
@@ -150,6 +151,9 @@ export function RequisitionDetail() {
         <h2 className="mb-2 text-sm font-semibold tracking-tight text-ink">Pipeline</h2>
         <PipelineBoard requisitionId={req.id} roleFamily={req.role_family} orgId={req.org_id} onChanged={load} />
       </div>
+
+      {/* Screening questions config (seeds screenings for candidates on this req) */}
+      <ScreeningQuestionsCard requisitionId={req.id} roleFamily={req.role_family} title={req.title} />
 
       {editing && (
         <RequisitionForm

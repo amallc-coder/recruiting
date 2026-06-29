@@ -5,6 +5,7 @@ import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import { demoMode } from '../../lib/supabase'
 import { listSelectableCandidates } from '../../lib/v2/pipeline'
+import { listRequisitionOptions, type ReqOption } from '../../lib/v2/requisitions'
 import {
   listScreenings,
   createScreening,
@@ -12,6 +13,7 @@ import {
   setStatus,
   deleteScreening,
   generateScreeningQuestions,
+  getRequisitionQuestions,
   completeAndAnalyze,
   placeScreeningCall,
   type ScreeningRow,
@@ -142,12 +144,15 @@ export function ScreeningsPage() {
 function NewScreeningModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<{ id: string; full_name: string }[]>([])
+  const [reqs, setReqs] = useState<ReqOption[]>([])
   const [candidateId, setCandidateId] = useState('')
+  const [requisitionId, setRequisitionId] = useState('')
   const [channel, setChannel] = useState<ScreeningChannel>('phone')
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     listSelectableCandidates().then(setCandidates)
+    listRequisitionOptions().then(setReqs)
   }, [])
 
   async function create() {
@@ -157,12 +162,33 @@ function NewScreeningModal({ onClose, onCreated }: { onClose: () => void; onCrea
     }
     setBusy(true)
     const cand = candidates.find((c) => c.id === candidateId)
-    const questions = await generateScreeningQuestions({ full_name: cand?.full_name ?? '' })
-    const { id, error } = await createScreening({ candidate_id: candidateId, channel, questions })
+    const req = reqs.find((r) => r.id === requisitionId)
+    // Prefer the requisition's curated default question set; fall back to an
+    // AI-drafted questionnaire (seeded with the role context when we have it).
+    let questions = requisitionId ? await getRequisitionQuestions(requisitionId) : []
+    let fromReq = questions.length > 0
+    if (!questions.length) {
+      questions = await generateScreeningQuestions({
+        full_name: cand?.full_name ?? '',
+        role_family: req?.role_family ?? null,
+        requisition_title: req?.title ?? null,
+      })
+      fromReq = false
+    }
+    const { id, error } = await createScreening({
+      candidate_id: candidateId,
+      requisition_id: requisitionId || null,
+      channel,
+      questions,
+    })
     setBusy(false)
     if (error || !id) toast({ tone: 'error', title: 'Could not create screening', description: error ?? undefined })
     else {
-      toast({ tone: 'success', title: 'Screening drafted', description: `${questions.length} questions generated` })
+      toast({
+        tone: 'success',
+        title: 'Screening drafted',
+        description: `${questions.length} questions ${fromReq ? 'from the requisition' : 'generated'}`,
+      })
       onCreated(id)
     }
   }
@@ -191,6 +217,13 @@ function NewScreeningModal({ onClose, onCreated }: { onClose: () => void; onCrea
           placeholder="Select a candidate"
         />
         <Select
+          label="Requisition (optional)"
+          value={requisitionId}
+          onChange={(e) => setRequisitionId(e.target.value)}
+          options={reqs.map((r) => ({ value: r.id, label: `${r.title} · ${r.role_family}` }))}
+          placeholder="None — generate questions with AI"
+        />
+        <Select
           label="Channel"
           value={channel}
           onChange={(e) => setChannel(e.target.value as ScreeningChannel)}
@@ -201,7 +234,10 @@ function NewScreeningModal({ onClose, onCreated }: { onClose: () => void; onCrea
             { value: 'manual', label: 'Manual' },
           ]}
         />
-        <p className="text-xs text-muted">A Claude-drafted questionnaire is generated on create; review and edit before sending.</p>
+        <p className="text-xs text-muted">
+          If you pick a requisition with a saved question set, the screening uses those. Otherwise a Claude-drafted
+          questionnaire is generated. Review and edit before sending.
+        </p>
       </div>
     </Modal>
   )

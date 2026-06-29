@@ -39,8 +39,34 @@ export interface ScreeningRow extends Screening {
 const SELECT =
   'id,org_id,candidate_id,requisition_id,application_id,recruiter_id,status,channel,questions,responses,ai_summary,ai_score,ai_flags,sentiment_score,sentiment_label,recording_url,transcript,external_ref,created_at, candidate:candidates(id,full_name)'
 
-function qid() {
+export function qid() {
   return (crypto as { randomUUID?: () => string }).randomUUID?.() ?? 'q-' + Math.random().toString(36).slice(2)
+}
+
+// ---- Per-requisition default question set -------------------------------
+// `requisitions.screening_questions` (jsonb, default '[]') holds the default
+// questionnaire for a req. It seeds every screening created for a candidate
+// tied to that req, so a recruiter curates the screen once per requisition.
+export async function getRequisitionQuestions(requisitionId: string): Promise<ScreeningQuestion[]> {
+  const { data } = await v2.from('requisitions').select('screening_questions').eq('id', requisitionId).maybeSingle()
+  const raw = (data as { screening_questions?: unknown } | null)?.screening_questions
+  return Array.isArray(raw) ? (raw as ScreeningQuestion[]) : []
+}
+
+export async function setRequisitionQuestions(
+  requisitionId: string,
+  questions: ScreeningQuestion[],
+): Promise<{ error: string | null }> {
+  const clean = questions
+    .map((q) => ({
+      id: q.id || qid(),
+      question: (q.question ?? '').trim(),
+      ...(q.rationale?.trim() ? { rationale: q.rationale.trim() } : {}),
+      ...(q.competency?.trim() ? { competency: q.competency.trim() } : {}),
+    }))
+    .filter((q) => q.question)
+  const { error } = await v2.from('requisitions').update({ screening_questions: clean }).eq('id', requisitionId)
+  return { error: error?.message ?? null }
 }
 
 export async function listScreenings(candidateId?: string): Promise<ScreeningRow[]> {

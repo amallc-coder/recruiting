@@ -61,6 +61,18 @@ export async function listRequisitions(f: ReqFilters = {}): Promise<RequisitionR
   return rows
 }
 
+/** Lightweight requisition list for pickers (id/title/role/status), title-sorted. */
+export interface ReqOption {
+  id: string
+  title: string
+  role_family: string
+  status: RequisitionStatus
+}
+export async function listRequisitionOptions(): Promise<ReqOption[]> {
+  const rows = await fetchAll<ReqOption>('requisitions', 'id,title,role_family,status')
+  return rows.sort((a, b) => a.title.localeCompare(b.title))
+}
+
 export async function getRequisition(id: string): Promise<RequisitionRow | null> {
   const { data } = await v2.from('requisitions').select(REQ_SELECT).eq('id', id).maybeSingle()
   return (data as RequisitionRow) ?? null
