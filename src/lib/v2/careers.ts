@@ -18,6 +18,7 @@ export interface PublicReq {
   specialty: string | null
   location: string | null
   description: string | null
+  requirements: string | null
   employment_type: string
   workplace: string
   salary_min: number | null
@@ -47,10 +48,67 @@ export async function listPublicRequisitions(): Promise<PublicReq[]> {
   // Paginate past the 1000-row cap so every open public role is listed; re-sort newest-first.
   const rows = await fetchAll<PublicReq & { created_at?: string }>(
     'requisitions',
-    'id,title,role_family,specialty,location,description,employment_type,workplace,salary_min,salary_max,salary_unit,screening_questions,created_at, facility:facilities(name,city,state)',
+    'id,title,role_family,specialty,location,description,requirements,employment_type,workplace,salary_min,salary_max,salary_unit,screening_questions,created_at, facility:facilities(name,city,state)',
     (q) => q.eq('is_public', true).eq('status', 'open'),
   )
   return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')) as PublicReq[]
+}
+
+// ---------------------------------------------------------------------------
+// Transparent AI match scoring for the careers flow. Same token-overlap model as
+// the internal match engine: the share of a requisition's requirement vocabulary
+// that the applicant's text (résumé + screening answers) covers. Runs entirely in
+// the browser over public requisition data — no auth, no PII leaves the page.
+// ---------------------------------------------------------------------------
+export const CAREER_MATCH_THRESHOLD = 50
+
+const STOP = new Set(
+  'the a an and or to of in for with on at by is are be as we you your our will have has from this that role position experience years work years team able including etc'.split(
+    ' ',
+  ),
+)
+
+function tokenize(s: string): Set<string> {
+  const out = new Set<string>()
+  for (const raw of (s || '').toLowerCase().split(/[^a-z0-9+#]+/)) {
+    const t = raw.trim()
+    if (t.length >= 3 && !STOP.has(t)) out.add(t)
+  }
+  return out
+}
+
+function reqText(req: PublicReq): string {
+  return [req.title, req.role_family, req.specialty, req.description, req.requirements].filter(Boolean).join(' ')
+}
+
+/** 0–100: the share of the requisition's requirement vocabulary the applicant covers. */
+export function careerMatchScore(candidateText: string, req: PublicReq): number {
+  const reqTokens = tokenize(reqText(req))
+  if (reqTokens.size === 0) return 0
+  const cand = tokenize(candidateText)
+  let hit = 0
+  for (const t of reqTokens) if (cand.has(t)) hit++
+  return Math.round((100 * hit) / reqTokens.size)
+}
+
+export interface RoleMatch {
+  req: PublicReq
+  score: number
+}
+
+/** Other open roles the applicant matches at or above the threshold (best first). */
+export function otherMatchingRoles(
+  candidateText: string,
+  reqs: PublicReq[],
+  excludeId: string,
+  min = CAREER_MATCH_THRESHOLD,
+): RoleMatch[] {
+  return reqs
+    .filter((r) => r.id !== excludeId)
+    .map((r) => ({ req: r, score: careerMatchScore(candidateText, r) }))
+    .filter((m) => m.score >= min)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
 }
 
 export interface PrescreenAnswer {
@@ -67,6 +125,9 @@ export interface ApplyInput {
   resume_text?: string
   intake?: Record<string, unknown>
   screening?: PrescreenAnswer[]
+  status?: 'active' | 'rejected'
+  reject_reason?: string
+  match_score?: number
 }
 
 /** Submit an application via the public-intake SECURITY DEFINER RPC. */
@@ -79,9 +140,11 @@ export async function applyToRequisition(input: ApplyInput): Promise<{ error: st
     p_phone: input.phone ?? null,
     p_resume_text: input.resume_text ?? null,
     p_source: 'Career Site',
-    // Keep the answers on the application intake too, so they show in the timeline.
-    p_intake: { ...(input.intake ?? {}), pre_application_screening: screening },
+    // Keep the answers + AI match score on the application intake too (timeline).
+    p_intake: { ...(input.intake ?? {}), pre_application_screening: screening, ai_match_score: input.match_score ?? null },
     p_screening: screening,
+    p_status: input.status ?? 'active',
+    p_reject_reason: input.reject_reason ?? null,
   })
   return { error: error?.message ?? null }
 }
