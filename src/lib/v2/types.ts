@@ -60,6 +60,10 @@ export interface Requisition {
   description: string | null
   requirements: string | null
   approval_status: ApprovalStatus
+  // Auto-screen-on-apply (opt-in): when on, a new application to this req
+  // auto-creates a screening and dispatches the Vapi voice call / SMS.
+  auto_screen?: boolean
+  auto_screen_channel?: string
   opened_at: string | null
   filled_at: string | null
   created_by: string | null

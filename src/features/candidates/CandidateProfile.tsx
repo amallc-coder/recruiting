@@ -14,12 +14,14 @@ import {
   ClipboardList,
   History,
   AlertTriangle,
+  CalendarClock,
 } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Tabs, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { MatchCard } from '../screening/MatchCard'
 import { orderBackgroundCheck } from '../../lib/v2/checkr'
+import { scheduleUrl } from '../../lib/v2/slots'
 import {
   loadProfile,
   listDocuments,
@@ -304,6 +306,7 @@ function OverviewTab({ profile, onChanged }: { profile: ProfileData; onChanged: 
                   <MatchCard applicationId={a.id} />
                 </div>
                 <BackgroundCheck app={a} onChanged={onChanged} />
+                <ScheduleLinkButton token={a.schedule_token} />
               </div>
             ))}
           </div>
@@ -415,6 +418,26 @@ function BackgroundCheck({ app, onChanged }: { app: ProfileApplication; onChange
         </Button>
       )}
     </div>
+  )
+}
+
+/** Copy the candidate-facing interview self-scheduling link for this application. */
+function ScheduleLinkButton({ token }: { token: string | null }) {
+  const { toast } = useToast()
+  if (!token) return null
+  const url = scheduleUrl(token)
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast({ tone: 'success', title: 'Scheduling link copied' })
+    } catch {
+      toast({ tone: 'error', title: 'Copy failed', description: url })
+    }
+  }
+  return (
+    <button onClick={copy} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
+      <CalendarClock size={13} /> Copy interview scheduling link
+    </button>
   )
 }
 

@@ -107,6 +107,24 @@ export async function updateRequisition(id: string, patch: Partial<ReqInput>): P
   return { error: error?.message ?? null }
 }
 
+// ---- auto-screen-on-apply config (opt-in per requisition) ----
+export type AutoScreenChannel = 'sms' | 'phone' | 'both'
+export interface AutoScreenConfig {
+  auto_screen: boolean
+  auto_screen_channel: AutoScreenChannel
+}
+
+export async function getAutoScreen(id: string): Promise<AutoScreenConfig> {
+  const { data } = await v2.from('requisitions').select('auto_screen,auto_screen_channel').eq('id', id).maybeSingle()
+  const r = data as { auto_screen?: boolean; auto_screen_channel?: AutoScreenChannel } | null
+  return { auto_screen: r?.auto_screen ?? false, auto_screen_channel: r?.auto_screen_channel ?? 'both' }
+}
+
+export async function setAutoScreen(id: string, cfg: AutoScreenConfig): Promise<{ error: string | null }> {
+  const { error } = await v2.from('requisitions').update(cfg).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
 // ---- approval chain: draft → pending_approval → open → filled (+ side states) ----
 export type ReqAction = 'submit' | 'approve' | 'reject' | 'reopen' | 'hold' | 'fill' | 'close' | 'cancel'
 
