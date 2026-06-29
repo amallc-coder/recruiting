@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Trash2, Plus } from 'lucide-react'
 import { Modal, Button, Input, Select } from '../../components/primitives'
 import { useToast } from '../../components/primitives'
 import type { Facility, OrgUser, RoleFamily, RequisitionRow } from '../../lib/v2/types'
 import { createRequisition, updateRequisition, type ReqInput } from '../../lib/v2/requisitions'
+import { getRequisitionQuestions, setRequisitionQuestions, qid, type ScreeningQuestion } from '../../lib/v2/screenings'
+import { DEFAULT_PRESCREEN } from '../../lib/v2/careers'
 
 export function RequisitionForm({
   existing,
@@ -29,8 +32,28 @@ export function RequisitionForm({
   const [managerId, setManagerId] = useState(existing?.hiring_manager_id ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
   const [requirements, setRequirements] = useState(existing?.requirements ?? '')
+  // Pre-application screening questionnaire (requisitions.screening_questions) —
+  // the same questions candidates answer on the public careers application.
+  const [questions, setQuestions] = useState<ScreeningQuestion[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (existing) getRequisitionQuestions(existing.id).then(setQuestions)
+  }, [existing])
+
+  function addQuestion() {
+    setQuestions((q) => [...q, { id: qid(), question: '' }])
+  }
+  function updateQuestion(i: number, text: string) {
+    setQuestions((q) => q.map((x, idx) => (idx === i ? { ...x, question: text } : x)))
+  }
+  function removeQuestion(i: number) {
+    setQuestions((q) => q.filter((_, idx) => idx !== i))
+  }
+  function loadStarters() {
+    setQuestions(DEFAULT_PRESCREEN.map((d) => ({ id: qid(), question: d.question, competency: d.competency })))
+  }
 
   async function save() {
     if (!title.trim() || !facilityId || !roleFamily) {
@@ -53,13 +76,17 @@ export function RequisitionForm({
     const res = existing
       ? { id: existing.id, error: (await updateRequisition(existing.id, input)).error }
       : await createRequisition(input)
-    setSaving(false)
     if (res.error) {
+      setSaving(false)
       setError(res.error)
       return
     }
+    // Persist the pre-application screening questionnaire onto the requisition.
+    const reqId = res.id ?? existing?.id
+    if (reqId) await setRequisitionQuestions(reqId, questions.filter((q) => q.question.trim()))
+    setSaving(false)
     toast({ tone: 'success', title: existing ? 'Requisition updated' : 'Requisition created' })
-    onSaved(res.id ?? existing?.id)
+    onSaved(reqId)
   }
 
   return (
@@ -132,6 +159,42 @@ export function RequisitionForm({
             placeholder="e.g. Active RN license, BLS, 2+ years SNF/LTC experience, EHR proficiency…"
           />
         </div>
+        <div>
+          <label className="label">
+            Pre-application screening questions{' '}
+            <span className="font-normal text-muted">(asked on the public careers application before they apply)</span>
+          </label>
+          <div className="space-y-2">
+            {questions.map((q, i) => (
+              <div key={q.id} className="flex items-start gap-2">
+                <span className="mt-2 text-xs text-muted tnum">{i + 1}.</span>
+                <textarea
+                  className="input min-h-[44px] flex-1"
+                  value={q.question}
+                  onChange={(e) => updateQuestion(i, e.target.value)}
+                  placeholder="e.g. Do you hold an active RN license, and in which state(s)?"
+                />
+                <Button variant="ghost" size="sm" aria-label="Remove question" onClick={() => removeQuestion(i)}>
+                  <Trash2 size={14} />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" leftIcon={<Plus size={13} />} onClick={addQuestion}>
+              Add question
+            </Button>
+            {questions.length === 0 && (
+              <Button size="sm" variant="ghost" onClick={loadStarters}>
+                Use starter set
+              </Button>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">
+            If you leave this empty, the careers application falls back to a default healthcare screening set.
+          </p>
+        </div>
+
         {error && <p className="text-sm text-rust-700">{error}</p>}
       </div>
     </Modal>
