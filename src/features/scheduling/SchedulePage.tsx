@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { CalendarClock, CheckCircle2, MapPin } from 'lucide-react'
+import { CalendarClock, CheckCircle2, MapPin, CalendarPlus, Download } from 'lucide-react'
 import { scheduleContext, bookSlot, type ScheduleContext, type ScheduleSlotOption } from '../../lib/v2/slots'
+import { googleCalUrl, icsDataUrl, type CalEvent } from '../../lib/v2/calendar'
 
 // Public, token-gated interview self-scheduling page (#/schedule/:token). No
 // auth — the opaque application token is the credential, resolved by the
@@ -63,16 +64,45 @@ export function SchedulePage() {
                 {ctx.facility ? ` at ${ctx.facility}` : ''}.
               </p>
 
-              {(confirmedAt || ctx.booked) && (
-                <div className="mt-4 flex items-start gap-2 rounded-lg border border-sage-100 bg-sage-50/50 p-3">
-                  <CheckCircle2 size={18} className="mt-0.5 text-sage-600" />
-                  <div className="text-sm text-ink">
-                    <div className="font-medium">You're booked.</div>
-                    <div className="text-muted">{fmt(confirmedAt ?? ctx.booked!.starts_at)}</div>
-                    <div className="mt-1 text-xs text-muted">Pick another time below to reschedule.</div>
+              {(confirmedAt || ctx.booked) && (() => {
+                const start = confirmedAt ?? ctx.booked!.starts_at
+                const ev: CalEvent = {
+                  title: `Interview${ctx.requisition_title ? ` — ${ctx.requisition_title}` : ''} (American Medical Administrators)`,
+                  start,
+                  durationMin: ctx.booked?.duration_min ?? 30,
+                  location: ctx.booked?.location ?? ctx.facility ?? null,
+                  description: 'Your scheduled interview with American Medical Administrators.',
+                }
+                return (
+                  <div className="mt-4 rounded-lg border border-sage-100 bg-sage-50/50 p-3">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 size={18} className="mt-0.5 text-sage-600" />
+                      <div className="text-sm text-ink">
+                        <div className="font-medium">You're booked.</div>
+                        <div className="text-muted">{fmt(start)}</div>
+                        <div className="mt-1 text-xs text-muted">Pick another time below to reschedule.</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a
+                        href={googleCalUrl(ev)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-brand-50"
+                      >
+                        <CalendarPlus size={14} /> Add to Google Calendar
+                      </a>
+                      <a
+                        href={icsDataUrl(ev)}
+                        download="interview.ics"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-brand-50"
+                      >
+                        <Download size={14} /> Download .ics
+                      </a>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {error && <p className="mt-3 text-sm text-rust-700">{error}</p>}
 
