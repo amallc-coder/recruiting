@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
@@ -118,7 +119,9 @@ export function CandidatesPage() {
             <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-ink">{c.full_name}</span>
+                  <Link to={`/candidates/${c.id}`} className="font-semibold text-ink hover:text-brand-600 hover:underline">
+                    {c.full_name}
+                  </Link>
                   <Badge tone={STATUS_TONE[c.status]}>{STATUS_LABELS[c.status]}</Badge>
                   {c.tags.map((t) => (
                     <Badge key={t} tone="neutral">

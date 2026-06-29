@@ -10,9 +10,10 @@ import {
   closestCorners,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { GripVertical, Plus } from 'lucide-react'
+import { GripVertical, Plus, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Select, Modal, useToast } from '../../components/primitives'
 import { Spinner } from '../../components/ui'
+import { MatchCard } from '../screening/MatchCard'
 import { PlacementBadge } from './badges'
 import {
   listStages,
@@ -307,6 +308,9 @@ function CandidateCard({ card, selected, onToggle }: { card: PipelineCard; selec
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.application.id })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   const rejected = card.application.status === 'rejected'
+  // The AI Match Card mounts (and queries ai_decisions) only when opened, so the
+  // board doesn't fire one request per card on load.
+  const [showMatch, setShowMatch] = useState(false)
   return (
     <div
       ref={setNodeRef}
@@ -343,6 +347,22 @@ function CandidateCard({ card, selected, onToggle }: { card: PipelineCard; selec
           <GripVertical size={14} />
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowMatch((v) => !v)}
+        aria-expanded={showMatch}
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-line py-1 text-[11px] font-medium text-muted hover:bg-brand-50 hover:text-ink"
+      >
+        <Sparkles size={12} className="text-sage-600" />
+        AI match
+        {showMatch ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {showMatch && (
+        <div className="mt-2">
+          <MatchCard applicationId={card.application.id} />
+        </div>
+      )}
     </div>
   )
 }

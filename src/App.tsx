@@ -29,7 +29,7 @@ import { IntegrationsPage as V2Integrations } from './features/integrations'
 import { OffersPage } from './features/offers'
 import { FinancePage } from './features/finance'
 import { DashboardPage as V2Dashboard } from './features/dashboard'
-import { CandidatesPage as V2Candidates } from './features/candidates'
+import { CandidatesPage as V2Candidates, CandidateProfile } from './features/candidates'
 import { FacilitiesPage as V2Facilities } from './features/facilities'
 import { CareersPage as V2Careers } from './features/careers'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
@@ -69,6 +69,7 @@ export default function App() {
             <Route path="/positions" element={useV2 ? <V2Positions /> : <Positions />} />
             {useV2 && (
               <>
+                <Route path="/candidates/:id" element={<CandidateProfile />} />
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
