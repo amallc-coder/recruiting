@@ -10,7 +10,7 @@ import {
   Cell,
 } from 'recharts'
 import { Camera, TrendingUp, TrendingDown, Minus, AlertTriangle, Download } from 'lucide-react'
-import { Card, MultiSelect, Tabs, Button } from '../../components/primitives'
+import { Card, MultiSelect, Tabs, Button, Select, Input } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { loadAnalytics, loadSourceEffectiveness, type AnalyticsData, type SourceEffectivenessRow } from '../../lib/v2/analytics'
 import {
@@ -55,13 +55,50 @@ const CATEGORY_LABELS: Record<Kpi['category'], string> = {
   healthcare: 'Healthcare',
 }
 
+type RangePreset = 'all' | '30d' | '90d' | 'ytd' | 'custom'
+
+const RANGE_LABELS: Record<RangePreset, string> = {
+  all: 'All time',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  ytd: 'Year to date',
+  custom: 'Custom…',
+}
+
+/** Local-time YYYY-MM-DD (matches the <input type="date"> value format). */
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Resolve a preset to a concrete inclusive {from,to}; 'all' clears the window. */
+function presetRange(preset: RangePreset): { from: string | null; to: string | null } {
+  if (preset === 'all' || preset === 'custom') return { from: null, to: null }
+  const now = new Date()
+  const to = isoDate(now)
+  if (preset === 'ytd') return { from: `${now.getFullYear()}-01-01`, to }
+  const back = preset === '30d' ? 29 : 89
+  const f = new Date(now)
+  f.setDate(f.getDate() - back)
+  return { from: isoDate(f), to }
+}
+
+function fmtRangeDay(s: string): string {
+  return new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export function AnalyticsPage() {
   const [segment, setSegment] = useState<KpiSegment>({ roleFamilies: [], facilityIds: [] })
+  const [preset, setPreset] = useState<RangePreset>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [bundle, setBundle] = useState<KpiBundle | null>(null)
   const [breakdown, setBreakdown] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [capturing, setCapturing] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+
+  const range = preset === 'custom' ? { from: customFrom || null, to: customTo || null } : presetRange(preset)
+  const filter: KpiSegment = { ...segment, from: range.from, to: range.to }
 
   const refresh = useCallback((seg: KpiSegment) => {
     setLoading(true)
@@ -71,10 +108,13 @@ export function AnalyticsPage() {
     })
   }, [])
 
-  // Re-run KPIs whenever the segment changes; load org-wide breakdown charts once.
+  // Re-run KPIs whenever the segment or date window changes; load org-wide
+  // breakdown charts once. Deps are the primitive window bounds (not the derived
+  // object) so the effect doesn't re-fire on every render.
   useEffect(() => {
-    refresh(segment)
-  }, [segment, refresh])
+    refresh({ ...segment, from: range.from, to: range.to })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, range.from, range.to, refresh])
   useEffect(() => {
     loadAnalytics().then(setBreakdown)
   }, [])
@@ -85,10 +125,27 @@ export function AnalyticsPage() {
     const { captured, error } = await captureSnapshot()
     setCapturing(false)
     setNote(error ? `Snapshot failed: ${error}` : `Captured ${captured} KPI${captured === 1 ? '' : 's'} — trends will compare against this point.`)
-    if (!error) refresh(segment)
+    if (!error) refresh(filter)
   }
 
   const segmented = (segment.roleFamilies?.length ?? 0) > 0 || (segment.facilityIds?.length ?? 0) > 0
+  const dateActive = !!(range.from || range.to)
+  const filtered = segmented || dateActive
+
+  function clearFilters() {
+    setSegment({ roleFamilies: [], facilityIds: [] })
+    setPreset('all')
+    setCustomFrom('')
+    setCustomTo('')
+  }
+
+  const rangeLabel = dateActive
+    ? range.from && range.to
+      ? `${fmtRangeDay(range.from)} – ${fmtRangeDay(range.to)}`
+      : range.from
+        ? `since ${fmtRangeDay(range.from)}`
+        : `through ${fmtRangeDay(range.to!)}`
+    : ''
 
   return (
     <div className="space-y-6">
@@ -114,7 +171,7 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Segment filters */}
+      {/* Segment + date-range filters */}
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MultiSelect
@@ -131,19 +188,39 @@ export function AnalyticsPage() {
             value={segment.facilityIds ?? []}
             onChange={(v) => setSegment((s) => ({ ...s, facilityIds: v }))}
           />
-          <div className="flex items-end">
-            {segmented && (
-              <button
-                type="button"
-                onClick={() => setSegment({ roleFamilies: [], facilityIds: [] })}
-                className="text-xs text-muted underline-offset-2 hover:text-ink hover:underline"
-              >
-                Clear segment
-              </button>
-            )}
-          </div>
+          <Select label="Date range" value={preset} onChange={(e) => setPreset(e.target.value as RangePreset)}>
+            {(Object.keys(RANGE_LABELS) as RangePreset[]).map((p) => (
+              <option key={p} value={p}>
+                {RANGE_LABELS[p]}
+              </option>
+            ))}
+          </Select>
+          {preset === 'custom' ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Input label="From" type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} />
+              <Input label="To" type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} />
+            </div>
+          ) : (
+            <div />
+          )}
         </div>
-        {note && <p className="mt-3 text-xs text-sage-700">{note}</p>}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted">
+            {dateActive
+              ? `Activity ${rangeLabel} — requisitions opened, applications received, offers made, and spend incurred in this window.`
+              : 'Showing all-time activity.'}
+          </p>
+          {filtered && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs text-muted underline-offset-2 hover:text-ink hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+        {note && <p className="mt-2 text-xs text-sage-700">{note}</p>}
       </Card>
 
       {loading || !bundle ? (
@@ -165,9 +242,9 @@ export function AnalyticsPage() {
         >
           {(tab) =>
             tab === 'exec' ? (
-              <ExecView kpis={bundle.kpis} />
+              <ExecView kpis={bundle.kpis} filtered={filtered} />
             ) : tab === 'funnel' ? (
-              <FunnelView funnel={bundle.funnel} breakdown={breakdown} segmented={segmented} />
+              <FunnelView funnel={bundle.funnel} breakdown={breakdown} filtered={filtered} />
             ) : tab === 'sources' ? (
               <SourcesView />
             ) : (
@@ -183,20 +260,23 @@ export function AnalyticsPage() {
 // ---------------------------------------------------------------------------
 // Executive view — KPI cards
 // ---------------------------------------------------------------------------
-function ExecView({ kpis }: { kpis: Kpi[] }) {
+function ExecView({ kpis, filtered }: { kpis: Kpi[]; filtered: boolean }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {kpis.map((k) => (
-        <KpiCard key={k.key} kpi={k} />
+        <KpiCard key={k.key} kpi={k} filtered={filtered} />
       ))}
     </div>
   )
 }
 
-function KpiCard({ kpi }: { kpi: Kpi }) {
+function KpiCard({ kpi, filtered }: { kpi: Kpi; filtered: boolean }) {
   const tone = classify(kpi, kpi.value)
   const valueColor = tone === 'warn' ? 'text-rust-500' : tone === 'good' ? 'text-sage-600' : 'text-ink'
-  const trend = trendDelta(kpi)
+  // Snapshots are stored at the all-time org level, so a trend delta is only
+  // meaningful for the unfiltered headline. Under a segment/date filter, suppress
+  // the comparison rather than show a misleading "vs last."
+  const trend = filtered ? null : trendDelta(kpi)
 
   return (
     <div className="card flex flex-col p-5">
@@ -214,7 +294,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
       {/* vs last period */}
       <div className="mt-1 flex h-5 items-center gap-1 text-xs">
         {trend == null ? (
-          <span className="text-muted">No prior snapshot</span>
+          <span className="text-muted">{filtered ? 'Filtered view — no trend' : 'No prior snapshot'}</span>
         ) : trend.delta === 0 ? (
           <span className="flex items-center gap-1 text-muted">
             <Minus size={12} /> Flat vs last
@@ -247,11 +327,11 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
 function FunnelView({
   funnel,
   breakdown,
-  segmented,
+  filtered,
 }: {
   funnel: FunnelStage[]
   breakdown: AnalyticsData | null
-  segmented: boolean
+  filtered: boolean
 }) {
   const chartData = funnel.map((s) => ({ stage: s.label, count: s.count }))
   return (
@@ -310,7 +390,7 @@ function FunnelView({
       {breakdown && (
         <>
           <div className="text-xs font-medium uppercase tracking-wide text-muted">
-            Org-wide breakdown{segmented ? ' (not segment-filtered)' : ''}
+            Org-wide breakdown{filtered ? ' (not filtered by segment or date)' : ''}
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="p-5">
