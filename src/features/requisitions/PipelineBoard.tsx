@@ -10,10 +10,12 @@ import {
   closestCorners,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { GripVertical, Plus, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { GripVertical, Plus, Sparkles, ChevronDown, ChevronUp, ClipboardCheck } from 'lucide-react'
 import { Button, Select, Modal, useToast } from '../../components/primitives'
 import { Spinner } from '../../components/ui'
 import { MatchCard } from '../screening/MatchCard'
+import { ScorecardModal } from './ScorecardModal'
+import { hasSubmittedScorecard } from '../../lib/v2/scorecards'
 import { PlacementBadge } from './badges'
 import {
   listStages,
@@ -46,6 +48,9 @@ export function PipelineBoard({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkStage, setBulkStage] = useState('')
   const [adding, setAdding] = useState(false)
+  // When set, the scorecard modal is open. `toStageId` is the advance that's
+  // blocked pending a scorecard (null when scoring directly from a card).
+  const [scorecard, setScorecard] = useState<{ card: PipelineCard; toStageId: string | null } | null>(null)
   const reverting = useRef(false)
 
   const sensors = useSensors(
@@ -76,13 +81,7 @@ export function PipelineBoard({
     return map
   }, [cards, stages, firstStageId])
 
-  function onDragEnd(e: DragEndEvent) {
-    const appId = String(e.active.id)
-    const overId = e.over ? String(e.over.id) : null
-    if (!overId) return
-    const card = cards.find((c) => c.application.id === appId)
-    if (!card || card.stageId === overId) return
-    const prevStage = card.stageId
+  function commitMove(appId: string, overId: string, prevStage: string | null) {
     setCards((cs) => cs.map((c) => (c.application.id === appId ? { ...c, stageId: overId, daysInStage: 0 } : c))) // optimistic
     moveStage(appId, overId).then(({ error }) => {
       if (error) {
@@ -93,6 +92,26 @@ export function PipelineBoard({
         onChanged?.()
       }
     })
+  }
+
+  async function onDragEnd(e: DragEndEvent) {
+    const appId = String(e.active.id)
+    const overId = e.over ? String(e.over.id) : null
+    if (!overId) return
+    const card = cards.find((c) => c.application.id === appId)
+    if (!card || card.stageId === overId) return
+    const fromStage = stages.find((s) => s.id === card.stageId)
+    const toStage = stages.find((s) => s.id === overId)
+    // Gate: advancing out of an interview stage (or into the offer stage) requires
+    // a completed scorecard. Block, prompt, then auto-advance once submitted.
+    const advancing = !!fromStage && !!toStage && toStage.sort_order > fromStage.sort_order
+    const needsScorecard = advancing && (fromStage?.stage_type === 'interview' || toStage?.stage_type === 'offer')
+    if (needsScorecard && !(await hasSubmittedScorecard(appId))) {
+      toast({ tone: 'error', title: 'Scorecard required', description: 'Submit an interview scorecard before advancing this candidate.' })
+      setScorecard({ card, toStageId: overId })
+      return
+    }
+    commitMove(appId, overId, card.stageId)
   }
 
   function toggle(id: string) {
@@ -194,7 +213,13 @@ export function PipelineBoard({
           {stages.map((stage) => (
             <StageColumn key={stage.id} stage={stage} count={byStage.get(stage.id)?.length ?? 0}>
               {(byStage.get(stage.id) ?? []).map((card) => (
-                <CandidateCard key={card.application.id} card={card} selected={selected.has(card.application.id)} onToggle={() => toggle(card.application.id)} />
+                <CandidateCard
+                  key={card.application.id}
+                  card={card}
+                  selected={selected.has(card.application.id)}
+                  onToggle={() => toggle(card.application.id)}
+                  onScore={() => setScorecard({ card, toStageId: null })}
+                />
               ))}
             </StageColumn>
           ))}
@@ -211,6 +236,22 @@ export function PipelineBoard({
           onAdded={() => {
             setAdding(false)
             reload()
+            onChanged?.()
+          }}
+        />
+      )}
+
+      {scorecard && (
+        <ScorecardModal
+          applicationId={scorecard.card.application.id}
+          candidateName={scorecard.card.candidate.full_name}
+          roleContext={{ role_family: roleFamily }}
+          onClose={() => setScorecard(null)}
+          onSubmitted={() => {
+            const pending = scorecard
+            setScorecard(null)
+            if (pending?.toStageId) commitMove(pending.card.application.id, pending.toStageId, pending.card.stageId)
+            else reload()
             onChanged?.()
           }}
         />
@@ -304,7 +345,7 @@ function StageColumn({ stage, count, children }: { stage: PipelineStage; count: 
   )
 }
 
-function CandidateCard({ card, selected, onToggle }: { card: PipelineCard; selected: boolean; onToggle: () => void }) {
+function CandidateCard({ card, selected, onToggle, onScore }: { card: PipelineCard; selected: boolean; onToggle: () => void; onScore: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.application.id })
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined
   const rejected = card.application.status === 'rejected'
@@ -348,16 +389,27 @@ function CandidateCard({ card, selected, onToggle }: { card: PipelineCard; selec
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setShowMatch((v) => !v)}
-        aria-expanded={showMatch}
-        className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-line py-1 text-[11px] font-medium text-muted hover:bg-brand-50 hover:text-ink"
-      >
-        <Sparkles size={12} className="text-sage-600" />
-        AI match
-        {showMatch ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-      </button>
+      <div className="mt-2 flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => setShowMatch((v) => !v)}
+          aria-expanded={showMatch}
+          className="flex flex-1 items-center justify-center gap-1 rounded-md border border-line py-1 text-[11px] font-medium text-muted hover:bg-brand-50 hover:text-ink"
+        >
+          <Sparkles size={12} className="text-sage-600" />
+          AI match
+          {showMatch ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+        <button
+          type="button"
+          onClick={onScore}
+          title="Interview scorecard"
+          className="flex items-center justify-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-muted hover:bg-brand-50 hover:text-ink"
+        >
+          <ClipboardCheck size={12} className="text-sage-600" />
+          Scorecard
+        </button>
+      </div>
       {showMatch && (
         <div className="mt-2">
           <MatchCard applicationId={card.application.id} />
