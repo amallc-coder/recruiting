@@ -329,11 +329,29 @@ function ScreeningDetail({ row, onClose, onChanged, onDeleted }: { row: Screenin
 
         {row.status === 'analyzed' && row.ai_summary && (
           <div className="rounded-lg border border-line bg-sage-50/40 p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-semibold text-ink">AI readout</span>
-              {row.ai_score != null && <Badge tone="sage">Fit {row.ai_score}/100</Badge>}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {row.ai_score != null && <Badge tone="sage">Fit {row.ai_score}/100</Badge>}
+                {row.sentiment_label && (
+                  <Badge tone={row.sentiment_label === 'positive' ? 'sage' : row.sentiment_label === 'negative' ? 'rust' : 'clay'}>
+                    {row.sentiment_label}
+                    {row.sentiment_score != null ? ` ${row.sentiment_score}` : ''}
+                  </Badge>
+                )}
+              </div>
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-ink/90">{row.ai_summary}</p>
+            {row.recording_url && (
+              <a
+                href={row.recording_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
+              >
+                ▶ Listen to recording
+              </a>
+            )}
             {flags.length > 0 && (
               <ul className="mt-2 space-y-1">
                 {flags.map((f, i) => (
