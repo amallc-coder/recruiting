@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, LayoutGrid, Table as TableIcon, Save, Trash2, ArrowUpDown } from 'lucide-react'
-import { Button, Card, Input, Select, Table, THead, TBody, Tr, Th, Td, Badge } from '../../components/primitives'
+import { Button, Card, Input, Select, MultiSelect, Table, THead, TBody, Tr, Th, Td, Badge } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { ReqStatusBadge } from './badges'
 import { RequisitionForm } from './RequisitionForm'
@@ -34,7 +34,7 @@ function persistSaved(list: SavedFilter[]) {
   localStorage.setItem(SAVED_KEY, JSON.stringify(list))
 }
 
-const EMPTY_FILTERS: ReqFilters = { status: 'all', facilityId: 'all', roleFamily: 'all', managerId: 'all', specialty: '', search: '', maxAgeDays: null }
+const EMPTY_FILTERS: ReqFilters = { statuses: [], facilityIds: [], roleFamilies: [], managerIds: [], specialty: '', search: '', maxAgeDays: null }
 
 type SortKey = 'title' | 'facility' | 'status' | 'age' | 'candidates'
 
@@ -143,38 +143,34 @@ export function RequisitionsPage() {
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <Input label="Search" value={filters.search ?? ''} onChange={(e) => setFilter('search', e.target.value)} placeholder="Title or specialty" />
-          <Select label="Status" value={filters.status ?? 'all'} onChange={(e) => setFilter('status', e.target.value as RequisitionStatus | 'all')}>
-            <option value="all">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
-              </option>
-            ))}
-          </Select>
-          <Select label="Facility" value={filters.facilityId ?? 'all'} onChange={(e) => setFilter('facilityId', e.target.value)}>
-            <option value="all">All facilities</option>
-            {facilities.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </Select>
-          <Select label="Role family" value={filters.roleFamily ?? 'all'} onChange={(e) => setFilter('roleFamily', e.target.value)}>
-            <option value="all">All roles</option>
-            {roleFamilies.map((rf) => (
-              <option key={rf.code} value={rf.code}>
-                {rf.code}
-              </option>
-            ))}
-          </Select>
-          <Select label="Hiring manager" value={filters.managerId ?? 'all'} onChange={(e) => setFilter('managerId', e.target.value)}>
-            <option value="all">Any manager</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name}
-              </option>
-            ))}
-          </Select>
+          <MultiSelect
+            label="Status"
+            placeholder="All statuses"
+            value={filters.statuses ?? []}
+            onChange={(v) => setFilter('statuses', v as RequisitionStatus[])}
+            options={STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))}
+          />
+          <MultiSelect
+            label="Facility"
+            placeholder="All facilities"
+            value={filters.facilityIds ?? []}
+            onChange={(v) => setFilter('facilityIds', v)}
+            options={facilities.map((f) => ({ value: f.id, label: f.name }))}
+          />
+          <MultiSelect
+            label="Role family"
+            placeholder="All roles"
+            value={filters.roleFamilies ?? []}
+            onChange={(v) => setFilter('roleFamilies', v)}
+            options={roleFamilies.map((rf) => ({ value: rf.code, label: rf.code }))}
+          />
+          <MultiSelect
+            label="Hiring manager"
+            placeholder="Any manager"
+            value={filters.managerIds ?? []}
+            onChange={(v) => setFilter('managerIds', v)}
+            options={users.map((u) => ({ value: u.id, label: u.full_name }))}
+          />
           <Select label="Age" value={filters.maxAgeDays == null ? 'any' : String(filters.maxAgeDays)} onChange={(e) => setFilter('maxAgeDays', e.target.value === 'any' ? null : Number(e.target.value))}>
             <option value="any">Any age</option>
             <option value="7">≤ 7 days</option>

@@ -21,6 +21,8 @@ import {
   LogOut,
   Menu,
   X,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -80,15 +82,26 @@ function initials(name?: string | null, email?: string | null): string {
   return src.slice(0, 2).toUpperCase()
 }
 
-const navItemClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-    isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'
-  }`
+function navItem(isActive: boolean, collapsed: boolean) {
+  return `flex items-center rounded-md text-sm font-medium transition-colors ${
+    collapsed ? 'justify-center px-2 py-2' : 'gap-2.5 px-3 py-2'
+  } ${isActive ? 'bg-ink text-paper' : 'text-muted hover:bg-brand-50 hover:text-ink'}`
+}
+
+const NAV_COLLAPSED_KEY = 'clinilytics.nav.collapsed'
 
 export function Layout() {
   const { profile, isAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(NAV_COLLAPSED_KEY) === '1')
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c
+      localStorage.setItem(NAV_COLLAPSED_KEY, next ? '1' : '0')
+      return next
+    })
+  }
 
   async function handleSignOut() {
     await signOut()
@@ -130,23 +143,41 @@ export function Layout() {
     ...(!demoMode && !useV2 ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
   ]
 
-  // Nav body shared by the desktop sidebar and the mobile drawer.
-  const renderNav = (onNavigate?: () => void) => (
+  // Nav body shared by the desktop sidebar and the mobile drawer. When
+  // `collapsed`, render icon-only with tooltips (desktop rail).
+  const renderNav = (onNavigate?: () => void, collapsed = false) => (
     <>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
         {tabs.map(({ to, label, end, icon: Icon }) => (
-          <NavLink key={to} to={to} end={end} onClick={onNavigate} className={navItemClass}>
-            <Icon size={16} aria-hidden /> {label}
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            onClick={onNavigate}
+            title={collapsed ? label : undefined}
+            className={({ isActive }) => navItem(isActive, collapsed)}
+          >
+            <Icon size={16} aria-hidden /> {!collapsed && label}
           </NavLink>
         ))}
         {isAdmin && (
           <div className="pt-4">
-            <div className="px-3 pb-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-muted">
-              Admin
-            </div>
+            {collapsed ? (
+              <div className="mx-2 mb-1 border-t border-line" />
+            ) : (
+              <div className="px-3 pb-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-muted">
+                Admin
+              </div>
+            )}
             {adminLinks.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} onClick={onNavigate} className={navItemClass}>
-                <Icon size={16} aria-hidden /> {label}
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onNavigate}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) => navItem(isActive, collapsed)}
+              >
+                <Icon size={16} aria-hidden /> {!collapsed && label}
               </NavLink>
             ))}
           </div>
@@ -154,18 +185,39 @@ export function Layout() {
       </nav>
 
       <div className="mt-auto border-t border-line p-3">
-        <div className="flex items-center gap-2.5 px-1 py-1">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-ink">
-            {initials(profile?.full_name, profile?.email)}
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <div
+              title={`${profile?.full_name || profile?.email} · ${roleLabel(profile?.role)}`}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-ink"
+            >
+              {initials(profile?.full_name, profile?.email)}
+            </div>
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              aria-label="Sign out"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-line text-muted hover:bg-brand-50 hover:text-ink"
+            >
+              <LogOut size={15} />
+            </button>
           </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-ink">{profile?.full_name || profile?.email}</div>
-            <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{roleLabel(profile?.role)}</div>
-          </div>
-        </div>
-        <button onClick={handleSignOut} className="btn-secondary mt-2 w-full justify-center py-1.5">
-          <LogOut size={15} /> Sign out
-        </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 px-1 py-1">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-ink">
+                {initials(profile?.full_name, profile?.email)}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-ink">{profile?.full_name || profile?.email}</div>
+                <div className="font-mono text-[10px] uppercase tracking-wider text-muted">{roleLabel(profile?.role)}</div>
+              </div>
+            </div>
+            <button onClick={handleSignOut} className="btn-secondary mt-2 w-full justify-center py-1.5">
+              <LogOut size={15} /> Sign out
+            </button>
+          </>
+        )}
       </div>
     </>
   )
@@ -175,12 +227,24 @@ export function Layout() {
       <DemoBanner />
 
       <div className="flex flex-1">
-        {/* ── Left nav (desktop) ── */}
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface md:flex">
-          <div className="flex h-12 items-center border-b border-line px-4">
-            <Wordmark />
+        {/* ── Left nav (desktop) — collapsible to an icon rail ── */}
+        <aside
+          className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200 md:flex ${
+            collapsed ? 'w-16' : 'w-60'
+          }`}
+        >
+          <div className={`flex h-12 items-center border-b border-line ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
+            {!collapsed && <Wordmark />}
+            <button
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-brand-50 hover:text-ink"
+            >
+              {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+            </button>
           </div>
-          {renderNav()}
+          {renderNav(undefined, collapsed)}
         </aside>
 
         {/* ── Left nav (mobile drawer) ── */}

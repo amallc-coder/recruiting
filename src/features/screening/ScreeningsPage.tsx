@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Phone, MessageSquare, Sparkles, CalendarClock } from 'lucide-react'
-import { Button, Card, Badge, Select, Modal, useToast } from '../../components/primitives'
+import { Button, Card, Badge, Select, MultiSelect, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import { demoMode } from '../../lib/supabase'
@@ -36,7 +36,7 @@ const STATUSES: ScreeningStatus[] = ['draft', 'approved', 'sent', 'completed', '
 export function ScreeningsPage() {
   const [rows, setRows] = useState<ScreeningRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | ScreeningStatus>('all')
+  const [statuses, setStatuses] = useState<ScreeningStatus[]>([])
   const [creating, setCreating] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -49,7 +49,7 @@ export function ScreeningsPage() {
   }
   useEffect(load, [])
 
-  const visible = useMemo(() => (filter === 'all' ? rows : rows.filter((r) => r.status === filter)), [rows, filter])
+  const visible = useMemo(() => (statuses.length === 0 ? rows : rows.filter((r) => statuses.includes(r.status))), [rows, statuses])
   const counts = useMemo(() => {
     const analyzed = rows.filter((r) => r.status === 'analyzed')
     const avg = analyzed.length ? Math.round(analyzed.reduce((s, r) => s + (r.ai_score ?? 0), 0) / analyzed.length) : null
@@ -81,10 +81,11 @@ export function ScreeningsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs uppercase tracking-wide text-muted">Status</span>
         <div className="w-44">
-          <Select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as 'all' | ScreeningStatus)}
-            options={[{ value: 'all', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: s }))]}
+          <MultiSelect
+            value={statuses}
+            onChange={(v) => setStatuses(v as ScreeningStatus[])}
+            options={STATUSES.map((s) => ({ value: s, label: s }))}
+            placeholder="All statuses"
           />
         </div>
       </div>
