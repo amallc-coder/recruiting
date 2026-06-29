@@ -6,6 +6,7 @@ import {
   listPublicRequisitions,
   applyToRequisition,
   salaryLabel,
+  prescreenFor,
   type PublicReq,
 } from '../../lib/v2/careers'
 
@@ -106,19 +107,26 @@ function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
 
 function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
   const { toast } = useToast()
+  const questions = prescreenFor(req)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [linkedin, setLinkedin] = useState('')
   const [resumeText, setResumeText] = useState('')
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
 
-  const canSubmit = fullName.trim().length > 0 && email.trim().length > 0
+  const allAnswered = questions.every((q) => (answers[q.id] ?? '').trim().length > 0)
+  const canSubmit = fullName.trim().length > 0 && email.trim().length > 0 && allAnswered
 
   async function submit() {
-    if (!canSubmit) {
+    if (fullName.trim().length === 0 || email.trim().length === 0) {
       toast({ tone: 'error', title: 'Name and email are required' })
+      return
+    }
+    if (!allAnswered) {
+      toast({ tone: 'error', title: 'Please answer all screening questions' })
       return
     }
     setSubmitting(true)
@@ -129,6 +137,7 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
       phone: phone.trim() || undefined,
       resume_text: resumeText.trim() || undefined,
       intake: { linkedin: linkedin.trim() },
+      screening: questions.map((q) => ({ question_id: q.id, question: q.question, answer: (answers[q.id] ?? '').trim() })),
     })
     setSubmitting(false)
     if (error) {
@@ -190,8 +199,29 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
             placeholder="Paste your resume or a short summary (optional)"
           />
         </div>
+
+        {/* Pre-application screening — answered as part of the application. */}
+        <div className="space-y-3 rounded-lg border border-line bg-paper/60 p-3">
+          <div className="text-sm font-semibold text-ink">Pre-application screening</div>
+          <p className="text-[11px] text-muted">A few quick questions so our recruiters can match you faster. All are required.</p>
+          {questions.map((q, i) => (
+            <div key={q.id}>
+              <label className="label">
+                {i + 1}. {q.question}
+              </label>
+              <textarea
+                className="input min-h-[64px]"
+                value={answers[q.id] ?? ''}
+                onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                placeholder="Your answer"
+              />
+            </div>
+          ))}
+        </div>
+
         <p className="text-[11px] text-muted">
-          By applying you consent to us storing your information for recruiting.
+          This application is assisted by AI screening and matching to help our recruiters review your
+          responses. By applying you consent to us storing your information for recruiting.
         </p>
       </div>
     </Modal>
