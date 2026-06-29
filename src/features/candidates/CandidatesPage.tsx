@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
-import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
+import { Button, Card, Badge, Input, Select, MultiSelect, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import {
@@ -33,27 +33,24 @@ const STATUS_TONE: Record<CandidateStatus, BadgeTone> = {
   archived: 'neutral',
 }
 
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All statuses' },
-  ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] })),
-]
+const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))
 
 export function CandidatesPage() {
   const { toast } = useToast()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<CandidateStatus | 'all'>('all')
+  const [statuses, setStatuses] = useState<CandidateStatus[]>([])
   const [editing, setEditing] = useState<Candidate | 'new' | null>(null)
 
   function load() {
     setLoading(true)
-    listCandidates({ search, status }).then((rows) => {
+    listCandidates({ search, statuses }).then((rows) => {
       setCandidates(rows)
       setLoading(false)
     })
   }
-  useEffect(load, [search, status])
+  useEffect(load, [search, statuses])
 
   const stats = useMemo(
     () => ({
@@ -101,10 +98,11 @@ export function CandidatesPage() {
           />
         </div>
         <div className="w-full sm:w-56">
-          <Select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as CandidateStatus | 'all')}
+          <MultiSelect
+            value={statuses}
+            onChange={(v) => setStatuses(v as CandidateStatus[])}
             options={STATUS_OPTIONS}
+            placeholder="All statuses"
           />
         </div>
       </div>

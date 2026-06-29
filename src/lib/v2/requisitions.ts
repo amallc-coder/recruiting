@@ -13,11 +13,12 @@ const REQ_SELECT =
   '*, facility:facilities(id,name,state,city), manager:users!requisitions_hiring_manager_id_fkey(id,full_name), applications(count)'
 
 export interface ReqFilters {
-  status?: RequisitionStatus | 'all'
-  facilityId?: string | 'all'
-  roleFamily?: string | 'all'
+  // Multi-select: empty/undefined array means "all".
+  statuses?: RequisitionStatus[]
+  facilityIds?: string[]
+  roleFamilies?: string[]
+  managerIds?: string[]
   specialty?: string
-  managerId?: string | 'all'
   maxAgeDays?: number | null
   search?: string
 }
@@ -41,10 +42,10 @@ export async function listRequisitions(f: ReqFilters = {}): Promise<RequisitionR
   // Paginate past the 1000-row cap so every requisition is listed; re-sort newest-first in JS.
   let rows = await fetchAll<RequisitionRow>('requisitions', REQ_SELECT, (q) => {
     let query = q
-    if (f.status && f.status !== 'all') query = query.eq('status', f.status)
-    if (f.facilityId && f.facilityId !== 'all') query = query.eq('facility_id', f.facilityId)
-    if (f.roleFamily && f.roleFamily !== 'all') query = query.eq('role_family', f.roleFamily)
-    if (f.managerId && f.managerId !== 'all') query = query.eq('hiring_manager_id', f.managerId)
+    if (f.statuses?.length) query = query.in('status', f.statuses)
+    if (f.facilityIds?.length) query = query.in('facility_id', f.facilityIds)
+    if (f.roleFamilies?.length) query = query.in('role_family', f.roleFamilies)
+    if (f.managerIds?.length) query = query.in('hiring_manager_id', f.managerIds)
     return query
   })
   rows = rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
