@@ -37,7 +37,7 @@ export interface ScreeningRow extends Screening {
 }
 
 const SELECT =
-  'id,org_id,candidate_id,requisition_id,application_id,recruiter_id,status,channel,questions,responses,ai_summary,ai_score,ai_flags,transcript,external_ref,created_at, candidate:candidates(id,full_name)'
+  'id,org_id,candidate_id,requisition_id,application_id,recruiter_id,status,channel,questions,responses,ai_summary,ai_score,ai_flags,sentiment_score,sentiment_label,recording_url,transcript,external_ref,created_at, candidate:candidates(id,full_name)'
 
 function qid() {
   return (crypto as { randomUUID?: () => string }).randomUUID?.() ?? 'q-' + Math.random().toString(36).slice(2)

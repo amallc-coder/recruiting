@@ -81,6 +81,10 @@ function systemPrompt(candidateName: string, jobTitle: string, questions: { ques
     `- Ask the questions below ONE AT A TIME, conversationally. Briefly acknowledge each answer before moving on.\n` +
     `- Do NOT ask about protected characteristics (age, marital/family status, health, religion, national origin).\n` +
     `- Keep it under ~8 minutes. If they're busy, offer to call back.\n` +
+    `Language:\n` +
+    `- If the candidate responds in another language (for example Spanish), switch to that language and ` +
+    `conduct the rest of the screening in their language, including the disclosure if you haven't given it yet. ` +
+    `Match the language they're most comfortable in.\n\n` +
     `Closing (do this before ending the call):\n` +
     `- Once you've gone through the questions, ASK: "Is there anything else you'd like me to pass along to ` +
     `the recruiter before I let you go?" and listen to their full answer.\n` +
@@ -172,6 +176,12 @@ Deno.serve(async (req: Request) => {
       firstMessage: `Hi, this is Jordan with American Medical Administrators. May I speak with ${cand.full_name?.split(' ')[0] || 'you'}?`,
       model: { provider: 'openai', model: 'gpt-4o', messages: [{ role: 'system', content: prompt }] },
       voice: { provider: VOICE_PROVIDER, voiceId: VOICE_ID },
+      // Multilingual transcription so the candidate can switch languages mid-call
+      // (Deepgram nova-2 'multi' auto-detects per utterance).
+      transcriber: { provider: 'deepgram', model: 'nova-2', language: 'multi' },
+      // Record the call so the recruiter can review it; the recording URL comes
+      // back on the end-of-call report and is stored on the screening.
+      artifactPlan: { recordingEnabled: true },
       endCallFunctionEnabled: true,
       // Wait for the candidate to fully finish before the agent speaks, and don't
       // let it barge in mid-sentence (fixes the "thank you for sharing" interrupts).

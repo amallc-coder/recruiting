@@ -154,6 +154,9 @@ export interface Screening {
   ai_summary: string | null
   ai_score: number | null
   ai_flags: unknown[]
+  sentiment_score: number | null
+  sentiment_label: string | null
+  recording_url: string | null
   transcript: string | null
   external_ref: string | null
   created_at: string
