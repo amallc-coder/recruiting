@@ -31,7 +31,7 @@ const POSTURE_BADGE: Record<PostureStatus, { label: string; cls: string; Icon: t
 const CONTROLS: { framework: string; control: string; how: string; status: PostureStatus }[] = [
   { framework: 'EU AI Act', control: 'Human oversight (Art. 14)', how: 'Prohibited actions (offers, rejections, hires, pay) are never automated; approval-tier actions need an explicit click.', status: 'addressed' },
   { framework: 'EU AI Act', control: 'Record-keeping (Art. 12)', how: 'Every AI decision (ai_decisions) and agent action (audit_logs) is logged, timestamped, and attributable.', status: 'addressed' },
-  { framework: 'EU AI Act', control: 'Transparency (Art. 13)', how: 'Candidates are told AI assists screening; rationales are shown to recruiters.', status: 'partial' },
+  { framework: 'EU AI Act', control: 'Transparency (Art. 13)', how: 'The public application form discloses AI-assisted screening/matching; rationales are shown to recruiters.', status: 'addressed' },
   { framework: 'EU AI Act', control: 'Data governance (Art. 10)', how: 'RLS isolates data per org/region; only job-relevant PII is stored; no protected-class data collected.', status: 'addressed' },
   { framework: 'NYC LL144', control: 'Bias audit of AEDT', how: 'Selection-rate framework below; a full independent audit requires voluntary self-ID data not yet collected.', status: 'action' },
   { framework: 'NYC LL144', control: 'Candidate notice (≥10 days)', how: 'Served via the careers/application flow; the tool stays assistive (no automated hire/reject).', status: 'partial' },
