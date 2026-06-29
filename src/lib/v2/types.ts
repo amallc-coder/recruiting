@@ -72,6 +72,9 @@ export interface Candidate {
   source: string | null
   status: CandidateStatus
   tags: string[]
+  // Denormalized AI-screening context blended into matching (see screenings.ts).
+  screening_summary?: string | null
+  last_screened_at?: string | null
 }
 
 export interface Application {

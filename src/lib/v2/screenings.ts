@@ -199,7 +199,7 @@ function localAnalysis(screening: Pick<Screening, 'questions' | 'responses'>): S
   }
 }
 
-/** Persist the analysis on the screening (status → analyzed). */
+/** Persist the analysis on the screening (status → analyzed) + refresh matching context. */
 export async function completeAndAnalyze(screening: ScreeningRow, ctx: ScreenContext): Promise<{ analysis: ScreeningAnalysis; error: string | null }> {
   const analysis = await analyzeScreening(screening, ctx)
   const { error } = await updateScreening(screening.id, {
@@ -208,7 +208,30 @@ export async function completeAndAnalyze(screening: ScreeningRow, ctx: ScreenCon
     ai_score: analysis.score,
     ai_flags: analysis.flags as unknown[],
   })
+  if (!error) await refreshCandidateContext(screening.candidate_id)
   return { analysis, error }
+}
+
+/**
+ * Rebuild candidates.screening_summary from the candidate's analyzed screenings.
+ * This is the single place AI-screening output is folded into matching context,
+ * so everything learned in screening sharpens a candidate's job matches.
+ */
+export async function refreshCandidateContext(candidateId: string): Promise<void> {
+  const { data } = await v2
+    .from('screenings')
+    .select('status,ai_summary,ai_score,completed_at,updated_at')
+    .eq('candidate_id', candidateId)
+    .order('created_at', { ascending: false })
+  const rows = (data as { status: string; ai_summary: string | null; ai_score: number | null; completed_at: string | null; updated_at: string | null }[]) ?? []
+  const analyzed = rows.filter((s) => s.status === 'analyzed' && s.ai_summary)
+  const summary = analyzed
+    .slice(0, 3)
+    .map((s) => `[Screening${s.ai_score != null ? ` · fit ${s.ai_score}/100` : ''}] ${s.ai_summary}`)
+    .join('\n\n')
+    .slice(0, 6000)
+  const lastAt = analyzed[0]?.completed_at ?? analyzed[0]?.updated_at ?? null
+  await v2.from('candidates').update({ screening_summary: summary || null, last_screened_at: lastAt }).eq('id', candidateId)
 }
 
 /** Place an agentic voice/SMS screening call via the vapi-call edge function. */

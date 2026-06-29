@@ -56,8 +56,10 @@ The org-only RLS regression is fixed in `05_region_isolation.sql` +
 ## Apply order (v2 SQL files)
 `01_schema` → `02_rls` → `03_placement_ready` → `05_region_isolation` →
 `06_feature_homes` → `07_feature_rls` → `08_region_write_policies` →
-`09_hardening` → `04_seed` (seed last; dev/test only). All branch-validated to
-apply cleanly in this order.
+`09_hardening` → `11_screening_context` → `04_seed` (seed last; dev/test only).
+`10_migrate_from_legacy` runs at cutover (Phase 4), reading the renamed `legacy`
+schema. 01–09 branch-validated to apply cleanly in order; 11 is two additive
+columns.
 
 ## Phases
 
