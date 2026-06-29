@@ -38,6 +38,7 @@ import { SourcingPage } from './features/sourcing'
 import { ConsolePage } from './features/console'
 import { AutopilotPage } from './features/autopilot'
 import { GovernancePage } from './features/governance'
+import { TemplatesPage } from './features/templates'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
                 <Route path="/sourcing" element={<SourcingPage />} />
+                <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/autopilot" element={<AutopilotPage />} />
                 <Route path="/console" element={<ConsolePage />} />
                 <Route path="/screening" element={<ScreeningsPage />} />
