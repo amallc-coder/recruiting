@@ -180,6 +180,9 @@ export interface Offer {
   start_date: string | null
   status: OfferStatus
   decline_reason: string | null
+  approved_by: string | null
+  approved_at: string | null
+  signed_url: string | null
   sent_at: string | null
   created_at: string
 }

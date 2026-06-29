@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, TrendingUp, Sparkles, ExternalLink, ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, Sparkles, ExternalLink, ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Circle, FileText, ShieldCheck, Copy, Download } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
@@ -7,6 +7,9 @@ import {
   listOffers,
   createOffer,
   setOfferStatus,
+  approveOffer,
+  setSignedUrl,
+  renderOfferLetter,
   deleteOffer,
   money,
   type OfferRow,
@@ -34,6 +37,7 @@ export function OffersPage() {
   // Onboarding checklist: which accepted offer is expanded, and its tasks.
   const [openOnb, setOpenOnb] = useState<string | null>(null)
   const [tasks, setTasks] = useState<OnboardingTask[]>([])
+  const [letterFor, setLetterFor] = useState<OfferRow | null>(null)
 
   function load() {
     setLoading(true)
@@ -88,6 +92,15 @@ export function OffersPage() {
     load()
   }
 
+  async function approve(o: OfferRow) {
+    const { error } = await approveOffer(o.id)
+    if (error) toast({ tone: 'error', title: 'Approval failed', description: error })
+    else {
+      toast({ tone: 'success', title: 'Offer approved' })
+      load()
+    }
+  }
+
   async function remove(id: string) {
     const { error } = await deleteOffer(id)
     if (error) toast({ tone: 'error', title: 'Delete failed', description: error })
@@ -133,8 +146,21 @@ export function OffersPage() {
                   {o.start_date && <span className="text-xs text-muted">Starts {o.start_date}</span>}
                 </div>
                 <div className="inline-flex items-center gap-1">
+                  {o.approved_at && (
+                    <Badge tone="sage">
+                      <ShieldCheck size={11} className="mr-0.5 inline" /> approved
+                    </Badge>
+                  )}
+                  <Button size="sm" variant="ghost" leftIcon={<FileText size={14} />} onClick={() => setLetterFor(o)}>
+                    Letter
+                  </Button>
+                  {o.status === 'pending' && !o.approved_at && (
+                    <Button size="sm" variant="secondary" leftIcon={<ShieldCheck size={14} />} onClick={() => approve(o)}>
+                      Approve
+                    </Button>
+                  )}
                   {o.status === 'pending' && (
-                    <Button size="sm" variant="secondary" onClick={() => changeStatus(o, 'sent')}>
+                    <Button size="sm" variant="secondary" disabled={!o.approved_at} title={o.approved_at ? undefined : 'Approve the offer before sending'} onClick={() => changeStatus(o, 'sent')}>
                       Send
                     </Button>
                   )}
@@ -179,7 +205,98 @@ export function OffersPage() {
           }}
         />
       )}
+
+      {letterFor && (
+        <OfferLetterModal
+          offer={letterFor}
+          onClose={() => setLetterFor(null)}
+          onSaved={() => {
+            setLetterFor(null)
+            load()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function OfferLetterModal({ offer, onClose, onSaved }: { offer: OfferRow; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast()
+  const letter = renderOfferLetter(offer)
+  const [signUrl, setSignUrl] = useState(offer.signed_url ?? '')
+  const [saving, setSaving] = useState(false)
+
+  function copy() {
+    navigator.clipboard?.writeText(letter)
+    toast({ tone: 'success', title: 'Letter copied' })
+  }
+  function download() {
+    const blob = new Blob([letter], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `offer-${(offer.candidate?.full_name ?? 'candidate').replace(/\s+/g, '-').toLowerCase()}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  async function saveSignUrl() {
+    setSaving(true)
+    const { error } = await setSignedUrl(offer.id, signUrl)
+    setSaving(false)
+    if (error) toast({ tone: 'error', title: 'Save failed', description: error })
+    else {
+      toast({ tone: 'success', title: 'E-signature link saved' })
+      onSaved()
+    }
+  }
+
+  return (
+    <Modal
+      title={`Offer letter — ${offer.candidate?.full_name ?? 'Candidate'}`}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" leftIcon={<Copy size={14} />} onClick={copy}>
+            Copy
+          </Button>
+          <Button size="sm" leftIcon={<Download size={14} />} onClick={download}>
+            Download .txt
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <pre className="max-h-[40vh] overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-paper/60 p-4 font-mono text-xs text-ink">
+          {letter}
+        </pre>
+
+        <div className="rounded-lg border border-line p-3">
+          <div className="mb-1 text-sm font-semibold text-ink">E-signature</div>
+          <p className="mb-2 text-xs text-muted">
+            Send for signature through your e-sign provider (e.g. DocuSign), then paste the signing/return
+            URL here to track it on the offer. Automated DocuSign send requires connecting DocuSign under
+            Integrations (credentials pending).
+          </p>
+          <div className="flex items-end gap-2">
+            <Input
+              label="Signing URL"
+              value={signUrl}
+              onChange={(e) => setSignUrl(e.target.value)}
+              placeholder="https://… (paste from your e-sign provider)"
+            />
+            <Button size="sm" loading={saving} onClick={saveSignUrl}>
+              Save
+            </Button>
+          </div>
+          {offer.signed_url && (
+            <a href={offer.signed_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
+              <ExternalLink size={11} /> Open current signing link
+            </a>
+          )}
+        </div>
+      </div>
+    </Modal>
   )
 }
 
