@@ -154,13 +154,17 @@ old-only data with no v2 home (per decision A).
   verified).
 - **Phase 3 DONE:** entire frontend ported onto v2 behind `v2IsBranch`; full
   typecheck + production build green.
-- **All build work is done.** Frontend ported, edge functions re-pointed, schema
-  + migration authored and branch-validated.
-- **Next: Phase 4 (gated)** — the only prod-touching step, run in one window:
-  freeze writes → **full backup** → rename old `public`→`legacy` + apply v2
-  `01–09,11` → run `10_migrate_from_legacy` → deploy frontend with
-  `VITE_V2_LIVE=true` + deploy the 3 edge functions → smoke-test (acceptance +
-  region isolation + row counts) → lift freeze. Rollback = restore backup +
-  redeploy the prior build.
-- Nothing applied to prod. Phase 4 runs only with an explicit go-ahead + a fresh
-  backup.
+- **Phase 4 EXECUTED on prod — 2026-06-29 (go-live).** Old 23 tables moved to a
+  `legacy` schema (preserved as rollback, not dropped); v2 `01–09,11` applied to
+  `public`; `10_migrate_from_legacy` run. Verified: **1,367/1,367 candidates, 0
+  orphans**; 1,367 applications (789 active / 576 hired / 2 rejected); 313
+  requisitions; 71 facilities; 17 users; 8 role families; 48 stages. `vapi-call`
+  (v8) + `vapi-webhook` (v7) deployed to v2. Frontend deployed via PR #33 merge
+  with `VITE_V2_LIVE=true`.
+- **Rollback:** set `VITE_V2_LIVE=false` + revert the merge; move `legacy.*`
+  tables back to `public` (and drop the v2 tables).
+- **Post-go-live follow-ups:** define `facility_credential_requirements` so
+  placement-ready reflects real credentialing (currently everyone is trivially
+  ready — no requirements yet); assign `recruiter_regions` to grant recruiters
+  territory visibility beyond their own candidates; once stable, drop the
+  `legacy` schema.
