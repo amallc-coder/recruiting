@@ -36,7 +36,7 @@ import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
-import { v2IsBranch } from './lib/v2/client'
+import { useV2 } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
 export default function App() {
@@ -47,8 +47,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Public career page — no authentication required. Swaps to v2 intake. */}
-          <Route path="/careers" element={v2IsBranch ? <V2Careers /> : <Careers />} />
-          <Route path="/careers/:slug" element={v2IsBranch ? <V2Careers /> : <Careers />} />
+          <Route path="/careers" element={useV2 ? <V2Careers /> : <Careers />} />
+          <Route path="/careers/:slug" element={useV2 ? <V2Careers /> : <Careers />} />
           <Route
             element={
               <ProtectedRoute>
@@ -56,18 +56,18 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={v2IsBranch ? <V2Dashboard /> : <Dashboard />} />
-            <Route path="/facilities" element={v2IsBranch ? <V2Facilities /> : <Facilities />} />
+            <Route path="/" element={useV2 ? <V2Dashboard /> : <Dashboard />} />
+            <Route path="/facilities" element={useV2 ? <V2Facilities /> : <Facilities />} />
             {/* FacilityDetail is still old-schema; unreachable from the v2 facilities nav. */}
             <Route path="/facilities/:id" element={<FacilityDetail />} />
-            <Route path="/candidates" element={v2IsBranch ? <V2Candidates /> : <Candidates />} />
+            <Route path="/candidates" element={useV2 ? <V2Candidates /> : <Candidates />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
-            <Route path="/analytics" element={v2IsBranch ? <V2Analytics /> : <Analytics />} />
-            <Route path="/matching" element={v2IsBranch ? <V2Matching /> : <Matching />} />
+            <Route path="/analytics" element={useV2 ? <V2Analytics /> : <Analytics />} />
+            <Route path="/matching" element={useV2 ? <V2Matching /> : <Matching />} />
             {/* Positions swaps to the v2 catalog when pointed at a v2 branch. */}
-            <Route path="/positions" element={v2IsBranch ? <V2Positions /> : <Positions />} />
-            {v2IsBranch && (
+            <Route path="/positions" element={useV2 ? <V2Positions /> : <Positions />} />
+            {useV2 && (
               <>
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
@@ -82,7 +82,7 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading importer…</div>}>
-                    {v2IsBranch ? <V2Import /> : <Import />}
+                    {useV2 ? <V2Import /> : <Import />}
                   </Suspense>
                 </ProtectedRoute>
               }
@@ -91,7 +91,7 @@ export default function App() {
               path="/integrations"
               element={
                 <ProtectedRoute adminOnly>
-                  {v2IsBranch ? <V2Integrations /> : <Integrations />}
+                  {useV2 ? <V2Integrations /> : <Integrations />}
                 </ProtectedRoute>
               }
             />

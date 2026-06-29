@@ -98,7 +98,9 @@ columns.
 1. Announce a maintenance window; freeze writes.
 2. **Full DB backup** (Supabase PITR / snapshot) — the rollback anchor.
 3. Run the migration `public → v2` on prod (in a transaction where possible).
-4. Deploy the v2 frontend; flip config to point at v2.
+4. Deploy the v2 frontend with **`VITE_V2_LIVE=true`** — this flips every page to
+   its v2 version against the main (now-migrated) client. No separate branch URL
+   is needed in prod; `useV2` (src/lib/v2/client.ts) is the single switch.
 5. Smoke-test the acceptance flows; spot-check region isolation + row counts.
 6. Lift the freeze. Monitor.
 - **Rollback:** restore the backup + redeploy the previous frontend build.
