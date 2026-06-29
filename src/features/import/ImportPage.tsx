@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Upload, FileSpreadsheet, CheckCircle2 } from 'lucide-react'
+import { Upload, FileSpreadsheet, CheckCircle2, Cloud, RefreshCw } from 'lucide-react'
 import { Button, Card, Select, Input, useToast } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import {
@@ -10,6 +10,7 @@ import {
   type FieldMap,
   type ImportResult,
 } from '../../lib/v2/import'
+import { syncSharePoint } from '../../lib/v2/sharepoint'
 
 const PREVIEW_ROWS = 8
 
@@ -131,6 +132,8 @@ export function ImportPage() {
           pool. Rows with a new email create a new candidate.
         </p>
       </div>
+
+      <SharePointSync />
 
       {/* Step 1 — file upload */}
       <Card className="p-5">
@@ -280,5 +283,44 @@ export function ImportPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Pull candidates (incl. résumé text) from the team's SharePoint workbook via the
+// admin-only sync-sharepoint edge function. Dormant until its Graph secrets are
+// set — the function returns a clear "not configured" message we surface here.
+function SharePointSync() {
+  const { toast } = useToast()
+  const [syncing, setSyncing] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  async function run() {
+    setSyncing(true)
+    setNote(null)
+    const res = await syncSharePoint()
+    setSyncing(false)
+    if (!res.ok) {
+      setNote(res.error ?? 'Sync failed.')
+      toast({ tone: 'error', title: 'SharePoint sync', description: res.error ?? 'Sync failed.' })
+      return
+    }
+    const summary = `${res.updated ?? 0} enriched · ${res.added ?? 0} added · ${res.skipped ?? 0} skipped`
+    setNote(res.note ? res.note : summary)
+    toast({ tone: 'success', title: 'SharePoint sync complete', description: summary })
+  }
+
+  return (
+    <Card className="flex flex-wrap items-center gap-3 p-5">
+      <Cloud size={18} className="shrink-0 text-muted" />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-ink">Pull from SharePoint</div>
+        <div className="text-xs text-muted">
+          {note ?? 'Sync candidates and résumé text from the configured SharePoint workbook via Microsoft Graph.'}
+        </div>
+      </div>
+      <Button variant="secondary" loading={syncing} leftIcon={<RefreshCw size={15} />} onClick={run}>
+        {syncing ? 'Syncing…' : 'Sync now'}
+      </Button>
+    </Card>
   )
 }
