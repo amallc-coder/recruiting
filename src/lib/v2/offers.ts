@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type { Offer, OfferStatus } from './types'
 
@@ -11,8 +11,9 @@ const OFFER_SELECT =
 
 /** All offers, newest first, with the candidate's name joined for display. */
 export async function listOffers(): Promise<OfferRow[]> {
-  const { data } = await v2.from('offers').select(OFFER_SELECT).order('created_at', { ascending: false })
-  return (data as unknown as OfferRow[]) ?? []
+  // Paginate past the 1000-row cap so every offer shows; re-sort newest-first in JS.
+  const rows = await fetchAll<OfferRow>('offers', OFFER_SELECT)
+  return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
 }
 
 export interface OfferInput {

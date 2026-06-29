@@ -117,7 +117,11 @@ Deno.serve(async (req: Request) => {
     const text = resp.content.find((b: { type: string }) => b.type === 'text')?.text ?? '{}'
     card = JSON.parse(text)
   } catch (e) {
-    return json({ error: String(e instanceof Error ? e.message : e) }, 500)
+    // Surface the real cause in the function logs — the HTTP body is masked as a
+    // generic "non-2xx" by supabase-js on the client side.
+    const msg = String(e instanceof Error ? e.message : e)
+    console.error('ai-match: Claude call failed:', msg)
+    return json({ error: msg }, 500)
   }
 
   // 3. Audit log → public.ai_decisions. The full structured card lives in

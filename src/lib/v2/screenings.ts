@@ -3,7 +3,7 @@
 // requisition_id/org_id instead of job_id) and the v2 Supabase client. AI calls
 // go through the `ai-screen` / `vapi-call` edge functions when available, with a
 // transparent local fallback so the UI works on a branch / in demo.
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { demoMode } from '../supabase'
 import type { Screening, ScreeningStatus, ScreeningChannel } from './types'
 
@@ -44,10 +44,11 @@ function qid() {
 }
 
 export async function listScreenings(candidateId?: string): Promise<ScreeningRow[]> {
-  let q = v2.from('screenings').select(SELECT).order('created_at', { ascending: false })
-  if (candidateId) q = q.eq('candidate_id', candidateId)
-  const { data } = await q
-  return (data as unknown as ScreeningRow[]) ?? []
+  // Paginate past the 1000-row cap so every screening shows; re-sort newest-first in JS.
+  const rows = await fetchAll<ScreeningRow>('screenings', SELECT, (q) =>
+    candidateId ? q.eq('candidate_id', candidateId) : q,
+  )
+  return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
 }
 
 export async function getScreening(id: string): Promise<ScreeningRow | null> {
