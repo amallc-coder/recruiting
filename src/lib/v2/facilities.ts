@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 
 const FACILITY_SELECT = 'id,name,state,city,address,region,active'
@@ -15,8 +15,9 @@ export interface FacilityRow {
 
 /** All facilities for the org, alphabetical by name. */
 export async function listFacilities(): Promise<FacilityRow[]> {
-  const { data } = await v2.from('facilities').select(FACILITY_SELECT).order('name')
-  return (data as FacilityRow[]) ?? []
+  // Paginate past the 1000-row cap; re-sort alphabetically in JS.
+  const rows = await fetchAll<FacilityRow>('facilities', FACILITY_SELECT)
+  return rows.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export interface FacilityInput {

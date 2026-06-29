@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type { Candidate, CandidateStatus } from './types'
 
@@ -13,18 +13,18 @@ export async function listCandidates(opts?: {
   search?: string
   status?: CandidateStatus | 'all'
 }): Promise<Candidate[]> {
-  let query = v2.from('candidates').select(CANDIDATE_SELECT)
-
   const search = sanitizeTerm(opts?.search ?? '')
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
-  }
-  if (opts?.status && opts.status !== 'all') {
-    query = query.eq('status', opts.status)
-  }
+  const status = opts?.status
 
-  const { data } = await query.order('full_name')
-  return (data as Candidate[]) ?? []
+  // Paginate past PostgREST's 1000-row cap so the full talent pool (1k+ rows)
+  // is returned. fetchAll orders by id for stable paging; we re-sort by name.
+  const rows = await fetchAll<Candidate>('candidates', CANDIDATE_SELECT, (q) => {
+    let query = q
+    if (search) query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
+    if (status && status !== 'all') query = query.eq('status', status)
+    return query
+  })
+  return rows.sort((a, b) => a.full_name.localeCompare(b.full_name))
 }
 
 export interface CandidateInput {

@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type {
   RequisitionRow,
@@ -38,13 +38,16 @@ export async function listRoleFamilies(): Promise<RoleFamily[]> {
 }
 
 export async function listRequisitions(f: ReqFilters = {}): Promise<RequisitionRow[]> {
-  let q = v2.from('requisitions').select(REQ_SELECT).order('created_at', { ascending: false })
-  if (f.status && f.status !== 'all') q = q.eq('status', f.status)
-  if (f.facilityId && f.facilityId !== 'all') q = q.eq('facility_id', f.facilityId)
-  if (f.roleFamily && f.roleFamily !== 'all') q = q.eq('role_family', f.roleFamily)
-  if (f.managerId && f.managerId !== 'all') q = q.eq('hiring_manager_id', f.managerId)
-  const { data } = await q
-  let rows = (data as RequisitionRow[]) ?? []
+  // Paginate past the 1000-row cap so every requisition is listed; re-sort newest-first in JS.
+  let rows = await fetchAll<RequisitionRow>('requisitions', REQ_SELECT, (q) => {
+    let query = q
+    if (f.status && f.status !== 'all') query = query.eq('status', f.status)
+    if (f.facilityId && f.facilityId !== 'all') query = query.eq('facility_id', f.facilityId)
+    if (f.roleFamily && f.roleFamily !== 'all') query = query.eq('role_family', f.roleFamily)
+    if (f.managerId && f.managerId !== 'all') query = query.eq('hiring_manager_id', f.managerId)
+    return query
+  })
+  rows = rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
 
   const term = f.search?.trim().toLowerCase()
   if (term) {

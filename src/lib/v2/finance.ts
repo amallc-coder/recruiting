@@ -1,14 +1,12 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type { RecruitingCost, CostCategory } from './types'
 
 /** Recruiting cost line items, most recent period first. */
 export async function listCosts(): Promise<RecruitingCost[]> {
-  const { data } = await v2
-    .from('recruiting_costs')
-    .select('*')
-    .order('period', { ascending: false })
-  return (data as RecruitingCost[]) ?? []
+  // Paginate past the 1000-row cap; re-sort most-recent-period-first in JS.
+  const rows = await fetchAll<RecruitingCost>('recruiting_costs', '*')
+  return rows.sort((a, b) => (b.period ?? '').localeCompare(a.period ?? ''))
 }
 
 export interface CostInput {

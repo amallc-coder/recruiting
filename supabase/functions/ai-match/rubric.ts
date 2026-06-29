@@ -96,7 +96,10 @@ export const MATCH_SCHEMA = {
         licenses: { type: 'array', items: { type: 'string' } },
       },
     },
-    score: { type: 'integer', minimum: 1, maximum: 5 },
+    // Structured-output JSON Schema does not support numeric constraints
+    // (minimum/maximum) — they 400 at schema compile time. Use an enum of the
+    // allowed integers instead; it enforces the 1–5 range and IS supported.
+    score: { type: 'integer', enum: [1, 2, 3, 4, 5] },
     rationale: { type: 'string' },
     checklist: {
       type: 'array',

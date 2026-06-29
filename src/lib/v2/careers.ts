@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 
 // Public career-site data layer. Runs OUTSIDE auth against the v2 schema's
 // anon-readable surface: a SELECT policy exposes open, public requisitions (and
@@ -21,15 +21,13 @@ export interface PublicReq {
 
 /** Open, publicly-visible requisitions for the careers listing (newest first). */
 export async function listPublicRequisitions(): Promise<PublicReq[]> {
-  const { data } = await v2
-    .from('requisitions')
-    .select(
-      'id,title,role_family,specialty,location,description,employment_type,workplace,salary_min,salary_max,salary_unit, facility:facilities(name,city,state)',
-    )
-    .eq('is_public', true)
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-  return (data ?? []) as unknown as PublicReq[]
+  // Paginate past the 1000-row cap so every open public role is listed; re-sort newest-first.
+  const rows = await fetchAll<PublicReq & { created_at?: string }>(
+    'requisitions',
+    'id,title,role_family,specialty,location,description,employment_type,workplace,salary_min,salary_max,salary_unit,created_at, facility:facilities(name,city,state)',
+    (q) => q.eq('is_public', true).eq('status', 'open'),
+  )
+  return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')) as PublicReq[]
 }
 
 export interface ApplyInput {

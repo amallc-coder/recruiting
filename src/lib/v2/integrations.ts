@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type { Integration, IntegrationStatus } from './types'
 
@@ -6,8 +6,9 @@ const INTEGRATION_SELECT = '*'
 
 /** All integrations for the marketplace list, ordered by name. */
 export async function listIntegrations(): Promise<Integration[]> {
-  const { data } = await v2.from('integrations').select(INTEGRATION_SELECT).order('name')
-  return (data as Integration[]) ?? []
+  // Paginate past the 1000-row cap; re-sort by name in JS.
+  const rows = await fetchAll<Integration>('integrations', INTEGRATION_SELECT)
+  return rows.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
 }
 
 export interface IntegrationInput {

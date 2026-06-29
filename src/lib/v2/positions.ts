@@ -1,11 +1,12 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 import type { Position } from './types'
 
 /** All positions in the catalog, ordered by title. */
 export async function listPositions(): Promise<Position[]> {
-  const { data } = await v2.from('positions').select('*').order('title')
-  return (data as Position[]) ?? []
+  // Paginate past the 1000-row cap; re-sort by title in JS.
+  const rows = await fetchAll<Position>('positions', '*')
+  return rows.sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
 }
 
 export interface PositionInput {

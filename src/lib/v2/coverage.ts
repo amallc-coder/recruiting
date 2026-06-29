@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import type { CoverageNeed, FacilityCoverage, CoveragePriority, RoleFamily } from './types'
 
 const COVERAGE_SELECT =
@@ -6,19 +6,22 @@ const COVERAGE_SELECT =
 
 /** Facilities with their per-role coverage needs grouped, for the Have/Need view. */
 export async function listFacilityCoverage(): Promise<FacilityCoverage[]> {
-  const [{ data: facs }, { data: needs }] = await Promise.all([
-    v2.from('facilities').select('id,name,state,city,region').order('name'),
-    v2.from('coverage_needs').select(COVERAGE_SELECT),
+  // Paginate past the 1000-row cap on both tables; re-sort facilities by name in JS.
+  const [facs, needs] = await Promise.all([
+    fetchAll<FacilityCoverage>('facilities', 'id,name,state,city,region'),
+    fetchAll<CoverageNeed>('coverage_needs', COVERAGE_SELECT),
   ])
   const byFacility = new Map<string, CoverageNeed[]>()
-  for (const n of (needs as CoverageNeed[]) ?? []) {
+  for (const n of needs) {
     if (!byFacility.has(n.facility_id)) byFacility.set(n.facility_id, [])
     byFacility.get(n.facility_id)!.push(n)
   }
-  return ((facs as FacilityCoverage[]) ?? []).map((f) => ({
-    ...f,
-    needs: (byFacility.get(f.id) ?? []).sort((a, b) => a.role_family.localeCompare(b.role_family)),
-  }))
+  return facs
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => ({
+      ...f,
+      needs: (byFacility.get(f.id) ?? []).sort((a, b) => a.role_family.localeCompare(b.role_family)),
+    }))
 }
 
 export async function listRoleFamilies(): Promise<RoleFamily[]> {

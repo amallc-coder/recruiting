@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import type { PipelineStage, Application, Candidate, PipelineCard, ReadinessLevel, CredentialType } from './types'
 
 export async function listStages(roleFamily: string): Promise<PipelineStage[]> {
@@ -126,8 +126,9 @@ export async function tagCandidates(candidateIds: string[], tag: string): Promis
 
 /** Candidates available to add to a requisition's pipeline. */
 export async function listSelectableCandidates(): Promise<{ id: string; full_name: string }[]> {
-  const { data } = await v2.from('candidates').select('id,full_name').order('full_name')
-  return (data as { id: string; full_name: string }[]) ?? []
+  // Paginate past the 1000-row cap so every candidate is selectable, not just the first 1000.
+  const rows = await fetchAll<{ id: string; full_name: string }>('candidates', 'id,full_name')
+  return rows.sort((a, b) => a.full_name.localeCompare(b.full_name))
 }
 
 /** Add a candidate to a requisition (creates an application in the given stage). */
