@@ -7,7 +7,7 @@
 // We score a candidate by how much of the requisition's text vocabulary their
 // own text covers, so the ranking is explainable: `matched` lists the very
 // keywords that drove the score.
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 import { listRequisitions } from './requisitions'
 import type { RequisitionRow } from './types'
 
@@ -103,11 +103,10 @@ export async function matchCandidatesForRequisition(
   const requisition = (reqData as MatchRequisition | null) ?? null
   if (!requisition) return { requisition: null, ranked: [] }
 
-  const { data: candData } = await v2
-    .from('candidates')
-    .select(CAND_FIELDS)
-    .not('status', 'in', '("archived","do_not_contact")')
-  const candidates = (candData as MatchCandidate[] | null) ?? []
+  // Paginate past the 1000-row cap so every eligible candidate is ranked.
+  const candidates = await fetchAll<MatchCandidate>('candidates', CAND_FIELDS, (q) =>
+    q.not('status', 'in', '("archived","do_not_contact")'),
+  )
 
   const reqTokens = tokenize(reqText(requisition))
   const denom = Math.max(1, reqTokens.length)

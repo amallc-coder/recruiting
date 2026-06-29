@@ -30,3 +30,31 @@ export const v2IsLive = import.meta.env.VITE_V2_LIVE === 'true'
  * v2IsBranch, so the cutover flips by config with no code change.
  */
 export const useV2 = v2IsBranch || v2IsLive
+
+/**
+ * Fetch ALL rows from a table, paginating past PostgREST's default 1000-row cap.
+ * Pages by a stable `id` order so rows are never skipped or duplicated across
+ * pages. `build` lets callers add filters/embeds (applied to every page). Use
+ * this for client-side aggregations (analytics, KPIs, matching) over tables that
+ * can exceed 1000 rows; for a plain count prefer `select('id',{count:'exact',
+ * head:true})`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function fetchAll<T = any>(
+  table: string,
+  columns = '*',
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  build?: (q: any) => any,
+): Promise<T[]> {
+  const PAGE = 1000
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    let q = v2.from(table).select(columns).order('id', { ascending: true }).range(from, from + PAGE - 1)
+    if (build) q = build(q)
+    const { data, error } = await q
+    if (error || !data || data.length === 0) break
+    out.push(...(data as T[]))
+    if (data.length < PAGE) break
+  }
+  return out
+}
