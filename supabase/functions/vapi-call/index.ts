@@ -16,6 +16,11 @@
 //   VAPI_PHONE_NUMBER_ID    (optional) — caller-ID number id; if unset we use
 //                                        the first number on the Vapi account
 //
+// SCHEMA: v2 — reads screenings.requisition_id (not job_id), users (not
+//   profiles), and writes communications without job_id/recruiter_id. DEPLOY AT
+//   CUTOVER (Phase 4), after the DB is migrated; deploying against the old schema
+//   would break it.
+//
 // Deploy:
 //   supabase functions deploy vapi-call
 // -----------------------------------------------------------------------------
@@ -107,7 +112,7 @@ Deno.serve(async (req: Request) => {
   const caller = createClient(URL_, ANON, { global: { headers: { Authorization: authHeader } } })
   const { data: u } = await caller.auth.getUser()
   if (!u?.user) return json({ error: 'Not authenticated' }, 401)
-  const { data: prof } = await admin.from('profiles').select('role,active').eq('id', u.user.id).single()
+  const { data: prof } = await admin.from('users').select('role,active').eq('id', u.user.id).single()
   if (!prof || !prof.active) return json({ error: 'Inactive account' }, 403)
 
   const { screening_id, mode = 'call' } = await req.json().catch(() => ({}))
@@ -123,7 +128,7 @@ Deno.serve(async (req: Request) => {
   const phone = e164(cand.phone)
   if (!phone) return json({ error: 'Candidate has no valid US phone number on file.' }, 400)
 
-  const { data: job } = s.job_id ? await admin.from('jobs').select('title').eq('id', s.job_id).single() : { data: null }
+  const { data: job } = s.requisition_id ? await admin.from('requisitions').select('title').eq('id', s.requisition_id).single() : { data: null }
   const questions = Array.isArray(s.questions) ? s.questions : []
   if (!questions.length) return json({ error: 'Screening has no questions.' }, 400)
 
@@ -146,7 +151,7 @@ Deno.serve(async (req: Request) => {
     if (!r.ok) return json({ error: `Vapi SMS failed: ${body?.message ?? r.status}` }, 502)
     await admin.from('screenings').update({ status: 'sent', channel: 'sms', sent_at: new Date().toISOString(), external_ref: body?.id ?? null }).eq('id', s.id)
     await admin.from('communications').insert({
-      candidate_id: cand.id, job_id: s.job_id, screening_id: s.id, recruiter_id: s.recruiter_id,
+      candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
       channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: u.user.id,
       external_ref: body?.id ?? null,
     })
@@ -191,7 +196,7 @@ Deno.serve(async (req: Request) => {
     status: 'sent', channel: 'phone', sent_at: new Date().toISOString(), external_ref: body?.id ?? null,
   }).eq('id', s.id)
   await admin.from('communications').insert({
-    candidate_id: cand.id, job_id: s.job_id, screening_id: s.id, recruiter_id: s.recruiter_id,
+    candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
     channel: 'call', direction: 'outbound', body: `AI screening call placed (${questions.length} questions).`,
     ai_generated: true, created_by: u.user.id, external_ref: body?.id ?? null,
   })

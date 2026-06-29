@@ -89,10 +89,15 @@ columns.
   Offers, Finance, Dashboard, Candidates, Facilities, Careers (public intake),
   Analytics, Import, Matching. Each swaps to its v2 version at its existing path
   when `v2IsBranch`, so the cutover flips the whole app by config.
-- Remaining tail (deploy-time, Phase 4): re-point the `ai-screen` / `vapi-call` /
-  `vapi-webhook` edge functions from `job_id` → `requisition_id`/`org_id`; port
-  FacilityDetail (currently unreachable from the v2 facilities nav); auth stays
-  on `auth.users` with the `handle_new_user` trigger syncing into v2 `users`.
+- Edge functions: `ai-screen` is payload-driven (no change); `vapi-call` /
+  `vapi-webhook` are re-pointed to v2 columns (`requisition_id`, `users`,
+  `communications` without `job_id`/`recruiter_id`, role derived from the
+  requisition). They are authored and **deploy at cutover** (`supabase functions
+  deploy …`), after the DB is migrated — deploying against the old schema would
+  break them.
+- Remaining tail: a v2 FacilityDetail (minor; currently unreachable from the v2
+  facilities nav). Auth stays on `auth.users`; the `handle_new_user` trigger
+  syncs sign-ups into v2 `users`.
 
 **Phase 4 — go-live window** (the only prod-touching step)
 1. Announce a maintenance window; freeze writes.
@@ -149,8 +154,13 @@ old-only data with no v2 home (per decision A).
   verified).
 - **Phase 3 DONE:** entire frontend ported onto v2 behind `v2IsBranch`; full
   typecheck + production build green.
-- **Next: Phase 4 (gated)** — the only prod-touching step. Pre-reqs: re-point the
-  3 edge functions to v2 columns, then the go-live window (freeze → backup →
-  `10_migrate` on prod → deploy v2 frontend + flip config → verify → lift).
+- **All build work is done.** Frontend ported, edge functions re-pointed, schema
+  + migration authored and branch-validated.
+- **Next: Phase 4 (gated)** — the only prod-touching step, run in one window:
+  freeze writes → **full backup** → rename old `public`→`legacy` + apply v2
+  `01–09,11` → run `10_migrate_from_legacy` → deploy frontend with
+  `VITE_V2_LIVE=true` + deploy the 3 edge functions → smoke-test (acceptance +
+  region isolation + row counts) → lift freeze. Rollback = restore backup +
+  redeploy the prior build.
 - Nothing applied to prod. Phase 4 runs only with an explicit go-ahead + a fresh
   backup.

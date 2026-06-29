@@ -13,6 +13,11 @@
 //
 // Secrets: ANTHROPIC_API_KEY (reused), optional VAPI_WEBHOOK_SECRET.
 //
+// SCHEMA: v2 — reads screenings.requisition_id, derives role from the requisition
+//   (v2 candidates have no role column), and writes communications without
+//   job_id/recruiter_id. candidates.screening_summary/last_screened_at exist in
+//   v2 (11_screening_context.sql). DEPLOY AT CUTOVER (Phase 4), after migration.
+//
 // Deploy:
 //   supabase functions deploy vapi-webhook --no-verify-jwt
 // -----------------------------------------------------------------------------
@@ -106,18 +111,22 @@ Deno.serve(async (req: Request) => {
     if (!s && callId) s = (await admin.from('screenings').select('*').eq('external_ref', callId).single()).data
     if (!s) return json({ ok: true, note: 'no matching screening' })
 
-    const { data: cand } = await admin.from('candidates').select('id,full_name,role').eq('id', s.candidate_id as string).single()
+    const { data: cand } = await admin.from('candidates').select('id,full_name').eq('id', s.candidate_id as string).single()
+    // v2 candidates have no role column; derive it from the screening's requisition.
+    const { data: reqRow } = s.requisition_id
+      ? await admin.from('requisitions').select('role_family').eq('id', s.requisition_id as string).single()
+      : { data: null }
     const questions = Array.isArray(s.questions) ? (s.questions as { question: string }[]) : []
 
     if (transcript) {
       await admin.from('communications').insert({
-        candidate_id: s.candidate_id, job_id: s.job_id, screening_id: s.id, recruiter_id: s.recruiter_id,
+        candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
         channel: 'call', direction: 'inbound', subject: 'AI screening call transcript', body: transcript,
         ai_generated: true, external_ref: callId,
       })
     }
 
-    const a = transcript ? await analyze(transcript, questions, cand ?? {}) : null
+    const a = transcript ? await analyze(transcript, questions, { full_name: cand?.full_name, role: reqRow?.role_family }) : null
     // Map the extracted answers back onto each question so the answer boxes fill.
     let responses: { question_id: string; answer: string }[] | undefined
     if (a?.answers) {
