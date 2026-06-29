@@ -1,0 +1,28 @@
+-- Ledger: flagship AI surfaces — Autopilot + command console
+--
+-- No DDL — both features reuse existing v2 tables:
+--   audit_logs(org_id, actor_id, action, entity_type, entity_id, detail jsonb, created_at)
+--     · console.query     — every console question (question, interpreted plan, row count)
+--     · autopilot.plan     — every goal planned (goal, step counts by tier)
+--     · autopilot.execute  — every step the agent ran (tier, approved?, outcome)
+--   ai_decisions(org_id, entity_type, entity_id, model, rationale, checklist jsonb,
+--                created_by_agent, human_override, ...)
+--     · one row per PROPOSED autopilot step (created_by_agent='autopilot'), so the
+--       agent's suggestions are reviewable and overridable like any AI decision.
+--
+-- GOVERNANCE BOUNDARY (src/lib/v2/agent/policy.ts is the source of truth):
+--   auto       — agent runs unattended (e.g. kpi.snapshot). Still audit-logged.
+--   approval   — agent runs only after an explicit human click (e.g. screening.draft).
+--   prohibited — agent NEVER runs (offer.send/accept, candidate.reject/hire,
+--                comp.change, candidate.delete, comms.external). A human does these
+--                in the normal UI. The client clamps every model-proposed tier to
+--                this table and refuses to execute prohibited/unknown actions.
+--
+-- RLS: both surfaces query/execute through the caller's session client, so region
+-- and role isolation are enforced by Postgres. The edge functions (ai-console,
+-- ai-autopilot) are TRANSLATION/PLANNING ONLY — they never read or write business
+-- data and require an authenticated caller.
+--
+-- FOLLOW-UP (not yet wired): broaden the executable handler set (currently
+-- kpi.snapshot + screening.draft) as more safe operations are added; surface the
+-- audit_logs/ai_decisions agent trail in the governance dashboard (task #47).
