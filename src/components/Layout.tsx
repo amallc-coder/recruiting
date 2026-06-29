@@ -26,6 +26,7 @@ import {
   Radar,
   Wand2,
   Terminal,
+  ShieldCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -144,6 +145,7 @@ export function Layout() {
   )
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
+    ...(useV2 ? [{ to: '/governance', label: 'Governance', icon: ShieldCheck }] : []),
     { to: '/import', label: 'Import', icon: Upload },
     { to: '/integrations', label: 'Integrations', icon: Plug },
     ...(!demoMode && !useV2 ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
