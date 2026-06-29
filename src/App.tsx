@@ -42,6 +42,7 @@ import { TemplatesPage } from './features/templates'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
 import { HandbookPage } from './features/handbook'
+import { ReferralsPage, PublicReferralPage } from './features/referrals'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { useV2 } from './lib/v2/client'
@@ -59,6 +60,8 @@ export default function App() {
           <Route path="/careers/:slug" element={useV2 ? <V2Careers /> : <Careers />} />
           {/* Public candidate self-scheduling — token-gated, no authentication. */}
           {useV2 && <Route path="/schedule/:token" element={<SchedulePage />} />}
+          {/* Public refer-a-friend page — no authentication required. */}
+          {useV2 && <Route path="/refer" element={<PublicReferralPage />} />}
           <Route
             element={
               <ProtectedRoute>
@@ -84,6 +87,7 @@ export default function App() {
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
                 <Route path="/sourcing" element={<SourcingPage />} />
+                <Route path="/referrals" element={<ReferralsPage />} />
                 <Route path="/templates" element={<TemplatesPage />} />
                 <Route path="/autopilot" element={<AutopilotPage />} />
                 <Route path="/console" element={<ConsolePage />} />
