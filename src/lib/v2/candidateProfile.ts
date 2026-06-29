@@ -24,6 +24,9 @@ export interface ProfileApplication {
   stageName: string | null
   placement_ready: boolean
   missing: CredentialType[]
+  checkr_status: string | null
+  background_sent_date: string | null
+  background_cleared_date: string | null
 }
 
 export interface Credential {
@@ -136,7 +139,7 @@ const CANDIDATE_SELECT =
   'id,full_name,email,phone,source,status,tags,notes,resume_text,screening_summary,last_screened_at,recruiter_id,created_at'
 
 const APP_SELECT =
-  'id,candidate_id,requisition_id,current_stage_id,status,applied_at, requisition:requisitions(id,title,role_family), stage:pipeline_stages(name)'
+  'id,candidate_id,requisition_id,current_stage_id,status,applied_at,checkr_status,background_sent_date,background_cleared_date, requisition:requisitions(id,title,role_family), stage:pipeline_stages(name)'
 
 interface RawApp {
   id: string
@@ -144,6 +147,9 @@ interface RawApp {
   current_stage_id: string | null
   status: string
   applied_at: string | null
+  checkr_status: string | null
+  background_sent_date: string | null
+  background_cleared_date: string | null
   requisition: { id: string; title: string | null; role_family: string | null } | null
   stage: { name: string | null } | null
 }
@@ -183,6 +189,9 @@ export async function loadProfile(candidateId: string): Promise<ProfileData> {
       stageName: a.stage?.name ?? null,
       placement_ready: pr?.ready ?? false,
       missing: pr?.missing ?? [],
+      checkr_status: a.checkr_status,
+      background_sent_date: a.background_sent_date,
+      background_cleared_date: a.background_cleared_date,
     }
   })
 

@@ -19,6 +19,7 @@ import { Button, Card, Badge, Input, Select, Tabs, useToast } from '../../compon
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { MatchCard } from '../screening/MatchCard'
+import { orderBackgroundCheck } from '../../lib/v2/checkr'
 import {
   loadProfile,
   listDocuments,
@@ -35,6 +36,7 @@ import {
   findDuplicates,
   mergeCandidates,
   type ProfileData,
+  type ProfileApplication,
   type CandidateDocument,
   type Communication,
   type Scorecard,
@@ -300,6 +302,7 @@ function OverviewTab({ profile, onChanged }: { profile: ProfileData; onChanged: 
                 <div className="mt-2.5">
                   <MatchCard applicationId={a.id} />
                 </div>
+                <BackgroundCheck app={a} onChanged={onChanged} />
               </div>
             ))}
           </div>
@@ -363,6 +366,54 @@ function ResumeCard({ candidate, onChanged }: { candidate: ProfileData['candidat
         </p>
       )}
     </Card>
+  )
+}
+
+// ---- Background check (Checkr) --------------------------------------------
+
+const CHECKR_TONE: Record<string, BadgeTone> = {
+  clear: 'sage',
+  pending: 'clay',
+  consider: 'rust',
+  suspended: 'rust',
+  dispute: 'rust',
+  canceled: 'neutral',
+}
+
+function BackgroundCheck({ app, onChanged }: { app: ProfileApplication; onChanged: () => void }) {
+  const { toast } = useToast()
+  const [ordering, setOrdering] = useState(false)
+  const status = app.checkr_status
+  // Offer to (re-)order when not started, or after a non-final outcome.
+  const canOrder = !status || status === 'consider' || status === 'canceled'
+
+  async function order() {
+    setOrdering(true)
+    const res = await orderBackgroundCheck(app.id)
+    setOrdering(false)
+    if (!res.ok) {
+      toast({ tone: 'error', title: 'Background check', description: res.error ?? 'Could not order the check.' })
+    } else {
+      toast({ tone: 'success', title: 'Background check ordered', description: 'Checkr has invited the candidate.' })
+      onChanged()
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Badge tone={status ? CHECKR_TONE[status] ?? 'clay' : 'neutral'}>
+        <ShieldCheck size={12} className="mr-1" aria-hidden />
+        {status ? `Background: ${status}` : 'No background check'}
+      </Badge>
+      {app.background_cleared_date && (
+        <span className="text-xs text-muted">Cleared {fmtDate(app.background_cleared_date)}</span>
+      )}
+      {canOrder && (
+        <Button size="sm" variant="secondary" loading={ordering} onClick={order}>
+          {status ? 'Re-order check' : 'Order background check'}
+        </Button>
+      )}
+    </div>
   )
 }
 
