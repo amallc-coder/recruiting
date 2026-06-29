@@ -1,0 +1,26 @@
+-- Ledger: analytics & KPI dashboards
+--
+-- No DDL — the kpi_snapshots table and its RLS already ship in the v2 schema:
+--   kpi_snapshots(id, org_id, metric, dimension, dimension_value,
+--                 value numeric, period_start date, period_end date, captured_at)
+--   RLS: kpi_select  = org_id = current_org()
+--        kpi_write   = org_id = current_org() AND (is_admin() OR is_staff())
+--
+-- The Analytics workspace computes KPIs in-browser from org-scoped rows
+-- (src/lib/v2/kpis.ts) and writes a headline snapshot on demand via the
+-- "Capture snapshot" button (captureSnapshot()): one row per metric at
+-- dimension='org', dimension_value='all', period_start=period_end=today.
+-- The next page load reads the most recent snapshot per metric to render the
+-- "vs last period" trend on each KPI card.
+--
+-- FOLLOW-UP (not yet wired): a nightly pg_cron job to auto-capture snapshots
+-- (org + per-role-family + per-facility dimensions) and a scheduled
+-- digest/export. Sketch:
+--
+--   select cron.schedule(
+--     'kpi-nightly-snapshot', '5 3 * * *',
+--     $$ insert into public.kpi_snapshots (org_id, metric, dimension, dimension_value, value, period_start, period_end)
+--        select ... from ( /* per-org KPI rollup */ ) $$);
+--
+-- Until that lands the on-demand capture covers the acceptance criterion
+-- (snapshots persist and drive trends).
