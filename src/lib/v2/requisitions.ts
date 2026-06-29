@@ -1,4 +1,5 @@
 import { v2 } from './client'
+import { currentOrgId } from './org'
 import type {
   RequisitionRow,
   Facility,
@@ -73,9 +74,11 @@ export interface ReqInput {
 }
 
 export async function createRequisition(input: ReqInput): Promise<{ id: string | null; error: string | null }> {
+  const org_id = await currentOrgId()
+  if (!org_id) return { id: null, error: 'Could not resolve organization' }
   const { data, error } = await v2
     .from('requisitions')
-    .insert({ ...input, status: 'draft', approval_status: 'pending' })
+    .insert({ ...input, org_id, status: 'draft', approval_status: 'pending' })
     .select('id')
     .single()
   return { id: (data as { id: string })?.id ?? null, error: error?.message ?? null }

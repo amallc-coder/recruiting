@@ -24,6 +24,10 @@ import { Team } from './pages/Team'
 import { RequisitionsPage, RequisitionDetail } from './features/requisitions'
 import { CoveragePage } from './features/coverage'
 import { ScreeningsPage } from './features/screening'
+import { PositionsPage as V2Positions } from './features/positions'
+import { IntegrationsPage as V2Integrations } from './features/integrations'
+import { OffersPage } from './features/offers'
+import { FinancePage } from './features/finance'
 import { v2IsBranch } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -52,13 +56,16 @@ export default function App() {
             <Route path="/jobs/:id" element={<JobDetail />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/matching" element={<Matching />} />
-            <Route path="/positions" element={<Positions />} />
+            {/* Positions swaps to the v2 catalog when pointed at a v2 branch. */}
+            <Route path="/positions" element={v2IsBranch ? <V2Positions /> : <Positions />} />
             {v2IsBranch && (
               <>
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
                 <Route path="/screening" element={<ScreeningsPage />} />
+                <Route path="/offers" element={<OffersPage />} />
+                <Route path="/finance" element={<FinancePage />} />
               </>
             )}
             <Route
@@ -75,7 +82,7 @@ export default function App() {
               path="/integrations"
               element={
                 <ProtectedRoute adminOnly>
-                  <Integrations />
+                  {v2IsBranch ? <V2Integrations /> : <Integrations />}
                 </ProtectedRoute>
               }
             />
