@@ -117,9 +117,18 @@ from legacy.coverage_needs c
 where exists (select 1 from public.facilities f where f.id = c.facility_id)
 on conflict (facility_id, role_family) do nothing;
 
+-- The "General / Unassigned" facility MUST exist before the jobs step: real prod
+-- data has jobs with a NULL facility_id (e.g. float pools), and requisitions
+-- .facility_id is NOT NULL — those jobs coalesce onto this facility. It also hosts
+-- talent-pool reqs for facility-less candidates. (Caught during the live cutover.)
+insert into public.facilities (id, org_id, name, region, requirements, active)
+select '00000000-0000-0000-0000-0000000000fa', (select id from public.organizations order by created_at limit 1),
+       'General / Unassigned', null, '{}'::jsonb, true
+where not exists (select 1 from public.facilities where id = '00000000-0000-0000-0000-0000000000fa');
+
 -- ---------------------------------------------------------------------------
 -- 6. Requisitions
---    (a) real reqs from legacy.jobs
+--    (a) real reqs from legacy.jobs (NULL facility → the General facility)
 --    (b) synthetic "Talent Pool" reqs per (facility, role_family) for candidates
 --        that have no career application
 -- ---------------------------------------------------------------------------
@@ -129,7 +138,7 @@ insert into public.requisitions
    requirements, benefits, employment_type, workplace, salary_min, salary_max, salary_unit,
    created_by, created_at)
 select j.id, (select id from public.organizations order by created_at limit 1),
-       j.facility_id, j.title, upper(coalesce(j.role,'ops')),
+       coalesce(j.facility_id, '00000000-0000-0000-0000-0000000000fa'), j.title, upper(coalesce(j.role,'ops')),
        (case j.status when 'published' then 'open' when 'paused' then 'on_hold'
                       when 'closed' then 'closed' when 'archived' then 'closed'
                       else 'draft' end)::requisition_status,
@@ -141,16 +150,9 @@ select j.id, (select id from public.organizations order by created_at limit 1),
        j.salary_min, j.salary_max, coalesce(j.salary_unit,'year'),
        j.created_by, j.created_at
 from legacy.jobs j
-where (j.facility_id is null or exists (select 1 from public.facilities f where f.id = j.facility_id))
+where exists (select 1 from public.facilities f where f.id = coalesce(j.facility_id, '00000000-0000-0000-0000-0000000000fa'))
   and exists (select 1 from public.role_families rf where rf.code = upper(coalesce(j.role,'ops')))
 on conflict (id) do nothing;
-
--- Requisitions referencing a NULL facility can't satisfy the NOT NULL FK, so
--- ensure a synthetic "General" facility exists to host pool reqs / facility-less jobs.
-insert into public.facilities (id, org_id, name, region, requirements, active)
-select '00000000-0000-0000-0000-0000000000fa', (select id from public.organizations order by created_at limit 1),
-       'General / Unassigned', null, '{}'::jsonb, true
-where not exists (select 1 from public.facilities where id = '00000000-0000-0000-0000-0000000000fa');
 
 -- (b) synthetic talent-pool reqs: one per (facility, role_family) actually used
 -- by a candidate that has no career application.
