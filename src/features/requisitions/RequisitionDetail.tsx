@@ -8,6 +8,8 @@ import { ReqStatusBadge } from './badges'
 import { RequisitionForm } from './RequisitionForm'
 import { PipelineBoard } from './PipelineBoard'
 import { ScreeningQuestionsCard } from './ScreeningQuestionsCard'
+import { AutoScreenCard } from './AutoScreenCard'
+import { SlotsCard } from './SlotsCard'
 import {
   getRequisition,
   listFacilities,
@@ -154,6 +156,12 @@ export function RequisitionDetail() {
 
       {/* Screening questions config (seeds screenings for candidates on this req) */}
       <ScreeningQuestionsCard requisitionId={req.id} roleFamily={req.role_family} title={req.title} />
+
+      {/* Conversational screening automation + interview self-scheduling */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <AutoScreenCard requisitionId={req.id} />
+        <SlotsCard requisitionId={req.id} facilityId={req.facility_id} />
+      </div>
 
       {editing && (
         <RequisitionForm

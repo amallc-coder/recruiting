@@ -33,6 +33,7 @@ import { CandidatesPage as V2Candidates, CandidateProfile } from './features/can
 import { TeamPage as V2Team } from './features/team'
 import { FacilitiesPage as V2Facilities } from './features/facilities'
 import { CareersPage as V2Careers } from './features/careers'
+import { SchedulePage } from './features/scheduling'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
@@ -50,6 +51,8 @@ export default function App() {
           {/* Public career page — no authentication required. Swaps to v2 intake. */}
           <Route path="/careers" element={useV2 ? <V2Careers /> : <Careers />} />
           <Route path="/careers/:slug" element={useV2 ? <V2Careers /> : <Careers />} />
+          {/* Public candidate self-scheduling — token-gated, no authentication. */}
+          {useV2 && <Route path="/schedule/:token" element={<SchedulePage />} />}
           <Route
             element={
               <ProtectedRoute>
