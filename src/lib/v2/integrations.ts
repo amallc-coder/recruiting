@@ -68,6 +68,22 @@ export function isOAuthProvider(provider: string): boolean {
 }
 
 /**
+ * Test or run a sync for an integration via the admin-gated integration-sync
+ * function (refreshes OAuth tokens, hits the provider health endpoint, logs the
+ * result). Returns a readable message either way.
+ */
+export async function runIntegration(integrationId: string, action: 'test' | 'sync'): Promise<{ ok: boolean; message: string }> {
+  try {
+    const { data, error } = await v2.functions.invoke('integration-sync', { body: { integration_id: integrationId, action } })
+    if (error) return { ok: false, message: error.message }
+    const d = data as { ok?: boolean; message?: string } | null
+    return { ok: Boolean(d?.ok), message: d?.message ?? (d?.ok ? 'Done.' : 'Sync did not complete.') }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : 'Sync could not run.' }
+  }
+}
+
+/**
  * Start the OAuth handshake: ask integration-oauth (admin-gated) for the
  * provider consent URL, then send the browser there. The provider redirects
  * back to the function's callback, which stores tokens server-side and bounces
