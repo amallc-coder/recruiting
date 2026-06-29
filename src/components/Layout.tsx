@@ -124,7 +124,7 @@ export function Layout() {
     (t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2) && !v2Hidden.includes(t.to),
   )
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
-    ...(!useV2 ? [{ to: '/team', label: 'Team', icon: Users }] : []),
+    { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },
     { to: '/integrations', label: 'Integrations', icon: Plug },
     ...(!demoMode && !useV2 ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
@@ -216,7 +216,7 @@ export function Layout() {
                 </span>
                 {isAdmin && (
                   <NavLink
-                    to={demoMode ? '/team' : '/setup'}
+                    to={useV2 || demoMode ? '/team' : '/setup'}
                     title="Settings"
                     className={({ isActive }) =>
                       `inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface hover:bg-brand-50 ${isActive ? 'text-ink' : 'text-muted hover:text-ink'}`

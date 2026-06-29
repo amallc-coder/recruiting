@@ -74,6 +74,9 @@ export interface ReqInput {
   headcount: number
   budget?: number | null
   hiring_manager_id?: string | null
+  // Plain `text` columns feeding AI matching + the public careers page.
+  description?: string | null
+  requirements?: string | null
 }
 
 export async function createRequisition(input: ReqInput): Promise<{ id: string | null; error: string | null }> {
