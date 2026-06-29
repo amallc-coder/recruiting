@@ -83,11 +83,16 @@ columns.
   mapping, interview→scorecard, all enum casts, and `facilities.region` all
   verified correct.
 
-**Phase 3 — frontend port** (no prod impact; behind the `v2IsBranch`/flag)
-- Re-point every page + lib module from the old client/tables to the v2 client +
-  schema, page by page, each verified.
-- Auth: `profiles` → v2 `users`; keep the existing `auth.users` (only re-point
-  the sync trigger).
+**Phase 3 — frontend port — DONE (behind `v2IsBranch`; no prod impact)**
+- Every product page runs on v2, each typecheck + production-build clean:
+  Requisitions/Pipeline, Coverage, Screening/Vapi, Positions, Integrations,
+  Offers, Finance, Dashboard, Candidates, Facilities, Careers (public intake),
+  Analytics, Import, Matching. Each swaps to its v2 version at its existing path
+  when `v2IsBranch`, so the cutover flips the whole app by config.
+- Remaining tail (deploy-time, Phase 4): re-point the `ai-screen` / `vapi-call` /
+  `vapi-webhook` edge functions from `job_id` → `requisition_id`/`org_id`; port
+  FacilityDetail (currently unreachable from the v2 facilities nav); auth stays
+  on `auth.users` with the `handle_new_user` trigger syncing into v2 `users`.
 
 **Phase 4 — go-live window** (the only prod-touching step)
 1. Announce a maintenance window; freeze writes.
@@ -140,7 +145,10 @@ old-only data with no v2 home (per decision A).
 - **Phase 2 DONE:** `10_migrate_from_legacy.sql` authored and branch-tested
   against a representative legacy dataset (zero orphan candidates; all mappings
   verified).
-- **Next: Phase 3** — port the frontend page-by-page onto the v2 client + schema
-  (and rebuild the 7 feature UIs / edge functions). Then the gated Phase 4.
+- **Phase 3 DONE:** entire frontend ported onto v2 behind `v2IsBranch`; full
+  typecheck + production build green.
+- **Next: Phase 4 (gated)** — the only prod-touching step. Pre-reqs: re-point the
+  3 edge functions to v2 columns, then the go-live window (freeze → backup →
+  `10_migrate` on prod → deploy v2 frontend + flip config → verify → lift).
 - Nothing applied to prod. Phase 4 runs only with an explicit go-ahead + a fresh
   backup.
