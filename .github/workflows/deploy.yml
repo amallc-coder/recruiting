@@ -34,6 +34,10 @@ jobs:
           # are public-safe; data is protected by Supabase Row Level Security.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          # v2 cutover (2026-06-29): prod DB migrated to the v2 schema, so the
+          # app renders its v2 pages against the main client. See supabase/v2/
+          # CUTOVER_PLAN.md. To roll back, set this to 'false' and revert the merge.
+          VITE_V2_LIVE: 'true'
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
