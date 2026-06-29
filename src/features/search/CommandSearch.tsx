@@ -4,8 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import { Search, UserRound, Briefcase, Building2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase, demoMode } from '../../lib/supabase'
+import { v2, useV2 } from '../../lib/v2/client'
 
-type ResultKind = 'candidate' | 'job' | 'facility'
+// `requisition` is the v2 analogue of the legacy `job`; both share the Briefcase
+// icon. The active set of kinds (and their group order) depends on the schema.
+type ResultKind = 'candidate' | 'job' | 'requisition' | 'facility'
 
 interface Result {
   kind: ResultKind
@@ -18,11 +21,14 @@ interface Result {
 const KIND_META: Record<ResultKind, { label: string; icon: LucideIcon }> = {
   candidate: { label: 'Candidates', icon: UserRound },
   job: { label: 'Jobs', icon: Briefcase },
+  requisition: { label: 'Requisitions', icon: Briefcase },
   facility: { label: 'Facilities', icon: Building2 },
 }
 
 const PER_GROUP = 6
-const GROUP_ORDER: ResultKind[] = ['candidate', 'job', 'facility']
+const GROUP_ORDER: ResultKind[] = useV2
+  ? ['candidate', 'requisition', 'facility']
+  : ['candidate', 'job', 'facility']
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -57,9 +63,15 @@ function ilikePattern(raw: string): string {
   return cleaned ? `*${cleaned}*` : ''
 }
 
+// Legacy (v1) row shapes.
 type CandidateRow = { id: string; full_name: string; role: string | null; region: string | null; email: string | null }
 type JobRow = { id: string; title: string; department: string | null; location: string | null }
 type FacilityRow = { id: string; name: string; region: string | null; city: string | null; portfolio: string | null }
+
+// v2 row shapes.
+type V2CandidateRow = { id: string; full_name: string; email: string | null; status: string | null }
+type V2RequisitionRow = { id: string; title: string; role_family: string | null; status: string | null }
+type V2FacilityRow = { id: string; name: string; city: string | null; state: string | null }
 
 function toCandidate(c: CandidateRow): Result {
   return {
@@ -86,6 +98,35 @@ function toFacility(f: FacilityRow): Result {
     title: f.name,
     subtitle: [f.city, f.region].filter(Boolean).join(' · ') || 'Facility',
     to: `/facilities/${f.id}`,
+  }
+}
+
+function toV2Candidate(c: V2CandidateRow): Result {
+  return {
+    kind: 'candidate',
+    id: c.id,
+    title: c.full_name,
+    subtitle: [c.status, c.email].filter(Boolean).join(' · ') || 'Candidate',
+    to: `/candidates/${c.id}`,
+  }
+}
+function toV2Requisition(r: V2RequisitionRow): Result {
+  return {
+    kind: 'requisition',
+    id: r.id,
+    title: r.title,
+    subtitle: [r.role_family, r.status].filter(Boolean).join(' · ') || 'Requisition',
+    to: `/requisitions/${r.id}`,
+  }
+}
+function toV2Facility(f: V2FacilityRow): Result {
+  // No v2 facility detail route — select goes to the facilities list.
+  return {
+    kind: 'facility',
+    id: f.id,
+    title: f.name,
+    subtitle: [f.city, f.state].filter(Boolean).join(' · ') || 'Facility',
+    to: '/facilities',
   }
 }
 
@@ -150,44 +191,82 @@ export function CommandSearch() {
     return demoCache.current
   }
 
-  async function runSearch(q: string): Promise<Result[]> {
-    let cands: CandidateRow[] = []
-    let jobs: JobRow[] = []
-    let facs: FacilityRow[] = []
+  // v2 (post-cutover) live search: server-side filtering against the v2 schema
+  // via the `v2` client. Never loads whole tables (candidates has 1300+ rows and
+  // PostgREST caps responses at 1000); each type is filtered + limited server-side.
+  async function runSearchV2(q: string): Promise<Result[]> {
+    const pat = ilikePattern(q)
+    if (!pat) return []
+    const [c, r, f] = await Promise.all([
+      v2
+        .from('candidates')
+        .select('id,full_name,email,status')
+        .or(`full_name.ilike.${pat},email.ilike.${pat}`)
+        .limit(12),
+      v2
+        .from('requisitions')
+        .select('id,title,role_family,status')
+        .or(`title.ilike.${pat},role_family.ilike.${pat}`)
+        .limit(12),
+      v2
+        .from('facilities')
+        .select('id,name,city,state')
+        .or(`name.ilike.${pat},city.ilike.${pat},state.ilike.${pat}`)
+        .limit(12),
+    ])
+    const cands = (c.data as V2CandidateRow[]) ?? []
+    const reqs = (r.data as V2RequisitionRow[]) ?? []
+    const facs = (f.data as V2FacilityRow[]) ?? []
+    return [
+      ...rankAndSlice(cands.map(toV2Candidate), q),
+      ...rankAndSlice(reqs.map(toV2Requisition), q),
+      ...rankAndSlice(facs.map(toV2Facility), q),
+    ]
+  }
 
+  async function runSearch(q: string): Promise<Result[]> {
+    // Demo mode: the localStorage mock has no `.or`/`ilike`, so load the small
+    // local (legacy) dataset once and filter in memory. This path is unchanged.
     if (demoMode) {
       const all = await loadDemo()
       const needle = q.toLowerCase()
       const inc = (...vals: (string | null | undefined)[]) =>
         vals.some((v) => v != null && String(v).toLowerCase().includes(needle))
-      cands = all.candidates.filter((c) => inc(c.full_name, c.email, c.region, c.role))
-      jobs = all.jobs.filter((j) => inc(j.title, j.department, j.location))
-      facs = all.facilities.filter((f) => inc(f.name, f.region, f.city, f.portfolio))
-    } else {
-      const pat = ilikePattern(q)
-      if (!pat) return []
-      const [c, j, f] = await Promise.all([
-        supabase
-          .from('candidates')
-          .select('id,full_name,role,region,email')
-          .or(`full_name.ilike.${pat},email.ilike.${pat},region.ilike.${pat}`)
-          .limit(12),
-        supabase
-          .from('jobs')
-          .select('id,title,department,location')
-          .or(`title.ilike.${pat},department.ilike.${pat},location.ilike.${pat}`)
-          .limit(12),
-        supabase
-          .from('facilities')
-          .select('id,name,region,city,portfolio')
-          .or(`name.ilike.${pat},region.ilike.${pat},city.ilike.${pat},portfolio.ilike.${pat}`)
-          .limit(12),
-      ])
-      cands = (c.data as CandidateRow[]) ?? []
-      jobs = (j.data as JobRow[]) ?? []
-      facs = (f.data as FacilityRow[]) ?? []
+      const cands = all.candidates.filter((c) => inc(c.full_name, c.email, c.region, c.role))
+      const jobs = all.jobs.filter((j) => inc(j.title, j.department, j.location))
+      const facs = all.facilities.filter((f) => inc(f.name, f.region, f.city, f.portfolio))
+      return [
+        ...rankAndSlice(cands.map(toCandidate), q),
+        ...rankAndSlice(jobs.map(toJob), q),
+        ...rankAndSlice(facs.map(toFacility), q),
+      ]
     }
 
+    // Live: v2 schema after cutover, legacy schema before.
+    if (useV2) return runSearchV2(q)
+
+    const pat = ilikePattern(q)
+    if (!pat) return []
+    const [c, j, f] = await Promise.all([
+      supabase
+        .from('candidates')
+        .select('id,full_name,role,region,email')
+        .or(`full_name.ilike.${pat},email.ilike.${pat},region.ilike.${pat}`)
+        .limit(12),
+      supabase
+        .from('jobs')
+        .select('id,title,department,location')
+        .or(`title.ilike.${pat},department.ilike.${pat},location.ilike.${pat}`)
+        .limit(12),
+      supabase
+        .from('facilities')
+        .select('id,name,region,city,portfolio')
+        .or(`name.ilike.${pat},region.ilike.${pat},city.ilike.${pat},portfolio.ilike.${pat}`)
+        .limit(12),
+    ])
+    const cands = (c.data as CandidateRow[]) ?? []
+    const jobs = (j.data as JobRow[]) ?? []
+    const facs = (f.data as FacilityRow[]) ?? []
     return [
       ...rankAndSlice(cands.map(toCandidate), q),
       ...rankAndSlice(jobs.map(toJob), q),
@@ -263,7 +342,7 @@ export function CommandSearch() {
         aria-autocomplete="list"
         aria-activedescendant={showPanel && results[active] ? `${listId}-opt-${active}` : undefined}
         aria-keyshortcuts="Meta+K Control+K"
-        aria-label="Search candidates, jobs, and facilities"
+        aria-label={useV2 ? 'Search candidates, requisitions, and facilities' : 'Search candidates, jobs, and facilities'}
         value={query}
         placeholder="Search…  (⌘K)"
         className="input h-9 py-0 pl-9 pr-3"

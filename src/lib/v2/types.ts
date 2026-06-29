@@ -56,6 +56,9 @@ export interface Requisition {
   headcount: number
   budget: number | null
   hiring_manager_id: string | null
+  // Free-form text (plain `text` columns) feeding AI matching + the public careers page.
+  description: string | null
+  requirements: string | null
   approval_status: ApprovalStatus
   opened_at: string | null
   filled_at: string | null

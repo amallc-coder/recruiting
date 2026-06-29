@@ -127,6 +127,24 @@ export function RequisitionDetail() {
         </Card>
       </div>
 
+      {/* Description & requirements */}
+      {(req.description || req.requirements) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {req.description && (
+            <Card className="p-5">
+              <div className="stat-label">Description</div>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.description}</p>
+            </Card>
+          )}
+          {req.requirements && (
+            <Card className="p-5">
+              <div className="stat-label">Requirements</div>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.requirements}</p>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Pipeline */}
       <div>
         <h2 className="mb-2 text-sm font-semibold tracking-tight text-ink">Pipeline</h2>

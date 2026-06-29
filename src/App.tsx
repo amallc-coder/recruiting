@@ -30,6 +30,7 @@ import { OffersPage } from './features/offers'
 import { FinancePage } from './features/finance'
 import { DashboardPage as V2Dashboard } from './features/dashboard'
 import { CandidatesPage as V2Candidates, CandidateProfile } from './features/candidates'
+import { TeamPage as V2Team } from './features/team'
 import { FacilitiesPage as V2Facilities } from './features/facilities'
 import { CareersPage as V2Careers } from './features/careers'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
@@ -116,7 +117,7 @@ export default function App() {
               path="/team"
               element={
                 <ProtectedRoute adminOnly>
-                  <Team />
+                  {useV2 ? <V2Team /> : <Team />}
                 </ProtectedRoute>
               }
             />
