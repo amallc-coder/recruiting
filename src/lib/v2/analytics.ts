@@ -159,3 +159,68 @@ function computeByRoleFamily(reqs: RequisitionRow[]): RoleFamilyRow[] {
   }
   return Array.from(tally, ([role, open]) => ({ role, open })).sort((a, b) => b.open - a.open)
 }
+
+// ---------------------------------------------------------------------------
+// Source-of-hire & cost-per-source effectiveness. Blends application outcomes by
+// candidate source with recruiting_costs (matched to a source by vendor name).
+// ---------------------------------------------------------------------------
+export interface SourceEffectivenessRow {
+  source: string
+  applications: number
+  hires: number
+  hireRatePct: number | null
+  cost: number | null
+  costPerHire: number | null
+}
+
+interface AppSourceRow {
+  status: string
+  candidate: { source: string | null } | null
+}
+interface CostRow {
+  vendor: string | null
+  amount: number | null
+}
+
+function norm(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+/** Per-source applications, hires, hire-rate, spend, and cost-per-hire. */
+export async function loadSourceEffectiveness(): Promise<SourceEffectivenessRow[]> {
+  const [apps, costs] = await Promise.all([
+    fetchAll<AppSourceRow>('applications', 'status, candidate:candidates(source)'),
+    fetchAll<CostRow>('recruiting_costs', 'vendor,amount'),
+  ])
+
+  const tally = new Map<string, { applications: number; hires: number }>()
+  for (const a of apps) {
+    const src = a.candidate?.source?.trim() || 'Unknown'
+    const t = tally.get(src) ?? { applications: 0, hires: 0 }
+    t.applications++
+    if (a.status === 'hired') t.hires++
+    tally.set(src, t)
+  }
+
+  // Sum recruiting spend per source by matching the cost vendor to a source name.
+  const sources = Array.from(tally.keys())
+  const costBySource = new Map<string, number>()
+  for (const c of costs) {
+    const vendor = c.vendor?.trim()
+    if (!vendor || !c.amount) continue
+    const match = sources.find((s) => norm(s) === norm(vendor) || norm(vendor).includes(norm(s)) || norm(s).includes(norm(vendor)))
+    if (match) costBySource.set(match, (costBySource.get(match) ?? 0) + c.amount)
+  }
+
+  return Array.from(tally, ([source, { applications, hires }]) => {
+    const cost = costBySource.get(source) ?? null
+    return {
+      source,
+      applications,
+      hires,
+      hireRatePct: applications > 0 ? Math.round((hires / applications) * 1000) / 10 : null,
+      cost,
+      costPerHire: cost != null && hires > 0 ? Math.round(cost / hires) : null,
+    }
+  }).sort((a, b) => b.hires - a.hires || b.applications - a.applications)
+}

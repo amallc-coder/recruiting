@@ -12,7 +12,7 @@ import {
 import { Camera, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
 import { Card, MultiSelect, Tabs, Button } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
-import { loadAnalytics, type AnalyticsData } from '../../lib/v2/analytics'
+import { loadAnalytics, loadSourceEffectiveness, type AnalyticsData, type SourceEffectivenessRow } from '../../lib/v2/analytics'
 import {
   loadKpis,
   captureSnapshot,
@@ -133,6 +133,7 @@ export function AnalyticsPage() {
           tabs={[
             { value: 'exec', label: 'Executive' },
             { value: 'funnel', label: 'Funnel' },
+            { value: 'sources', label: 'Sources' },
             { value: 'recruiters', label: 'Recruiters' },
           ]}
           defaultValue="exec"
@@ -142,6 +143,8 @@ export function AnalyticsPage() {
               <ExecView kpis={bundle.kpis} />
             ) : tab === 'funnel' ? (
               <FunnelView funnel={bundle.funnel} breakdown={breakdown} segmented={segmented} />
+            ) : tab === 'sources' ? (
+              <SourcesView />
             ) : (
               <RecruiterView rows={bundle.recruiters} />
             )
@@ -330,6 +333,51 @@ function FunnelView({
         </>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sources view — source-of-hire & cost-per-source effectiveness
+// ---------------------------------------------------------------------------
+function SourcesView() {
+  const [rows, setRows] = useState<SourceEffectivenessRow[] | null>(null)
+  useEffect(() => {
+    loadSourceEffectiveness().then(setRows)
+  }, [])
+  if (!rows) return <Spinner label="Computing source effectiveness…" />
+  if (rows.length === 0) return <EmptyState title="No source data yet" />
+
+  const usd = (n: number | null) => (n == null ? '—' : '$' + n.toLocaleString())
+  return (
+    <Card className="overflow-x-auto p-0">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+            <th className="px-4 py-3 font-medium">Source</th>
+            <th className="px-4 py-3 text-right font-medium">Applications</th>
+            <th className="px-4 py-3 text-right font-medium">Hires</th>
+            <th className="px-4 py-3 text-right font-medium">Hire rate</th>
+            <th className="px-4 py-3 text-right font-medium">Spend</th>
+            <th className="px-4 py-3 text-right font-medium">Cost / hire</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.source} className="border-b border-line/60 last:border-0">
+              <td className="px-4 py-3 font-medium text-ink">{r.source}</td>
+              <td className="px-4 py-3 text-right tnum text-ink">{r.applications.toLocaleString()}</td>
+              <td className="px-4 py-3 text-right tnum text-ink">{r.hires.toLocaleString()}</td>
+              <td className="px-4 py-3 text-right tnum text-ink">{r.hireRatePct == null ? '—' : `${r.hireRatePct}%`}</td>
+              <td className="px-4 py-3 text-right tnum text-ink">{usd(r.cost)}</td>
+              <td className="px-4 py-3 text-right tnum text-ink">{usd(r.costPerHire)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="border-t border-line px-4 py-2 text-xs text-muted">
+        Spend is matched from Finance cost entries by vendor name. Add costs under Finance to populate cost-per-hire.
+      </p>
+    </Card>
   )
 }
 
