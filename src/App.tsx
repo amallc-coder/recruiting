@@ -41,6 +41,7 @@ import { GovernancePage } from './features/governance'
 import { TemplatesPage } from './features/templates'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
+import { HandbookPage } from './features/handbook'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { useV2 } from './lib/v2/client'
@@ -90,6 +91,7 @@ export default function App() {
                 <Route path="/offers" element={<OffersPage />} />
                 <Route path="/finance" element={<FinancePage />} />
                 <Route path="/governance" element={<GovernancePage />} />
+                <Route path="/handbook" element={<HandbookPage />} />
               </>
             )}
             <Route

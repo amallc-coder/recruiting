@@ -65,6 +65,28 @@ export interface RecruiterRow {
 export interface KpiSegment {
   roleFamilies?: string[]
   facilityIds?: string[]
+  /** Inclusive date-range window (ISO `YYYY-MM-DD`). Null/absent = all time. */
+  from?: string | null
+  to?: string | null
+}
+
+/**
+ * Build an "is this timestamp inside the window?" predicate. With no window both
+ * bounds are null and everything passes (preserving all-time behavior, including
+ * rows with a null date). Once a bound is set, rows with no date are excluded.
+ */
+function makeInWindow(from?: string | null, to?: string | null): (s: string | null | undefined) => boolean {
+  const fromTs = from ? new Date(`${from}T00:00:00`).getTime() : null
+  const toTs = to ? new Date(`${to}T23:59:59.999`).getTime() : null
+  if (fromTs == null && toTs == null) return () => true
+  return (s) => {
+    if (!s) return false
+    const t = new Date(s).getTime()
+    if (Number.isNaN(t)) return false
+    if (fromTs != null && t < fromTs) return false
+    if (toTs != null && t > toTs) return false
+    return true
+  }
 }
 
 export interface SegmentOption {
@@ -228,6 +250,8 @@ interface AppRow {
   requisition_id: string | null
   status: string
   current_stage_id: string | null
+  applied_at: string | null
+  created_at: string | null
   updated_at: string | null
 }
 interface StageRow {
@@ -237,6 +261,7 @@ interface StageRow {
 interface OfferRow {
   requisition_id: string | null
   status: string
+  created_at: string | null
 }
 interface ReadyRow {
   application_id: string
@@ -244,6 +269,7 @@ interface ReadyRow {
 }
 interface CostRow {
   amount: number | null
+  created_at: string | null
 }
 interface UserRow {
   id: string
@@ -261,11 +287,11 @@ interface SnapshotRow {
 export async function loadKpis(segment: KpiSegment = {}): Promise<KpiBundle> {
   const [reqs, apps, stages, offers, ready, costs, users, snapshots, facilities] = await Promise.all([
     fetchAll<ReqRow>('requisitions', 'id,status,role_family,facility_id,hiring_manager_id,created_by,opened_at,created_at,filled_at'),
-    fetchAll<AppRow>('applications', 'id,requisition_id,status,current_stage_id,updated_at'),
+    fetchAll<AppRow>('applications', 'id,requisition_id,status,current_stage_id,applied_at,created_at,updated_at'),
     fetchAll<StageRow>('pipeline_stages', 'id,stage_type'),
-    fetchAll<OfferRow>('offers', 'requisition_id,status'),
+    fetchAll<OfferRow>('offers', 'requisition_id,status,created_at'),
     fetchAll<ReadyRow>('v_application_placement_ready', 'application_id,placement_ready'),
-    fetchAll<CostRow>('recruiting_costs', 'amount'),
+    fetchAll<CostRow>('recruiting_costs', 'amount,created_at'),
     fetchAll<UserRow>('users', 'id,full_name'),
     loadLatestSnapshots(),
     fetchAll<{ id: string; name: string }>('facilities', 'id,name'),
@@ -280,33 +306,44 @@ export async function loadKpis(segment: KpiSegment = {}): Promise<KpiBundle> {
     .map((f) => ({ value: f.id, label: f.name }))
     .sort((a, b) => a.label.localeCompare(b.label))
 
-  // Apply the segment filter to requisitions → derive in-scope app/offer sets.
+  // Role/facility defines *membership*; the date range defines the *time window*.
+  // Membership scopes which apps/offers belong to the segment; the window then
+  // narrows each entity by its own most relevant date — requisitions by when they
+  // opened, applications by when they were received, offers by when they were made,
+  // and spend by when it was incurred — so the whole view reads as "activity in
+  // this range."
   const roleSet = new Set(segment.roleFamilies ?? [])
   const facSet = new Set(segment.facilityIds ?? [])
   const reqInScope = (r: ReqRow) =>
     (roleSet.size === 0 || (r.role_family != null && roleSet.has(r.role_family))) &&
     (facSet.size === 0 || (r.facility_id != null && facSet.has(r.facility_id)))
+  const inWindow = makeInWindow(segment.from, segment.to)
 
-  const scopedReqs = reqs.filter(reqInScope)
-  const scopedReqIds = new Set(scopedReqs.map((r) => r.id))
-  const scopedApps = apps.filter((a) => a.requisition_id != null && scopedReqIds.has(a.requisition_id))
-  const scopedOffers = offers.filter((o) => o.requisition_id != null && scopedReqIds.has(o.requisition_id))
-  const scopedAppIds = new Set(scopedApps.map((a) => a.id))
-  const scopedReady = ready.filter((r) => scopedAppIds.has(r.application_id))
+  const segReqs = reqs.filter(reqInScope) // role/facility membership, all time
+  const segReqIds = new Set(segReqs.map((r) => r.id))
+  const segApps = apps.filter((a) => a.requisition_id != null && segReqIds.has(a.requisition_id))
 
-  const funnel = computeFunnel(scopedApps, stageType)
-  const reach = reachCounts(scopedApps, stageType)
+  // Window-narrowed sets, each anchored on its own date.
+  const windowReqs = segReqs.filter((r) => inWindow(r.opened_at ?? r.created_at))
+  const winApps = segApps.filter((a) => inWindow(a.applied_at ?? a.created_at))
+  const winOffers = offers.filter((o) => o.requisition_id != null && segReqIds.has(o.requisition_id) && inWindow(o.created_at))
+  const winCosts = costs.filter((c) => inWindow(c.created_at))
+  const winAppIds = new Set(winApps.map((a) => a.id))
+  const winReady = ready.filter((r) => winAppIds.has(r.application_id))
+
+  const funnel = computeFunnel(winApps, stageType)
+  const reach = reachCounts(winApps, stageType)
   const priorByMetric = new Map(snapshots.map((s) => [s.metric, s.value]))
 
   const computed: Record<string, number | null> = {
-    time_to_fill: timeToFill(scopedReqs, scopedApps),
-    offer_acceptance: offerAcceptance(scopedOffers),
-    cost_per_hire: costPerHire(costs, scopedApps, roleSet.size + facSet.size > 0),
-    cost_of_vacancy: costOfVacancy(scopedReqs),
+    time_to_fill: timeToFill(windowReqs, segApps),
+    offer_acceptance: offerAcceptance(winOffers),
+    cost_per_hire: costPerHire(winCosts, winApps, roleSet.size + facSet.size > 0),
+    cost_of_vacancy: costOfVacancy(windowReqs),
     interview_to_offer: reach.offer > 0 ? round(reach.interview / reach.offer, 2) : null,
-    fill_rate: fillRate(scopedReqs, scopedApps),
-    credential_ready: credentialReady(scopedApps, scopedReady),
-    hires: scopedApps.filter((a) => a.status === 'hired').length,
+    fill_rate: fillRate(windowReqs, segApps),
+    credential_ready: credentialReady(winApps, winReady),
+    hires: winApps.filter((a) => a.status === 'hired').length,
   }
 
   const kpis: Kpi[] = SPECS.map((spec) => {
@@ -315,7 +352,7 @@ export async function loadKpis(segment: KpiSegment = {}): Promise<KpiBundle> {
     return { ...spec, value, prior, whatToFix: whatToFix(spec, value) }
   })
 
-  const recruiters = computeRecruiters(scopedReqs, scopedApps, scopedOffers, stageType, users)
+  const recruiters = computeRecruiters(windowReqs, segApps, winOffers, stageType, users)
 
   return {
     kpis,
@@ -323,7 +360,7 @@ export async function loadKpis(segment: KpiSegment = {}): Promise<KpiBundle> {
     recruiters,
     roleFamilyOptions,
     facilityOptions,
-    empty: scopedReqs.length === 0 && scopedApps.length === 0,
+    empty: windowReqs.length === 0 && winApps.length === 0,
   }
 }
 

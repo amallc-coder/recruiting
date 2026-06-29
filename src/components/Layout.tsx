@@ -28,6 +28,7 @@ import {
   Terminal,
   ShieldCheck,
   MessageSquare,
+  BookOpen,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -114,37 +115,60 @@ export function Layout() {
     navigate('/login')
   }
 
-  // Product nav, filtered by the role's capabilities; admin tools below.
+  // Product nav, grouped to follow the hire workflow (open a role → source →
+  // screen/match → offer → measure), filtered by the role's capabilities.
   const role = profile?.role ?? null
-  const allTabs: { to: string; label: string; end: boolean; cap: Capability; icon: LucideIcon }[] = [
-    { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
-    { to: '/autopilot', label: 'Autopilot', end: false, cap: 'view_dashboard', icon: Wand2 },
-    { to: '/console', label: 'Console', end: false, cap: 'view_dashboard', icon: Terminal },
-    { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs', icon: Briefcase },
-    { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
-    { to: '/coverage', label: 'Coverage', end: false, cap: 'view_facilities', icon: Gauge },
-    { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
-    { to: '/sourcing', label: 'Sourcing', end: false, cap: 'view_candidates', icon: Radar },
-    { to: '/templates', label: 'Templates', end: false, cap: 'view_candidates', icon: MessageSquare },
-    { to: '/screening', label: 'Screening', end: false, cap: 'view_candidates', icon: Bot },
-    { to: '/offers', label: 'Offers', end: false, cap: 'view_candidates', icon: Handshake },
-    { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
-    { to: '/finance', label: 'Finance', end: false, cap: 'view_analytics', icon: Wallet },
-    { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
-    { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
-    { to: '/positions', label: 'Positions', end: false, cap: 'view_positions', icon: ClipboardList },
+  type NavItem = { to: string; label: string; end?: boolean; cap: Capability; icon: LucideIcon }
+  const navGroupDefs: { label?: string; items: NavItem[] }[] = [
+    {
+      items: [
+        { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
+        { to: '/autopilot', label: 'Autopilot', cap: 'view_dashboard', icon: Wand2 },
+        { to: '/console', label: 'Console', cap: 'view_dashboard', icon: Terminal },
+      ],
+    },
+    {
+      label: 'Hire workflow',
+      items: [
+        { to: '/jobs', label: 'Jobs', cap: 'view_jobs', icon: Briefcase },
+        { to: '/requisitions', label: 'Requisitions', cap: 'view_jobs', icon: FileText },
+        { to: '/candidates', label: 'Candidates', cap: 'view_candidates', icon: UserRound },
+        { to: '/sourcing', label: 'Sourcing', cap: 'view_candidates', icon: Radar },
+        { to: '/screening', label: 'Screening', cap: 'view_candidates', icon: Bot },
+        { to: '/matching', label: 'Matching', cap: 'view_matching', icon: Sparkles },
+        { to: '/offers', label: 'Offers', cap: 'view_candidates', icon: Handshake },
+      ],
+    },
+    {
+      label: 'Plan & setup',
+      items: [
+        { to: '/coverage', label: 'Coverage', cap: 'view_facilities', icon: Gauge },
+        { to: '/facilities', label: 'Facilities', cap: 'view_facilities', icon: Building2 },
+        { to: '/positions', label: 'Positions', cap: 'view_positions', icon: ClipboardList },
+        { to: '/templates', label: 'Templates', cap: 'view_candidates', icon: MessageSquare },
+      ],
+    },
+    {
+      label: 'Measure',
+      items: [
+        { to: '/analytics', label: 'Analytics', cap: 'view_analytics', icon: BarChart3 },
+        { to: '/finance', label: 'Finance', cap: 'view_analytics', icon: Wallet },
+      ],
+    },
+    {
+      label: 'Learn',
+      items: [{ to: '/handbook', label: 'Handbook', cap: 'view_dashboard', icon: BookOpen }],
+    },
   ]
-  // These tabs only exist as routes under the v2 schema; hide them until v2 is
-  // active (a configured v2 branch pre-cutover, or v2 live on prod). The other
-  // tabs are swap-in-place at their existing paths, so they always show.
-  const v2Only = ['/requisitions', '/coverage', '/sourcing', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance']
-  // Old pages still on the legacy schema; under v2 their replacements exist
-  // (Jobs → Requisitions) or they await a v2 port (Team, Cloud setup), so hide
-  // them to avoid linking to broken screens.
+  // v2-only routes (hidden until v2 is active) and legacy routes hidden under v2.
+  const v2Only = ['/requisitions', '/coverage', '/sourcing', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
   const v2Hidden = useV2 ? ['/jobs'] : []
-  const tabs = allTabs.filter(
-    (t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2) && !v2Hidden.includes(t.to),
-  )
+  const navGroups = navGroupDefs
+    .map((g) => ({
+      label: g.label,
+      items: g.items.filter((t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2) && !v2Hidden.includes(t.to)),
+    }))
+    .filter((g) => g.items.length > 0)
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
     ...(useV2 ? [{ to: '/governance', label: 'Governance', icon: ShieldCheck }] : []),
@@ -158,17 +182,29 @@ export function Layout() {
   const renderNav = (onNavigate?: () => void, collapsed = false) => (
     <>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-        {tabs.map(({ to, label, end, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={onNavigate}
-            title={collapsed ? label : undefined}
-            className={({ isActive }) => navItem(isActive, collapsed)}
-          >
-            <Icon size={16} aria-hidden /> {!collapsed && label}
-          </NavLink>
+        {navGroups.map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'pt-3' : ''}>
+            {group.label &&
+              (collapsed ? (
+                <div className="mx-2 mb-1 border-t border-line" />
+              ) : (
+                <div className="px-3 pb-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-muted">
+                  {group.label}
+                </div>
+              ))}
+            {group.items.map(({ to, label, end, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                onClick={onNavigate}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) => navItem(isActive, collapsed)}
+              >
+                <Icon size={16} aria-hidden /> {!collapsed && label}
+              </NavLink>
+            ))}
+          </div>
         ))}
         {isAdmin && (
           <div className="pt-4">
