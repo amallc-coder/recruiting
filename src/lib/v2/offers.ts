@@ -7,7 +7,7 @@ export interface OfferRow extends Offer {
 }
 
 const OFFER_SELECT =
-  'id,org_id,candidate_id,application_id,requisition_id,salary,bonus,equity,start_date,status,sent_at,created_at, candidate:candidates(id,full_name)'
+  'id,org_id,candidate_id,application_id,requisition_id,salary,bonus,equity,start_date,status,decline_reason,sent_at,created_at, candidate:candidates(id,full_name)'
 
 /** All offers, newest first, with the candidate's name joined for display. */
 export async function listOffers(): Promise<OfferRow[]> {
@@ -38,10 +38,11 @@ export async function updateOffer(id: string, patch: Partial<OfferInput>): Promi
   return { error: error?.message ?? null }
 }
 
-/** Set an offer's status; stamps `sent_at` when moving to `sent`. */
-export async function setOfferStatus(id: string, status: OfferStatus): Promise<{ error: string | null }> {
+/** Set an offer's status; stamps `sent_at` on `sent` and records the reason on `declined`. */
+export async function setOfferStatus(id: string, status: OfferStatus, declineReason?: string): Promise<{ error: string | null }> {
   const patch: Record<string, unknown> = { status }
   if (status === 'sent') patch.sent_at = new Date().toISOString()
+  if (status === 'declined') patch.decline_reason = declineReason?.trim() || null
   const { error } = await v2.from('offers').update(patch).eq('id', id)
   return { error: error?.message ?? null }
 }
