@@ -261,8 +261,11 @@ export async function refreshCandidateContext(candidateId: string): Promise<void
   await v2.from('candidates').update({ screening_summary: summary || null, last_screened_at: lastAt }).eq('id', candidateId)
 }
 
-/** Place an agentic voice/SMS screening call via the vapi-call edge function. */
-export async function placeScreeningCall(screeningId: string, mode: 'call' | 'sms'): Promise<{ error: string | null }> {
+/** Place an agentic voice/SMS screening call (or send the scheduling link) via the vapi-call edge function. */
+export async function placeScreeningCall(
+  screeningId: string,
+  mode: 'call' | 'sms' | 'schedule',
+): Promise<{ error: string | null }> {
   if (demoMode) return { error: 'Voice screening is unavailable in local mode.' }
   try {
     const { error } = await v2.functions.invoke('vapi-call', { body: { screening_id: screeningId, mode } })
