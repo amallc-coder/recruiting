@@ -32,6 +32,10 @@ import { DashboardPage as V2Dashboard } from './features/dashboard'
 import { CandidatesPage as V2Candidates } from './features/candidates'
 import { FacilitiesPage as V2Facilities } from './features/facilities'
 import { CareersPage as V2Careers } from './features/careers'
+import { AnalyticsPage as V2Analytics } from './features/analytics'
+import { MatchingPage as V2Matching } from './features/matching'
+// Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
+const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { v2IsBranch } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -59,8 +63,8 @@ export default function App() {
             <Route path="/candidates" element={v2IsBranch ? <V2Candidates /> : <Candidates />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/matching" element={<Matching />} />
+            <Route path="/analytics" element={v2IsBranch ? <V2Analytics /> : <Analytics />} />
+            <Route path="/matching" element={v2IsBranch ? <V2Matching /> : <Matching />} />
             {/* Positions swaps to the v2 catalog when pointed at a v2 branch. */}
             <Route path="/positions" element={v2IsBranch ? <V2Positions /> : <Positions />} />
             {v2IsBranch && (
@@ -78,7 +82,7 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading importer…</div>}>
-                    <Import />
+                    {v2IsBranch ? <V2Import /> : <Import />}
                   </Suspense>
                 </ProtectedRoute>
               }
