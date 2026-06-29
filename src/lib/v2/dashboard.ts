@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { v2, fetchAll } from './client'
 
 // Read-only rollups for the v2 Dashboard. Uses efficient COUNT queries
 // (`head: true`) wherever a count is all we need, so no row payloads cross the
@@ -93,10 +93,8 @@ async function sumOpenPositions(): Promise<number> {
 
 /** Tally active-ish applications by their current pipeline stage name. */
 async function loadByStage(): Promise<{ stage: string; count: number }[]> {
-  const { data } = await v2
-    .from('applications')
-    .select('current_stage_id, stage:pipeline_stages(name)')
-  const rows = (data as unknown as StageTallyRow[]) ?? []
+  // Paginate past the 1000-row cap so the by-stage tally counts every application.
+  const rows = await fetchAll<StageTallyRow>('applications', 'current_stage_id, stage:pipeline_stages(name)')
   const tally = new Map<string, number>()
   for (const r of rows) {
     const name = r.stage?.name

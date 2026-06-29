@@ -1,4 +1,4 @@
-import { v2 } from './client'
+import { fetchAll } from './client'
 import type { PipelineStageType } from './types'
 
 // Read-only analytics rollups for the v2 Analytics page. We pull the minimal
@@ -83,17 +83,13 @@ function bucketFor(stageType: PipelineStageType | null): FunnelBucket {
 }
 
 export async function loadAnalytics(): Promise<AnalyticsData> {
-  const [appsRes, stagesRes, reqsRes, candidatesRes] = await Promise.all([
-    v2.from('applications').select('status,current_stage_id,applied_at'),
-    v2.from('pipeline_stages').select('id,stage_type'),
-    v2.from('requisitions').select('status,opened_at,filled_at,role_family'),
-    v2.from('candidates').select('source'),
+  // Paginate past the 1000-row cap so totals/funnel/sources count every row.
+  const [apps, stages, reqs, candidates] = await Promise.all([
+    fetchAll<ApplicationRow>('applications', 'status,current_stage_id,applied_at'),
+    fetchAll<StageRow>('pipeline_stages', 'id,stage_type'),
+    fetchAll<RequisitionRow>('requisitions', 'status,opened_at,filled_at,role_family'),
+    fetchAll<CandidateRow>('candidates', 'source'),
   ])
-
-  const apps = (appsRes.data as ApplicationRow[]) ?? []
-  const stages = (stagesRes.data as StageRow[]) ?? []
-  const reqs = (reqsRes.data as RequisitionRow[]) ?? []
-  const candidates = (candidatesRes.data as CandidateRow[]) ?? []
 
   const stageType = new Map<string, PipelineStageType>()
   for (const s of stages) stageType.set(s.id, s.stage_type)
