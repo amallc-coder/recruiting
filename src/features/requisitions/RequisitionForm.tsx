@@ -161,8 +161,8 @@ export function RequisitionForm({
         </div>
         <div>
           <label className="label">
-            Pre-application screening questions{' '}
-            <span className="font-normal text-muted">(asked on the public careers application before they apply)</span>
+            Application questionnaire{' '}
+            <span className="font-normal text-muted">(answered at apply time; AI scores fit → auto-rejects weak matches &amp; offers better-fit roles)</span>
           </label>
           <div className="space-y-2">
             {questions.map((q, i) => (
@@ -191,7 +191,9 @@ export function RequisitionForm({
             )}
           </div>
           <p className="mt-1 text-[11px] text-muted">
-            If you leave this empty, the careers application falls back to a default healthcare screening set.
+            Shown on the public careers application. On submit, AI scores the candidate's answers + résumé
+            against this role — under 50% match is auto-declined, and stronger-fit open roles are offered as
+            one-click apply. Leave empty to use a default healthcare question set.
           </p>
         </div>
 
