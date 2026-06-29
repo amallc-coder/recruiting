@@ -25,6 +25,8 @@ const TARGET_FIELDS: TargetField[] = [
   { key: 'phone', label: 'Phone' },
   { key: 'source', label: 'Source' },
   { key: 'tags', label: 'Tags' },
+  { key: 'resume_text', label: 'Résumé / experience' },
+  { key: 'notes', label: 'Notes' },
 ]
 
 export function ImportPage() {
@@ -85,8 +87,12 @@ export function ImportPage() {
   }
 
   async function runImport() {
-    if (!map.full_name) {
-      toast({ tone: 'error', title: 'Map the Full name column', description: 'Full name is required.' })
+    if (!map.full_name && !map.email) {
+      toast({
+        tone: 'error',
+        title: 'Map a column first',
+        description: 'Map Email (to enrich existing candidates) and/or Full name (to create new ones).',
+      })
       return
     }
     setImporting(true)
@@ -100,7 +106,7 @@ export function ImportPage() {
         toast({
           tone: 'success',
           title: 'Import complete',
-          description: `${res.inserted} candidate${res.inserted === 1 ? '' : 's'} imported, ${res.skipped} skipped.`,
+          description: `${res.updated} updated, ${res.created} created, ${res.skipped} skipped.`,
         })
       }
     } catch (err) {
@@ -120,7 +126,9 @@ export function ImportPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Import candidates</h1>
         <p className="mt-1 text-sm text-muted">
           Upload an .xlsx, .xls, or .csv file — parsed in your browser. Map the columns, preview, and
-          import into your candidate list. Re-importing the same file updates existing records.
+          import. Rows whose <strong>email matches an existing candidate</strong> update that record
+          (e.g. add résumé text) — so this is also how you backfill résumés onto the current talent
+          pool. Rows with a new email create a new candidate.
         </p>
       </div>
 
@@ -166,11 +174,13 @@ export function ImportPage() {
           <div className="text-sm">
             <div className="font-medium text-ink">Import complete</div>
             <div className="mt-0.5 text-muted">
-              <strong className="text-ink">{result.inserted}</strong> candidate{result.inserted === 1 ? '' : 's'} imported
+              <strong className="text-ink">{result.updated}</strong> existing candidate{result.updated === 1 ? '' : 's'} enriched
+              {' · '}
+              <strong className="text-ink">{result.created}</strong> new created
               {result.skipped > 0 && (
                 <>
                   {' · '}
-                  <strong className="text-ink">{result.skipped}</strong> skipped (no name)
+                  <strong className="text-ink">{result.skipped}</strong> skipped
                 </>
               )}
               .
@@ -217,7 +227,7 @@ export function ImportPage() {
                 Preview (first {Math.min(PREVIEW_ROWS, rows.length)} of {rows.length})
               </div>
             </div>
-            {map.full_name ? (
+            {map.full_name || map.email ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -227,11 +237,13 @@ export function ImportPage() {
                       <th className="px-5 py-2 font-medium">Phone</th>
                       <th className="px-5 py-2 font-medium">Source</th>
                       <th className="px-5 py-2 font-medium">Tags</th>
+                      <th className="px-5 py-2 font-medium">Résumé</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewRows.map((row, i) => {
                       const cell = (key?: string) => (key ? (row[key] ?? '').trim() : '')
+                      const resume = cell(map.resume_text)
                       return (
                         <tr key={i} className="border-b border-line/60">
                           <td className="px-5 py-2 font-medium text-ink">{cell(map.full_name) || '—'}</td>
@@ -239,6 +251,9 @@ export function ImportPage() {
                           <td className="px-5 py-2 text-muted">{cell(map.phone) || '—'}</td>
                           <td className="px-5 py-2 text-muted">{cell(map.source) || sourceLabel || '—'}</td>
                           <td className="px-5 py-2 text-muted">{cell(map.tags) || '—'}</td>
+                          <td className="max-w-[16rem] truncate px-5 py-2 text-muted" title={resume}>
+                            {resume || '—'}
+                          </td>
                         </tr>
                       )
                     })}
@@ -246,7 +261,7 @@ export function ImportPage() {
                 </table>
               </div>
             ) : (
-              <EmptyState title="Map the Full name column" hint="Pick which column holds candidate names to preview and import." />
+              <EmptyState title="Map Email or Full name" hint="Map Email to enrich existing candidates, and/or Full name to create new ones." />
             )}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
               <span className="text-sm text-muted">
@@ -255,10 +270,10 @@ export function ImportPage() {
               <Button
                 leftIcon={<Upload size={15} />}
                 loading={importing}
-                disabled={!map.full_name}
+                disabled={!map.full_name && !map.email}
                 onClick={runImport}
               >
-                Import {rows.length} candidate{rows.length === 1 ? '' : 's'}
+                Import {rows.length} row{rows.length === 1 ? '' : 's'}
               </Button>
             </div>
           </Card>
