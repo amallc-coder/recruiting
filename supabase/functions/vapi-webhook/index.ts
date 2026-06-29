@@ -89,11 +89,17 @@ interface Analysis {
   flags: { type: string; detail: string; severity: 'low' | 'medium' | 'high' }[]
   answers: { question_id: string; answer: string }[]
   scorecard: { criterion: string; rating: number; comment: string }[]
+  // Callback: set when the candidate said it wasn't a good time and asked us to
+  // call back at a specific moment. callback_at is an ISO 8601 timestamp WITH a
+  // US-Eastern offset, resolved from the reference time; '' if none was given.
+  callback_requested: boolean
+  callback_at: string
+  callback_phrase: string
 }
 
 const ANALYZE_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['summary', 'score', 'sentiment_score', 'sentiment_label', 'flags', 'recommendation', 'strengths', 'concerns', 'answers', 'scorecard'],
+  required: ['summary', 'score', 'sentiment_score', 'sentiment_label', 'flags', 'recommendation', 'strengths', 'concerns', 'answers', 'scorecard', 'callback_requested', 'callback_at', 'callback_phrase'],
   properties: {
     summary: { type: 'string' },
     score: { type: 'integer' },
@@ -106,10 +112,13 @@ const ANALYZE_SCHEMA = {
     answers: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['question_id', 'answer'], properties: { question_id: { type: 'string' }, answer: { type: 'string' } } } },
     // Structured scorecard: one row per screening criterion, rated 1-5.
     scorecard: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['criterion', 'rating', 'comment'], properties: { criterion: { type: 'string' }, rating: { type: 'integer' }, comment: { type: 'string' } } } },
+    callback_requested: { type: 'boolean' },
+    callback_at: { type: 'string' },
+    callback_phrase: { type: 'string' },
   },
 }
 
-async function analyze(transcript: string, questions: { id?: string; question: string }[], cand: { full_name?: string; role?: string }): Promise<Analysis | null> {
+async function analyze(transcript: string, questions: { id?: string; question: string }[], cand: { full_name?: string; role?: string }, nowIso: string): Promise<Analysis | null> {
   if (!ANTHROPIC_KEY) return null
   const a = new Anthropic({ apiKey: ANTHROPIC_KEY })
   const qList = questions.map((q, i) => `${i + 1}. [id:${q.id ?? ''}] ${q.question}`).join('\n')
@@ -123,7 +132,9 @@ async function analyze(transcript: string, questions: { id?: string; question: s
     `- flags (license_expired, availability_mismatch, comp_gap, location_conflict, inconsistent_answer) with severity,\n` +
     `- answers: the candidate's answer to EACH question (use the exact question id; 1-2 sentences; empty string if unanswered),\n` +
     `- scorecard: a structured per-criterion scorecard. Include one entry per screening question (criterion = a short label for the question) PLUS criteria for "Licensure", "Availability", and "Communication", each rated 1-5 (5 best) with a one-line comment grounded in the transcript.\n` +
+    `- callback: if the candidate said it was NOT a good time and asked to be called back at a specific time, set callback_requested=true, callback_phrase=their exact words, and callback_at = the resolved time as an ISO 8601 timestamp WITH a US Eastern offset (-04:00 or -05:00), relative to the REFERENCE TIME below (e.g. "tomorrow at 3pm"). If no specific callback time was given, callback_requested=false and callback_at="".\n` +
     `Base everything ONLY on what the candidate actually said; if incomplete, keep scores conservative.\n\n` +
+    `REFERENCE TIME (now, US Eastern): ${nowIso}\n` +
     `CANDIDATE: ${cand.full_name ?? 'n/a'} (${cand.role ?? 'n/a'})\n` +
     `QUESTIONS (use the id shown for each answer):\n${qList}\n\n` +
     `TRANSCRIPT:\n${transcript}`
@@ -312,7 +323,8 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, no_connect: true, reason: endedReason, texted: !!smsId })
     }
 
-    const a = transcript ? await analyze(transcript, questions, { full_name: cand?.full_name, role: reqRow?.role_family }) : null
+    const nowEastern = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+    const a = transcript ? await analyze(transcript, questions, { full_name: cand?.full_name, role: reqRow?.role_family }, nowEastern) : null
     const sentLabel = a ? sentimentEnum(a.sentiment_label, a.sentiment_score) : null
 
     // Transcript → communication log (with sentiment when analyzed).
@@ -322,6 +334,52 @@ Deno.serve(async (req: Request) => {
         channel: 'call', direction: 'inbound', subject: 'AI screening call transcript', body: transcript,
         ai_generated: true, external_ref: callId, ...(sentLabel ? { sentiment: sentLabel } : {}),
       })
+    }
+
+    // ---- candidate asked to be called back at a specific time ----------------
+    // Don't score a "bad time" call. Schedule the callback, confirm by text, and
+    // leave the screening 'approved' (pending the scheduled re-call).
+    const cbAt = a?.callback_requested && a.callback_at ? new Date(a.callback_at) : null
+    const cbValid = cbAt && !Number.isNaN(cbAt.getTime()) && cbAt.getTime() > Date.now() - 5 * 60_000
+    if (a && cbValid) {
+      const whenIso = cbAt!.toISOString()
+      await admin.from('scheduled_screening_calls').insert({
+        org_id: s.org_id, screening_id: s.id, candidate_id: s.candidate_id,
+        requisition_id: s.requisition_id ?? null, application_id: s.application_id ?? null,
+        scheduled_at: whenIso, status: 'pending', source: 'candidate_requested',
+        note: (a.callback_phrase || 'Candidate requested a callback.').slice(0, 500),
+      })
+      const flags = (Array.isArray(s.ai_flags) ? s.ai_flags : []) as unknown[]
+      flags.push({ type: 'callback_scheduled', detail: `Candidate asked to be called back at ${whenIso}.`, severity: 'low' })
+      await admin.from('screenings').update({
+        status: 'approved', ai_flags: flags,
+        ...(transcript ? { transcript } : {}), ...(recordingUrl ? { recording_url: recordingUrl } : {}),
+      }).eq('id', s.id)
+
+      const whenLocal = cbAt!.toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      const phone = e164(cand?.phone ?? null)
+      const first = cand?.full_name?.split(' ')[0] || 'there'
+      const text = `Thanks ${first}! We'll call you back for your screening on ${whenLocal}. Reply here if you need to change it.`
+      const smsId = phone ? await sendSms(phone, text) : null
+      await admin.from('communications').insert({
+        candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
+        channel: 'call', direction: 'inbound', body: `Candidate asked to reschedule — callback set for ${whenLocal}.`,
+        ai_generated: true, external_ref: callId,
+      })
+      if (smsId) {
+        await admin.from('communications').insert({
+          candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
+          channel: 'sms', direction: 'outbound', body: text, ai_generated: true, external_ref: smsId,
+        })
+      }
+      if (s.org_id) {
+        await admin.from('audit_logs').insert({
+          org_id: s.org_id, action: 'screening.callback_scheduled', entity_type: 'screening', entity_id: s.id,
+          detail: { scheduled_at: whenIso, phrase: a.callback_phrase ?? null, candidate_id: s.candidate_id },
+        })
+      }
+      if (cand?.id) await refreshContext(cand.id)
+      return json({ ok: true, callback_scheduled: true, at: whenIso })
     }
 
     // Map extracted answers back onto each question so the answer boxes fill.

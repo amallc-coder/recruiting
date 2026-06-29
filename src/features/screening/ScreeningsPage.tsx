@@ -22,6 +22,8 @@ import {
   type ScreeningFlag,
 } from '../../lib/v2/screenings'
 import type { ScreeningStatus, ScreeningChannel } from '../../lib/v2/types'
+import { listScheduledCalls, cancelScheduledCall, type ScheduledCall } from '../../lib/v2/scheduledCalls'
+import { PhoneForwarded, X } from 'lucide-react'
 
 const STATUS_TONE: Record<ScreeningStatus, BadgeTone> = {
   draft: 'neutral',
@@ -32,6 +34,70 @@ const STATUS_TONE: Record<ScreeningStatus, BadgeTone> = {
   cancelled: 'rust',
 }
 const STATUSES: ScreeningStatus[] = ['draft', 'approved', 'sent', 'completed', 'analyzed', 'cancelled']
+
+// Upcoming + recent screening callbacks the candidate asked us to place at a
+// specific time. A pg_cron dispatcher places them automatically when due.
+function ScheduledCallbacksPanel() {
+  const { toast } = useToast()
+  const [calls, setCalls] = useState<ScheduledCall[] | null>(null)
+  function load() {
+    listScheduledCalls().then(setCalls)
+  }
+  useEffect(load, [])
+  if (!calls || calls.length === 0) return null
+
+  const active = calls.filter((c) => c.status === 'pending' || c.status === 'failed')
+  const recent = calls.filter((c) => c.status === 'placed').slice(-3)
+  const shown = [...active, ...recent]
+  if (shown.length === 0) return null
+
+  const tone: Record<string, BadgeTone> = { pending: 'clay', placed: 'sage', failed: 'rust', cancelled: 'neutral' }
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+  async function cancel(id: string) {
+    const { error } = await cancelScheduledCall(id)
+    if (error) toast({ tone: 'error', title: 'Could not cancel', description: error })
+    else {
+      toast({ tone: 'success', title: 'Callback cancelled' })
+      load()
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+        <PhoneForwarded size={15} className="text-clay-500" /> Scheduled screening callbacks
+      </div>
+      <p className="mb-3 text-xs text-muted">
+        When a candidate says it's not a good time, the AI agent captures a callback time and we place the
+        call automatically when it's due.
+      </p>
+      <div className="space-y-1.5">
+        {shown.map((c) => (
+          <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-paper/60 px-3 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-ink">{c.candidate?.full_name ?? 'Candidate'}</span>
+                <Badge tone={tone[c.status] ?? 'neutral'}>{c.status}</Badge>
+              </div>
+              <div className="text-xs text-muted">
+                {fmt(c.scheduled_at)}
+                {c.note ? ` · “${c.note}”` : ''}
+                {c.status === 'failed' ? ` · ${c.attempts} attempt(s)` : ''}
+              </div>
+            </div>
+            {(c.status === 'pending' || c.status === 'failed') && (
+              <Button size="sm" variant="ghost" leftIcon={<X size={13} />} onClick={() => cancel(c.id)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
 
 export function ScreeningsPage() {
   const [rows, setRows] = useState<ScreeningRow[]>([])
@@ -89,6 +155,8 @@ export function ScreeningsPage() {
           />
         </div>
       </div>
+
+      <ScheduledCallbacksPanel />
 
       {visible.length === 0 ? (
         <EmptyState title="No screenings" hint="Create a screening to draft an AI questionnaire." />
