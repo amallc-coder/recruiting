@@ -18,6 +18,7 @@ export async function listOffers(): Promise<OfferRow[]> {
 
 export interface OfferInput {
   candidate_id: string
+  requisition_id?: string | null
   salary?: number | null
   bonus?: number | null
   equity?: string | null
