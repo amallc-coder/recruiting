@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, TrendingUp, Sparkles, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, Sparkles, ExternalLink, ClipboardList, ChevronDown, ChevronUp, CheckCircle2, Circle } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
@@ -11,6 +11,7 @@ import {
   money,
   type OfferRow,
 } from '../../lib/v2/offers'
+import { generateOnboarding, onboardingForOffer, setTaskStatus, type OnboardingTask } from '../../lib/v2/onboarding'
 import { listSelectableCandidates } from '../../lib/v2/pipeline'
 import { listRequisitionOptions, type ReqOption } from '../../lib/v2/requisitions'
 import { suggestComp, usd, annualRange, hourlyRange, type CompBenchmark } from '../../lib/v2/comp'
@@ -30,6 +31,9 @@ export function OffersPage() {
   const [offers, setOffers] = useState<OfferRow[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  // Onboarding checklist: which accepted offer is expanded, and its tasks.
+  const [openOnb, setOpenOnb] = useState<string | null>(null)
+  const [tasks, setTasks] = useState<OnboardingTask[]>([])
 
   function load() {
     setLoading(true)
@@ -39,6 +43,19 @@ export function OffersPage() {
     })
   }
   useEffect(load, [])
+
+  async function toggleOnboarding(o: OfferRow) {
+    if (openOnb === o.id) {
+      setOpenOnb(null)
+      return
+    }
+    setOpenOnb(o.id)
+    setTasks(await onboardingForOffer(o))
+  }
+  async function toggleTask(t: OnboardingTask, o: OfferRow) {
+    await setTaskStatus(t.id, t.status === 'done' ? 'pending' : 'done')
+    setTasks(await onboardingForOffer(o))
+  }
 
   const stats = useMemo(() => {
     const salaries = offers.map((o) => o.salary).filter((s): s is number => s != null)
@@ -50,13 +67,25 @@ export function OffersPage() {
     }
   }, [offers])
 
-  async function changeStatus(id: string, status: OfferStatus) {
-    const { error } = await setOfferStatus(id, status)
-    if (error) toast({ tone: 'error', title: 'Update failed', description: error })
-    else {
-      toast({ tone: 'success', title: `Offer ${status}` })
-      load()
+  async function changeStatus(o: OfferRow, status: OfferStatus) {
+    let reason: string | undefined
+    if (status === 'declined') {
+      reason = window.prompt('Reason for declining (feeds offer-acceptance analytics):')?.trim() || undefined
     }
+    const { error } = await setOfferStatus(o.id, status, reason)
+    if (error) {
+      toast({ tone: 'error', title: 'Update failed', description: error })
+      return
+    }
+    toast({ tone: 'success', title: `Offer ${status}` })
+    // On acceptance, generate the onboarding checklist (template + credentials carried forward).
+    if (status === 'accepted') {
+      const res = await generateOnboarding(o)
+      if (res.error) toast({ title: 'Onboarding', description: res.error })
+      else if (res.created > 0)
+        toast({ tone: 'success', title: 'Onboarding checklist created', description: `${res.created} items · verified credentials carried forward` })
+    }
+    load()
   }
 
   async function remove(id: string) {
@@ -105,25 +134,37 @@ export function OffersPage() {
                 </div>
                 <div className="inline-flex items-center gap-1">
                   {o.status === 'pending' && (
-                    <Button size="sm" variant="secondary" onClick={() => changeStatus(o.id, 'sent')}>
+                    <Button size="sm" variant="secondary" onClick={() => changeStatus(o, 'sent')}>
                       Send
                     </Button>
                   )}
                   {o.status === 'sent' && (
                     <>
-                      <Button size="sm" variant="primary" onClick={() => changeStatus(o.id, 'accepted')}>
+                      <Button size="sm" variant="primary" onClick={() => changeStatus(o, 'accepted')}>
                         Accept
                       </Button>
-                      <Button size="sm" variant="secondary" onClick={() => changeStatus(o.id, 'declined')}>
+                      <Button size="sm" variant="secondary" onClick={() => changeStatus(o, 'declined')}>
                         Decline
                       </Button>
                     </>
+                  )}
+                  {o.status === 'accepted' && (
+                    <Button size="sm" variant="secondary" leftIcon={<ClipboardList size={14} />} onClick={() => toggleOnboarding(o)}>
+                      Onboarding {openOnb === o.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </Button>
                   )}
                   <Button size="sm" variant="ghost" aria-label="Delete offer" onClick={() => remove(o.id)}>
                     <Trash2 size={14} />
                   </Button>
                 </div>
               </div>
+
+              {o.status === 'declined' && o.decline_reason && (
+                <p className="mt-2 text-xs text-rust-700">Declined — reason: {o.decline_reason}</p>
+              )}
+              {o.status === 'accepted' && openOnb === o.id && (
+                <OnboardingPanel tasks={tasks} onToggle={(t) => toggleTask(t, o)} />
+              )}
             </Card>
           ))}
         </div>
@@ -138,6 +179,37 @@ export function OffersPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+function OnboardingPanel({ tasks, onToggle }: { tasks: OnboardingTask[]; onToggle: (t: OnboardingTask) => void }) {
+  if (!tasks.length) return <p className="mt-3 text-sm text-muted">No onboarding tasks yet for this hire.</p>
+  const done = tasks.filter((t) => t.status === 'done').length
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper/40 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold text-ink">Onboarding checklist</span>
+        <span className="tnum text-xs text-muted">{done}/{tasks.length} complete</span>
+      </div>
+      <div className="space-y-0.5">
+        {tasks.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onToggle(t)}
+            className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-surface"
+          >
+            {t.status === 'done' ? (
+              <CheckCircle2 size={15} className="shrink-0 text-sage-600" />
+            ) : (
+              <Circle size={15} className="shrink-0 text-muted" />
+            )}
+            <span className={t.status === 'done' ? 'text-muted line-through' : 'text-ink'}>{t.label}</span>
+            {t.source === 'credential' && <Badge tone="sage">carried forward</Badge>}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

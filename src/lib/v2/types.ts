@@ -179,6 +179,7 @@ export interface Offer {
   equity: string | null
   start_date: string | null
   status: OfferStatus
+  decline_reason: string | null
   sent_at: string | null
   created_at: string
 }
