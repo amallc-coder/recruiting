@@ -105,22 +105,43 @@ export function ScreeningsPage() {
   const [statuses, setStatuses] = useState<ScreeningStatus[]>([])
   const [creating, setCreating] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  // Pending/failed scheduled callbacks, keyed by screening_id, so each row can
+  // flag "this screening has a callback booked for <time>".
+  const [callbacks, setCallbacks] = useState<Map<string, ScheduledCall>>(new Map())
+  const [scheduledOnly, setScheduledOnly] = useState(false)
 
   function load() {
     setLoading(true)
-    listScreenings().then((r) => {
+    Promise.all([listScreenings(), listScheduledCalls()]).then(([r, calls]) => {
+      const byScreening = new Map<string, ScheduledCall>()
+      for (const c of calls) {
+        if ((c.status === 'pending' || c.status === 'failed') && c.screening_id) byScreening.set(c.screening_id, c)
+      }
       setRows(r)
+      setCallbacks(byScreening)
       setLoading(false)
     })
   }
   useEffect(load, [])
 
-  const visible = useMemo(() => (statuses.length === 0 ? rows : rows.filter((r) => statuses.includes(r.status))), [rows, statuses])
+  const visible = useMemo(() => {
+    let v = statuses.length === 0 ? rows : rows.filter((r) => statuses.includes(r.status))
+    if (scheduledOnly) v = v.filter((r) => callbacks.has(r.id))
+    return v
+  }, [rows, statuses, scheduledOnly, callbacks])
   const counts = useMemo(() => {
     const analyzed = rows.filter((r) => r.status === 'analyzed')
     const avg = analyzed.length ? Math.round(analyzed.reduce((s, r) => s + (r.ai_score ?? 0), 0) / analyzed.length) : null
-    return { total: rows.length, inFlight: rows.filter((r) => ['approved', 'sent', 'completed'].includes(r.status)).length, avgScore: avg }
-  }, [rows])
+    return {
+      total: rows.length,
+      inFlight: rows.filter((r) => ['approved', 'sent', 'completed'].includes(r.status)).length,
+      scheduled: callbacks.size,
+      avgScore: avg,
+    }
+  }, [rows, callbacks])
+
+  const fmtWhen = (iso: string) =>
+    new Date(iso).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
   const open = rows.find((r) => r.id === openId) ?? null
 
@@ -138,9 +159,10 @@ export function ScreeningsPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Screenings" value={counts.total} />
         <StatCard label="In flight" value={counts.inFlight} hint="approved · sent · completed" />
+        <StatCard label="Scheduled callbacks" value={counts.scheduled} tone={counts.scheduled > 0 ? 'warn' : 'default'} hint="awaiting a timed call" />
         <StatCard label="Avg fit score" value={counts.avgScore ?? '—'} tone={counts.avgScore != null && counts.avgScore >= 70 ? 'good' : 'default'} hint="analyzed screenings" />
       </div>
 
@@ -154,6 +176,15 @@ export function ScreeningsPage() {
             placeholder="All statuses"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setScheduledOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+            scheduledOnly ? 'border-clay-300 bg-clay-50 text-clay-600' : 'border-line text-muted hover:text-ink'
+          }`}
+        >
+          <PhoneForwarded size={13} /> Scheduled callbacks{counts.scheduled > 0 ? ` (${counts.scheduled})` : ''}
+        </button>
       </div>
 
       <ScheduledCallbacksPanel />
@@ -165,10 +196,16 @@ export function ScreeningsPage() {
           {visible.map((r) => (
             <Card key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <button className="min-w-0 text-left" onClick={() => setOpenId(r.id)}>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{r.candidate?.full_name ?? 'Unknown candidate'}</span>
                   <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge>
                   <span className="text-xs text-muted">{r.channel}</span>
+                  {callbacks.get(r.id) && (
+                    <Badge tone={callbacks.get(r.id)!.status === 'failed' ? 'rust' : 'clay'}>
+                      <PhoneForwarded size={11} className="mr-0.5 inline" />
+                      {callbacks.get(r.id)!.status === 'failed' ? 'Callback failed' : `Callback ${fmtWhen(callbacks.get(r.id)!.scheduled_at)}`}
+                    </Badge>
+                  )}
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
                   {r.ai_score != null ? `Fit ${r.ai_score}/100 · ` : ''}
