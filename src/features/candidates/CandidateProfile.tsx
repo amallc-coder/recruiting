@@ -28,6 +28,7 @@ import {
   buildTimeline,
   expiryStatus,
   verifyCredential,
+  createCredential,
   requestDocument,
   uploadDocument,
   uploadResume,
@@ -441,9 +442,12 @@ function CredentialsTab({ profile, onChanged }: { profile: ProfileData; onChange
     else toast({ tone: 'success', title: 'Document requested', description: type })
   }
 
-  if (credentials.length === 0) return <EmptyState title="No credentials on file" hint="Add credentials to track licensure and placement readiness." />
-
   return (
+    <div className="space-y-4">
+      <AddCredentialCard candidateId={profile.candidate.id} onChanged={onChanged} />
+      {credentials.length === 0 ? (
+        <EmptyState title="No credentials on file" hint="Add a credential above to track licensure and placement readiness." />
+      ) : (
     <Card className="overflow-x-auto p-5">
       <table className="w-full text-sm">
         <thead>
@@ -492,6 +496,96 @@ function CredentialsTab({ profile, onChanged }: { profile: ProfileData; onChange
           ))}
         </tbody>
       </table>
+    </Card>
+      )}
+    </div>
+  )
+}
+
+function AddCredentialCard({ candidateId, onChanged }: { candidateId: string; onChanged: () => void }) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [type, setType] = useState<CredentialType>(CREDENTIAL_TYPES[0])
+  const [number, setNumber] = useState('')
+  const [state, setState] = useState('')
+  const [issue, setIssue] = useState('')
+  const [expires, setExpires] = useState('')
+  const [verified, setVerified] = useState(false)
+
+  function reset() {
+    setNumber('')
+    setState('')
+    setIssue('')
+    setExpires('')
+    setVerified(false)
+    setType(CREDENTIAL_TYPES[0])
+  }
+
+  async function save() {
+    setSaving(true)
+    const { error } = await createCredential(candidateId, {
+      type,
+      number,
+      issuing_state: state,
+      issue_date: issue || null,
+      expiration_date: expires || null,
+      verification_status: verified ? 'verified' : 'unverified',
+      primary_source_verified: verified,
+    })
+    setSaving(false)
+    if (error) toast({ tone: 'error', title: 'Could not add credential', description: error })
+    else {
+      toast({ tone: 'success', title: 'Credential added' })
+      reset()
+      setOpen(false)
+      onChanged()
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="flex justify-end">
+        <Button size="sm" leftIcon={<ShieldCheck size={14} />} onClick={() => setOpen(true)}>
+          Add credential
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <Card className="p-5">
+      <h3 className="mb-3 text-sm font-semibold tracking-tight text-ink">Add credential</h3>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Select
+          label="Type"
+          value={type}
+          onChange={(e) => setType(e.target.value as CredentialType)}
+          options={CREDENTIAL_TYPES.map((t) => ({ value: t, label: t }))}
+        />
+        <Input label="Number" value={number} onChange={(e) => setNumber(e.target.value)} placeholder="License / cert #" />
+        <Input label="Issuing state" value={state} onChange={(e) => setState(e.target.value)} placeholder="e.g. MO" />
+        <div>
+          <label className="label">Issued</label>
+          <input type="date" className="input" value={issue} onChange={(e) => setIssue(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Expires</label>
+          <input type="date" className="input" value={expires} onChange={(e) => setExpires(e.target.value)} />
+        </div>
+        <label className="flex items-end gap-2 pb-2 text-sm text-ink">
+          <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} className="h-4 w-4 accent-ink" />
+          Verified (primary-source)
+        </label>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button size="sm" variant="secondary" onClick={() => { reset(); setOpen(false) }}>
+          Cancel
+        </Button>
+        <Button size="sm" loading={saving} onClick={save}>
+          Add credential
+        </Button>
+      </div>
     </Card>
   )
 }
