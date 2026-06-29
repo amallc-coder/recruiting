@@ -9,6 +9,10 @@ import {
   Sparkles,
   ClipboardList,
   FileText,
+  Gauge,
+  Bot,
+  Handshake,
+  Wallet,
   Users,
   Upload,
   Plug,
@@ -23,7 +27,7 @@ import { useAuth } from '../context/AuthContext'
 import { demoMode } from '../lib/supabase'
 import { disableDemo, resetDemo, downloadSupabaseSql } from '../lib/demo'
 import { roleCan, roleLabel, type Capability } from '../lib/roles'
-import { v2IsBranch } from '../lib/v2/client'
+import { useV2 } from '../lib/v2/client'
 import { CommandSearch } from '../features/search'
 
 function Wordmark() {
@@ -98,15 +102,21 @@ export function Layout() {
     { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
     { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs', icon: Briefcase },
     { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
+    { to: '/coverage', label: 'Coverage', end: false, cap: 'view_facilities', icon: Gauge },
     { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
+    { to: '/screening', label: 'Screening', end: false, cap: 'view_candidates', icon: Bot },
+    { to: '/offers', label: 'Offers', end: false, cap: 'view_candidates', icon: Handshake },
     { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
+    { to: '/finance', label: 'Finance', end: false, cap: 'view_analytics', icon: Wallet },
     { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
     { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
     { to: '/positions', label: 'Positions', end: false, cap: 'view_positions', icon: ClipboardList },
   ]
-  // The Requisitions workspace runs against the v2 schema; only surface it when
-  // the app is pointed at a v2 branch/preview (hidden in prod until cutover).
-  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (t.to !== '/requisitions' || v2IsBranch))
+  // These tabs only exist as routes under the v2 schema; hide them until v2 is
+  // active (a configured v2 branch pre-cutover, or v2 live on prod). The other
+  // tabs are swap-in-place at their existing paths, so they always show.
+  const v2Only = ['/requisitions', '/coverage', '/screening', '/offers', '/finance']
+  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2))
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },

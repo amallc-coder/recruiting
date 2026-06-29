@@ -1,2 +1,1 @@
-// Candidate ↔ position matching feature surface.
-export * from '../../lib/match'
+export { MatchingPage } from './MatchingPage'

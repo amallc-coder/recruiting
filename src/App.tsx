@@ -22,7 +22,21 @@ import { Setup } from './pages/Setup'
 const Import = lazy(() => import('./pages/Import').then((m) => ({ default: m.Import })))
 import { Team } from './pages/Team'
 import { RequisitionsPage, RequisitionDetail } from './features/requisitions'
-import { v2IsBranch } from './lib/v2/client'
+import { CoveragePage } from './features/coverage'
+import { ScreeningsPage } from './features/screening'
+import { PositionsPage as V2Positions } from './features/positions'
+import { IntegrationsPage as V2Integrations } from './features/integrations'
+import { OffersPage } from './features/offers'
+import { FinancePage } from './features/finance'
+import { DashboardPage as V2Dashboard } from './features/dashboard'
+import { CandidatesPage as V2Candidates } from './features/candidates'
+import { FacilitiesPage as V2Facilities } from './features/facilities'
+import { CareersPage as V2Careers } from './features/careers'
+import { AnalyticsPage as V2Analytics } from './features/analytics'
+import { MatchingPage as V2Matching } from './features/matching'
+// Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
+const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
+import { useV2 } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
 export default function App() {
@@ -32,9 +46,9 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          {/* Public career page — no authentication required. */}
-          <Route path="/careers" element={<Careers />} />
-          <Route path="/careers/:slug" element={<Careers />} />
+          {/* Public career page — no authentication required. Swaps to v2 intake. */}
+          <Route path="/careers" element={useV2 ? <V2Careers /> : <Careers />} />
+          <Route path="/careers/:slug" element={useV2 ? <V2Careers /> : <Careers />} />
           <Route
             element={
               <ProtectedRoute>
@@ -42,19 +56,25 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/facilities" element={<Facilities />} />
+            <Route path="/" element={useV2 ? <V2Dashboard /> : <Dashboard />} />
+            <Route path="/facilities" element={useV2 ? <V2Facilities /> : <Facilities />} />
+            {/* FacilityDetail is still old-schema; unreachable from the v2 facilities nav. */}
             <Route path="/facilities/:id" element={<FacilityDetail />} />
-            <Route path="/candidates" element={<Candidates />} />
+            <Route path="/candidates" element={useV2 ? <V2Candidates /> : <Candidates />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/matching" element={<Matching />} />
-            <Route path="/positions" element={<Positions />} />
-            {v2IsBranch && (
+            <Route path="/analytics" element={useV2 ? <V2Analytics /> : <Analytics />} />
+            <Route path="/matching" element={useV2 ? <V2Matching /> : <Matching />} />
+            {/* Positions swaps to the v2 catalog when pointed at a v2 branch. */}
+            <Route path="/positions" element={useV2 ? <V2Positions /> : <Positions />} />
+            {useV2 && (
               <>
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
+                <Route path="/coverage" element={<CoveragePage />} />
+                <Route path="/screening" element={<ScreeningsPage />} />
+                <Route path="/offers" element={<OffersPage />} />
+                <Route path="/finance" element={<FinancePage />} />
               </>
             )}
             <Route
@@ -62,7 +82,7 @@ export default function App() {
               element={
                 <ProtectedRoute adminOnly>
                   <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading importer…</div>}>
-                    <Import />
+                    {useV2 ? <V2Import /> : <Import />}
                   </Suspense>
                 </ProtectedRoute>
               }
@@ -71,7 +91,7 @@ export default function App() {
               path="/integrations"
               element={
                 <ProtectedRoute adminOnly>
-                  <Integrations />
+                  {useV2 ? <V2Integrations /> : <Integrations />}
                 </ProtectedRoute>
               }
             />

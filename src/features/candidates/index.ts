@@ -1,2 +1,1 @@
-// Candidate pipeline feature surface.
-export * from '../../lib/ats'
+export { CandidatesPage } from './CandidatesPage'

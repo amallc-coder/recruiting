@@ -16,3 +16,17 @@ export const v2: SupabaseClient =
 
 /** True when the module is pointed at a dedicated v2 branch/preview (not prod). */
 export const v2IsBranch = Boolean(url && anon)
+
+/**
+ * Set at the go-live deploy (VITE_V2_LIVE=true) once prod has been migrated to
+ * v2. Then the app uses the v2 UI against the MAIN client (no separate branch
+ * URL needed) — this is what flips the whole app at cutover.
+ */
+export const v2IsLive = import.meta.env.VITE_V2_LIVE === 'true'
+
+/**
+ * Render the v2 UI when EITHER a dedicated v2 branch is configured (pre-cutover
+ * preview) OR v2 has gone live on prod. Gate all v2 page swaps on this, not on
+ * v2IsBranch, so the cutover flips by config with no code change.
+ */
+export const useV2 = v2IsBranch || v2IsLive
