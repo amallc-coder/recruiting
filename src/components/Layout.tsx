@@ -9,6 +9,7 @@ import {
   Sparkles,
   ClipboardList,
   FileText,
+  Gauge,
   Users,
   Upload,
   Plug,
@@ -98,15 +99,17 @@ export function Layout() {
     { to: '/', label: 'Dashboard', end: true, cap: 'view_dashboard', icon: LayoutDashboard },
     { to: '/jobs', label: 'Jobs', end: false, cap: 'view_jobs', icon: Briefcase },
     { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
+    { to: '/coverage', label: 'Coverage', end: false, cap: 'view_facilities', icon: Gauge },
     { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
     { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
     { to: '/facilities', label: 'Facilities', end: false, cap: 'view_facilities', icon: Building2 },
     { to: '/matching', label: 'Matching', end: false, cap: 'view_matching', icon: Sparkles },
     { to: '/positions', label: 'Positions', end: false, cap: 'view_positions', icon: ClipboardList },
   ]
-  // The Requisitions workspace runs against the v2 schema; only surface it when
-  // the app is pointed at a v2 branch/preview (hidden in prod until cutover).
-  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (t.to !== '/requisitions' || v2IsBranch))
+  // The Requisitions + Coverage workspaces run against the v2 schema; only
+  // surface them when pointed at a v2 branch/preview (hidden in prod until cutover).
+  const v2Only = ['/requisitions', '/coverage']
+  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || v2IsBranch))
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
     { to: '/import', label: 'Import', icon: Upload },

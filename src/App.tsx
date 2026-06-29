@@ -22,6 +22,7 @@ import { Setup } from './pages/Setup'
 const Import = lazy(() => import('./pages/Import').then((m) => ({ default: m.Import })))
 import { Team } from './pages/Team'
 import { RequisitionsPage, RequisitionDetail } from './features/requisitions'
+import { CoveragePage } from './features/coverage'
 import { v2IsBranch } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -55,6 +56,7 @@ export default function App() {
               <>
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
+                <Route path="/coverage" element={<CoveragePage />} />
               </>
             )}
             <Route
