@@ -72,10 +72,14 @@ apply cleanly in this order.
   candidate+application+event; region isolation enforced across admin/Columbus/KC.
 - TODO (Phase 1 tail): regenerate v2 TS types to include the new tables/columns.
 
-**Phase 2 — data-migration script** (no prod impact; tested on a branch seeded
-from a prod snapshot)
-- `public.*` → `v2.*` transforms (mapping below).
-- Idempotent, re-runnable, with row-count assertions and a dry-run mode.
+**Phase 2 — data-migration script — DONE (branch-tested; no prod impact)**
+- `10_migrate_from_legacy.sql`: idempotent `legacy.* → public.*` transform.
+- Branch-tested against a representative legacy dataset: every candidate
+  migrates with zero orphans (career apps → real reqs; the rest → synthetic
+  "Talent Pool" reqs, incl. null-facility → a "General" facility); stage/status,
+  role-family + stage generation, onboarding/checklist carry, note→email comm
+  mapping, interview→scorecard, all enum casts, and `facilities.region` all
+  verified correct.
 
 **Phase 3 — frontend port** (no prod impact; behind the `v2IsBranch`/flag)
 - Re-point every page + lib module from the old client/tables to the v2 client +
@@ -129,10 +133,12 @@ old-only data with no v2 home (per decision A).
 ## Status
 - **Decisions A (full parity) and B (region isolation) both settled.**
 - **Phase 1 DONE:** full-parity schema homes + region isolation + hardening
-  authored (`05`–`09`) and branch-validated. Requisitions module ships dormant
-  behind `v2IsBranch`.
-- **Next: Phase 2** — author the `public → v2` data-migration script and test it
-  on a branch seeded from a prod snapshot. Then Phase 3 (frontend port), then the
-  gated Phase 4 go-live.
+  (`05`–`09`), branch-validated. Requisitions module ships dormant behind
+  `v2IsBranch`.
+- **Phase 2 DONE:** `10_migrate_from_legacy.sql` authored and branch-tested
+  against a representative legacy dataset (zero orphan candidates; all mappings
+  verified).
+- **Next: Phase 3** — port the frontend page-by-page onto the v2 client + schema
+  (and rebuild the 7 feature UIs / edge functions). Then the gated Phase 4.
 - Nothing applied to prod. Phase 4 runs only with an explicit go-ahead + a fresh
   backup.
