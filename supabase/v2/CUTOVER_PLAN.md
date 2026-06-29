@@ -7,51 +7,70 @@ an explicit go-ahead + a fresh backup.**
 
 ---
 
-## 0. The two gating decisions
+## 0. The two gating decisions — BOTH SETTLED
 
-### A. Feature parity (the big one)
-v2 is a credentialing/requisitions redesign and does **not** currently cover
-large parts of the live product. For each, we either **rebuild on v2** or
-**retire** it:
+### A. Feature parity — DECISION: **FULL PARITY (rebuild all 7)**
+The owner chose full parity: every production feature gets a home on v2 before
+cutover; nothing is retired. Phase-1 schema homes for all of them are authored
+and branch-validated (see `06_feature_homes.sql`).
 
-| Production feature (old schema) | In v2 today? | Decision needed |
+| Production feature (old schema) | Decision | v2 home |
 | --- | --- | --- |
-| Requisitions / pipeline / applications | ✅ (this module) | — |
-| Candidates | ✅ (different shape) | map + migrate |
-| Facilities | ✅ (different shape) | map + migrate |
-| Interviews / offers / scorecards | ✅ | map + migrate |
-| Communications | ✅ | map + migrate |
-| **Facility coverage (`coverage_needs`, Have/Need)** | ❌ | rebuild or retire |
-| **AI screening + Vapi voice calls (`screenings`, edge fns)** | ❌ | rebuild or retire |
-| **Integrations marketplace + OAuth/webhook engine** | ❌ | rebuild or retire |
-| **Positions catalog** | ❌ | rebuild or retire |
-| **Hiring-handoff checklists** | ❌ | rebuild or retire |
-| **Public career page + applications intake** | ❌ | rebuild or retire |
-| **Excel/CSV import engine** | ❌ | rebuild or retire |
-| Analytics dashboards (Exec/Pipeline/Interviews/Offers/Finance) | ⚪ partial (v2 has the tables/indexes) | re-point to v2 |
+| Requisitions / pipeline / applications | keep | `01` |
+| Candidates | map + migrate | `01` + `recruiter_id` (`05`) |
+| Facilities | map + migrate | `01` + `region` (`05`) |
+| Interviews / scorecards | map + migrate | `01` |
+| Communications | map + migrate | `01` + `screening_id` (`06`) |
+| **Facility coverage (`coverage_needs`, Have/Need)** | **rebuild** | `coverage_needs` (`06`) |
+| **AI screening + Vapi voice (`screenings`, edge fns)** | **rebuild** | `screenings` (`06`) + edge fns (Phase 3) |
+| **Integrations marketplace + OAuth/webhook engine** | **rebuild** | `integrations*`, `webhook_events` (`06`) |
+| **Positions catalog** | **rebuild** | `positions` (`06`) |
+| **Hiring-handoff checklists** | **rebuild** | `applications.checklist` + onboarding cols (`06`) |
+| **Public career page + intake** | **rebuild** | req public cols + `apply_to_requisition()` (`06`) |
+| **Excel/CSV import engine** | **rebuild** | `candidates.source_*` + uq index (`06`); FE in Phase 3 |
+| Offers | **rebuild** | `offers` (`06`) |
+| Recruiting costs / Finance | **rebuild** | `recruiting_costs` (`06`) |
+| Analytics (events + audit) | **rebuild** | `analytics_events`, `audit_logs` (`06`) |
 
-> **Until this matrix is settled, the schema scope and the frontend port can't be
-> finalized.** "Lean v2" (retire the ❌ rows) is weeks; "full parity" (rebuild
-> them on v2) is materially larger.
+### B. Region isolation — DONE (Phase 1)
+The org-only RLS regression is fixed in `05_region_isolation.sql` +
+`08_region_write_policies.sql`:
+- `recruiter_regions(user_id, region)`, `region` on `facilities`,
+  `candidates.recruiter_id` for ownership;
+- helpers `is_region_limited()`, `can_see_region()`, `covers_facility()`;
+- region-scoped read policies on facilities / requisitions / applications /
+  candidates (admin, coordinator, compliance stay org-wide; recruiter +
+  hiring_manager are territory-bound).
 
-### B. Region isolation (a security regression to fix first)
-Today recruiters are isolated **by region** (`recruiter_regions` +
-`covers_region()`). v2's RLS is **org-scoped only** → every recruiter would see
-every candidate in the org. v2 must regain region scoping before cutover:
-- add `recruiter_regions(user_id, region)` + `covers_region(region)` to v2,
-- add `region` to `facilities` (and derive candidate/application region via the
-  requisition's facility),
-- region-scope the candidate/application/requisition read policies.
+> **Bug found in validation (the reason we branch-validate):** v2's write
+> policies were `FOR ALL`, and a `FOR ALL` policy's `USING` clause also governs
+> `SELECT`. Because `is_staff()` is true for recruiters org-wide, those write
+> policies silently re-exposed every row — defeating region isolation entirely.
+> Fix: split every `FOR ALL` write policy on region-sensitive tables into
+> command-specific `INSERT`/`UPDATE`/`DELETE` policies (`08`). Validated on a
+> branch: a Columbus recruiter sees only Columbus reqs/facilities/apps; a Kansas
+> City recruiter sees the Lakeside set (+ public postings); admin sees all.
 
 ---
 
+## Apply order (v2 SQL files)
+`01_schema` → `02_rls` → `03_placement_ready` → `05_region_isolation` →
+`06_feature_homes` → `07_feature_rls` → `08_region_write_policies` →
+`09_hardening` → `04_seed` (seed last; dev/test only). All branch-validated to
+apply cleanly in this order.
+
 ## Phases
 
-**Phase 1 — v2 schema completeness** (no prod impact; validated on a branch)
-- Region scoping (decision B).
-- Homes for every kept feature from decision A (new tables/columns or explicit
-  "retired").
-- Extend `supabase/v2/*` + types accordingly.
+**Phase 1 — v2 schema completeness — DONE (branch-validated; no prod impact)**
+- ✅ Region scoping (decision B): `05` + `08`.
+- ✅ Homes for all full-parity features (decision A): `06` + RLS in `07`.
+- ✅ Security hardening (`09`): pinned `search_path`; internal RLS helpers locked
+  to `authenticated` (revoked from PUBLIC/anon); trigger/maintenance fns
+  `postgres`-only. Advisor clean except the intentionally-public career RPC.
+- ✅ Validated on a Supabase branch: schema applies clean; `placement_ready`
+  unchanged (6 ready / 6 not); career intake (`apply_to_requisition`) creates
+  candidate+application+event; region isolation enforced across admin/Columbus/KC.
+- TODO (Phase 1 tail): regenerate v2 TS types to include the new tables/columns.
 
 **Phase 2 — data-migration script** (no prod impact; tested on a branch seeded
 from a prod snapshot)
@@ -72,6 +91,15 @@ from a prod snapshot)
 5. Smoke-test the acceptance flows; spot-check region isolation + row counts.
 6. Lift the freeze. Monitor.
 - **Rollback:** restore the backup + redeploy the previous frontend build.
+
+> **Prod-execution note (learned in validation): do NOT `drop schema public`.**
+> Dropping/recreating the `public` schema destroys Supabase's default table/role
+> grants, after which `authenticated`/`anon` get "permission denied" even with
+> correct RLS. On prod, **drop/replace the old objects** (tables/functions),
+> leaving the schema and its grant configuration intact — or explicitly re-grant
+> `select,insert,update,delete on all tables` + `usage,select on all sequences`
+> to `anon, authenticated` and re-create the default privileges after load. The
+> data-migration script (Phase 2) must run as `service_role`/owner.
 
 ---
 
@@ -99,7 +127,12 @@ old-only data with no v2 home (per decision A).
 ---
 
 ## Status
-- v2 schema (requisitions/pipeline/credentials/placement-ready) authored +
-  branch-validated; requisitions module built (ships dormant behind `v2IsBranch`).
-- **Blocked on decision A (feature parity)** to size Phases 1–3.
-- Nothing applied to prod.
+- **Decisions A (full parity) and B (region isolation) both settled.**
+- **Phase 1 DONE:** full-parity schema homes + region isolation + hardening
+  authored (`05`–`09`) and branch-validated. Requisitions module ships dormant
+  behind `v2IsBranch`.
+- **Next: Phase 2** — author the `public → v2` data-migration script and test it
+  on a branch seeded from a prod snapshot. Then Phase 3 (frontend port), then the
+  gated Phase 4 go-live.
+- Nothing applied to prod. Phase 4 runs only with an explicit go-ahead + a fresh
+  backup.
