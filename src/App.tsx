@@ -28,6 +28,10 @@ import { PositionsPage as V2Positions } from './features/positions'
 import { IntegrationsPage as V2Integrations } from './features/integrations'
 import { OffersPage } from './features/offers'
 import { FinancePage } from './features/finance'
+import { DashboardPage as V2Dashboard } from './features/dashboard'
+import { CandidatesPage as V2Candidates } from './features/candidates'
+import { FacilitiesPage as V2Facilities } from './features/facilities'
+import { CareersPage as V2Careers } from './features/careers'
 import { v2IsBranch } from './lib/v2/client'
 
 // HashRouter keeps deep links working on GitHub Pages (no server-side routing).
@@ -38,9 +42,9 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          {/* Public career page — no authentication required. */}
-          <Route path="/careers" element={<Careers />} />
-          <Route path="/careers/:slug" element={<Careers />} />
+          {/* Public career page — no authentication required. Swaps to v2 intake. */}
+          <Route path="/careers" element={v2IsBranch ? <V2Careers /> : <Careers />} />
+          <Route path="/careers/:slug" element={v2IsBranch ? <V2Careers /> : <Careers />} />
           <Route
             element={
               <ProtectedRoute>
@@ -48,10 +52,11 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/facilities" element={<Facilities />} />
+            <Route path="/" element={v2IsBranch ? <V2Dashboard /> : <Dashboard />} />
+            <Route path="/facilities" element={v2IsBranch ? <V2Facilities /> : <Facilities />} />
+            {/* FacilityDetail is still old-schema; unreachable from the v2 facilities nav. */}
             <Route path="/facilities/:id" element={<FacilityDetail />} />
-            <Route path="/candidates" element={<Candidates />} />
+            <Route path="/candidates" element={v2IsBranch ? <V2Candidates /> : <Candidates />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
             <Route path="/analytics" element={<Analytics />} />
