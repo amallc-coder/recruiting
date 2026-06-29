@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
-import { Upload, FileSpreadsheet, CheckCircle2, Cloud, RefreshCw } from 'lucide-react'
-import { Button, Card, Select, Input, useToast } from '../../components/primitives'
+import { Upload, FileSpreadsheet, CheckCircle2, Cloud, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react'
+import { Button, Card, Select, Input, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
+import { useAuth } from '../../context/AuthContext'
 import {
   parseFile,
   guessMapping,
   importCandidates,
+  resetOrgCandidateData,
   type ParsedRow,
   type FieldMap,
   type ImportResult,
@@ -32,6 +34,7 @@ const TARGET_FIELDS: TargetField[] = [
 
 export function ImportPage() {
   const { toast } = useToast()
+  const { isAdmin } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [parsing, setParsing] = useState(false)
@@ -134,6 +137,8 @@ export function ImportPage() {
       </div>
 
       <SharePointSync />
+
+      {isAdmin && <GoLiveReset />}
 
       {/* Step 1 — file upload */}
       <Card className="p-5">
@@ -283,6 +288,80 @@ export function ImportPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Admin-only one-time go-live reset: wipe candidate + pipeline data so a fresh
+// import can replace it. Double-guarded (type-to-confirm). Configuration
+// (requisitions, facilities, team, integrations) is preserved.
+function GoLiveReset() {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function run() {
+    setBusy(true)
+    const { candidates, applications, error } = await resetOrgCandidateData()
+    setBusy(false)
+    if (error) {
+      toast({ tone: 'error', title: 'Reset failed', description: error })
+      return
+    }
+    toast({ tone: 'success', title: 'Data reset', description: `Deleted ${candidates} candidate(s) and ${applications} application(s).` })
+    setOpen(false)
+    setConfirm('')
+  }
+
+  return (
+    <Card className="border-rust-200 bg-rust-50/30 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <AlertTriangle size={18} className="shrink-0 text-rust-500" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-ink">Go-live reset</div>
+          <div className="text-xs text-muted">
+            One-time before launch: delete all current candidates &amp; their pipeline data so you can import
+            a clean file. Requisitions, facilities, team, and integrations are kept.
+          </div>
+        </div>
+        <Button variant="danger" leftIcon={<Trash2 size={15} />} onClick={() => setOpen(true)}>
+          Reset data…
+        </Button>
+      </div>
+
+      {open && (
+        <Modal
+          title="Reset candidate data before go-live?"
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="danger" loading={busy} disabled={confirm.trim().toUpperCase() !== 'RESET'} onClick={run}>
+                Delete everything
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-ink">
+            <p>
+              This permanently deletes <strong>all candidates</strong> in your organization and everything tied
+              to them — applications, screenings, offers, communications, credentials, scorecards, interviews,
+              and onboarding tasks. <strong>This cannot be undone.</strong>
+            </p>
+            <p className="text-muted">
+              Kept: requisitions / open postings, facilities, team members, role families, pipeline stages, and
+              integrations.
+            </p>
+            <div>
+              <label className="label">Type RESET to confirm</label>
+              <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="RESET" />
+            </div>
+          </div>
+        </Modal>
+      )}
+    </Card>
   )
 }
 

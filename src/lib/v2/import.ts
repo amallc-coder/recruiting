@@ -228,3 +228,17 @@ export async function importCandidates(
 
   return { created, updated, skipped, error: null }
 }
+
+/**
+ * GO-LIVE RESET (admin only). Wipes the org's candidate + pipeline data so a fresh
+ * import can replace it. Calls the SECURITY DEFINER reset_org_candidate_data() RPC,
+ * which deletes candidates (cascading applications, screenings, offers, comms,
+ * credentials, scorecards, interviews, onboarding). Requisitions, facilities, team,
+ * role families, pipeline stages, and integrations are preserved.
+ */
+export async function resetOrgCandidateData(): Promise<{ candidates: number; applications: number; error: string | null }> {
+  const { data, error } = await v2.rpc('reset_org_candidate_data')
+  if (error) return { candidates: 0, applications: 0, error: error.message }
+  const d = (data ?? {}) as { candidates_deleted?: number; applications_deleted?: number }
+  return { candidates: d.candidates_deleted ?? 0, applications: d.applications_deleted ?? 0, error: null }
+}
