@@ -116,12 +116,18 @@ export function Layout() {
   // active (a configured v2 branch pre-cutover, or v2 live on prod). The other
   // tabs are swap-in-place at their existing paths, so they always show.
   const v2Only = ['/requisitions', '/coverage', '/screening', '/offers', '/finance']
-  const tabs = allTabs.filter((t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2))
+  // Old pages still on the legacy schema; under v2 their replacements exist
+  // (Jobs → Requisitions) or they await a v2 port (Team, Cloud setup), so hide
+  // them to avoid linking to broken screens.
+  const v2Hidden = useV2 ? ['/jobs'] : []
+  const tabs = allTabs.filter(
+    (t) => roleCan(role, t.cap) && (!v2Only.includes(t.to) || useV2) && !v2Hidden.includes(t.to),
+  )
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
-    { to: '/team', label: 'Team', icon: Users },
+    ...(!useV2 ? [{ to: '/team', label: 'Team', icon: Users }] : []),
     { to: '/import', label: 'Import', icon: Upload },
     { to: '/integrations', label: 'Integrations', icon: Plug },
-    ...(!demoMode ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
+    ...(!demoMode && !useV2 ? [{ to: '/setup', label: 'Cloud setup', icon: Database }] : []),
   ]
 
   // Nav body shared by the desktop sidebar and the mobile drawer.

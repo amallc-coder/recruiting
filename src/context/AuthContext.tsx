@@ -1,7 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { useV2 } from '../lib/v2/client'
 import type { Profile } from '../lib/types'
+
+// Under v2 the user/role record lives in `users` (the old `profiles` table moved
+// to the `legacy` schema at cutover). Same core shape (id, full_name, email,
+// role, active), so it maps onto Profile directly.
 
 interface AuthState {
   session: Session | null
@@ -21,7 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    const { data } = useV2
+      ? await supabase.from('users').select('*').eq('id', userId).single()
+      : await supabase.from('profiles').select('*').eq('id', userId).single()
     setProfile((data as Profile) ?? null)
   }
 
