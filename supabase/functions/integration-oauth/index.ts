@@ -89,7 +89,8 @@ Deno.serve(async (req: Request) => {
     const caller = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } })
     const { data: u } = await caller.auth.getUser()
     if (!u?.user) return json({ error: 'Not authenticated' }, 401)
-    const { data: prof } = await admin().from('profiles').select('role,active').eq('id', u.user.id).single()
+    // v2 stores app users + roles in `users` (there is no `profiles` table).
+    const { data: prof } = await admin().from('users').select('role,active').eq('id', u.user.id).single()
     if (!prof || prof.role !== 'admin' || !prof.active) return json({ error: 'Admin only' }, 403)
 
     const { integration_id, provider } = await req.json().catch(() => ({}))

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Plug, Power } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Plug, Power, Link2 } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
@@ -10,6 +11,8 @@ import {
   setEnabled,
   setStatus,
   deleteIntegration,
+  connectOAuth,
+  isOAuthProvider,
   type IntegrationInput,
 } from '../../lib/v2/integrations'
 import type { Integration, IntegrationStatus } from '../../lib/v2/types'
@@ -47,6 +50,8 @@ export function IntegrationsPage() {
   const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<Integration | null | undefined>(undefined)
 
+  const [params, setParams] = useSearchParams()
+
   function load() {
     setLoading(true)
     listIntegrations().then((rows) => {
@@ -55,6 +60,25 @@ export function IntegrationsPage() {
     })
   }
   useEffect(load, [])
+
+  // Surface the result of the OAuth round-trip (the callback redirects back to
+  // #/integrations?connected=<provider> or ?error=<message>), then clear it.
+  useEffect(() => {
+    const connected = params.get('connected')
+    const error = params.get('error')
+    if (!connected && !error) return
+    if (connected) toast({ tone: 'success', title: `Connected ${connected}` })
+    if (error) toast({ tone: 'error', title: 'OAuth failed', description: error })
+    setParams({}, { replace: true })
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
+
+  async function connect(i: Integration) {
+    const { error } = await connectOAuth(i.id, i.provider)
+    // On success the browser is already navigating to the provider; only errors return here.
+    if (error) toast({ tone: 'error', title: 'Could not start OAuth', description: error })
+  }
 
   const rollup = useMemo(
     () => ({
@@ -140,6 +164,11 @@ export function IntegrationsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
+                  {i.auth_type === 'oauth2' && isOAuthProvider(i.provider) && i.status !== 'connected' && (
+                    <Button size="sm" leftIcon={<Link2 size={14} />} onClick={() => connect(i)}>
+                      Connect with OAuth
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant={i.is_enabled ? 'primary' : 'secondary'}
