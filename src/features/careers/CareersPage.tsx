@@ -112,6 +112,7 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [linkedin, setLinkedin] = useState('')
+  const [referredBy, setReferredBy] = useState('')
   const [resumeText, setResumeText] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -136,7 +137,7 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
       email: email.trim(),
       phone: phone.trim() || undefined,
       resume_text: resumeText.trim() || undefined,
-      intake: { linkedin: linkedin.trim() },
+      intake: { linkedin: linkedin.trim(), referred_by: referredBy.trim() },
       screening: questions.map((q) => ({ question_id: q.id, question: q.question, answer: (answers[q.id] ?? '').trim() })),
     })
     setSubmitting(false)
@@ -190,6 +191,7 @@ function ApplyModal({ req, onClose }: { req: PublicReq; onClose: () => void }) {
         />
         <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
         <Input label="LinkedIn" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="URL (optional)" />
+        <Input label="Referred by" value={referredBy} onChange={(e) => setReferredBy(e.target.value)} placeholder="Who referred you? (optional)" />
         <div>
           <label className="label">Resume / summary</label>
           <textarea
