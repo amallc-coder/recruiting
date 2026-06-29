@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Plug, Power, Link2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Plug, Power, Link2, Activity } from 'lucide-react'
 import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
@@ -12,6 +12,7 @@ import {
   setStatus,
   deleteIntegration,
   connectOAuth,
+  runIntegration,
   isOAuthProvider,
   type IntegrationInput,
 } from '../../lib/v2/integrations'
@@ -78,6 +79,15 @@ export function IntegrationsPage() {
     const { error } = await connectOAuth(i.id, i.provider)
     // On success the browser is already navigating to the provider; only errors return here.
     if (error) toast({ tone: 'error', title: 'Could not start OAuth', description: error })
+  }
+
+  const [testing, setTesting] = useState<string | null>(null)
+  async function testConn(i: Integration) {
+    setTesting(i.id)
+    const { ok, message } = await runIntegration(i.id, 'test')
+    setTesting(null)
+    toast({ tone: ok ? 'success' : 'error', title: ok ? 'Connection healthy' : 'Test failed', description: message })
+    load()
   }
 
   const rollup = useMemo(
@@ -176,6 +186,15 @@ export function IntegrationsPage() {
                     onClick={() => toggleEnabled(i)}
                   >
                     {i.is_enabled ? 'Disable' : 'Enable'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    leftIcon={<Activity size={14} />}
+                    loading={testing === i.id}
+                    onClick={() => testConn(i)}
+                  >
+                    Test
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => toggleConnected(i)}>
                     {i.status === 'connected' ? 'Mark disconnected' : 'Mark connected'}
