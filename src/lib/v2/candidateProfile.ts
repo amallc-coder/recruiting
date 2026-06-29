@@ -398,6 +398,33 @@ export async function verifyCredential(id: string): Promise<{ error: string | nu
   return { error: error?.message ?? null }
 }
 
+export interface NewCredential {
+  type: CredentialType
+  number?: string | null
+  issuing_state?: string | null
+  issue_date?: string | null
+  expiration_date?: string | null
+  verification_status?: VerificationStatus
+  primary_source_verified?: boolean
+}
+
+export async function createCredential(
+  candidateId: string,
+  input: NewCredential,
+): Promise<{ error: string | null }> {
+  const { error } = await v2.from('credentials').insert({
+    candidate_id: candidateId,
+    type: input.type,
+    number: input.number?.trim() || null,
+    issuing_state: input.issuing_state?.trim() || null,
+    issue_date: input.issue_date || null,
+    expiration_date: input.expiration_date || null,
+    verification_status: input.verification_status ?? 'unverified',
+    primary_source_verified: input.primary_source_verified ?? false,
+  })
+  return { error: error?.message ?? null }
+}
+
 // ---- document actions -----------------------------------------------------
 
 export async function requestDocument(candidateId: string, type: string): Promise<{ error: string | null }> {
