@@ -23,6 +23,7 @@ import {
   X,
   ChevronsLeft,
   ChevronsRight,
+  Radar,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -117,6 +118,7 @@ export function Layout() {
     { to: '/requisitions', label: 'Requisitions', end: false, cap: 'view_jobs', icon: FileText },
     { to: '/coverage', label: 'Coverage', end: false, cap: 'view_facilities', icon: Gauge },
     { to: '/candidates', label: 'Candidates', end: false, cap: 'view_candidates', icon: UserRound },
+    { to: '/sourcing', label: 'Sourcing', end: false, cap: 'view_candidates', icon: Radar },
     { to: '/screening', label: 'Screening', end: false, cap: 'view_candidates', icon: Bot },
     { to: '/offers', label: 'Offers', end: false, cap: 'view_candidates', icon: Handshake },
     { to: '/analytics', label: 'Analytics', end: false, cap: 'view_analytics', icon: BarChart3 },
@@ -128,7 +130,7 @@ export function Layout() {
   // These tabs only exist as routes under the v2 schema; hide them until v2 is
   // active (a configured v2 branch pre-cutover, or v2 live on prod). The other
   // tabs are swap-in-place at their existing paths, so they always show.
-  const v2Only = ['/requisitions', '/coverage', '/screening', '/offers', '/finance']
+  const v2Only = ['/requisitions', '/coverage', '/sourcing', '/screening', '/offers', '/finance']
   // Old pages still on the legacy schema; under v2 their replacements exist
   // (Jobs → Requisitions) or they await a v2 port (Team, Cloud setup), so hide
   // them to avoid linking to broken screens.
