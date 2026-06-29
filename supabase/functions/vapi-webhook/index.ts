@@ -29,6 +29,54 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const WEBHOOK_SECRET = Deno.env.get('VAPI_WEBHOOK_SECRET')
+const VAPI_KEY = Deno.env.get('VAPI_API_KEY')
+const VAPI_PHONE_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID')
+const PUBLIC_APP_URL = (Deno.env.get('PUBLIC_APP_URL') || 'https://amallc-coder.github.io/recruiting').replace(/\/+$/, '')
+
+// End-of-call reasons that mean the call never reached a real conversation.
+const NO_CONNECT = /no-answer|did-not-answer|voicemail|busy|customer-did-not-give|no-microphone|did-not-receive-customer-audio|failed|pipeline-error|twilio-failed|customer-ended-call-before|assistant-not-found|dial/i
+
+function e164(raw: string | null): string | null {
+  if (!raw) return null
+  const d = raw.replace(/[^\d]/g, '')
+  if (d.length === 10) return `+1${d}`
+  if (d.length === 11 && d.startsWith('1')) return `+${d}`
+  if (raw.trim().startsWith('+')) return raw.trim()
+  return null
+}
+async function firstVapiPhoneId(): Promise<string | null> {
+  if (!VAPI_KEY) return null
+  try {
+    const r = await fetch('https://api.vapi.ai/phone-number', { headers: { Authorization: `Bearer ${VAPI_KEY}` } })
+    if (!r.ok) return null
+    const arr = await r.json()
+    return Array.isArray(arr) && arr[0]?.id ? arr[0].id : null
+  } catch {
+    return null
+  }
+}
+async function sendSms(to: string, message: string): Promise<string | null> {
+  if (!VAPI_KEY) return null
+  const phoneId = VAPI_PHONE_ID || (await firstVapiPhoneId())
+  if (!phoneId) return null
+  try {
+    const r = await fetch('https://api.vapi.ai/sms', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${VAPI_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumberId: phoneId, customer: { number: to }, message }),
+    })
+    const b = await r.json().catch(() => ({}))
+    return r.ok ? (b?.id ?? null) : null
+  } catch {
+    return null
+  }
+}
+async function scheduleLinkForApp(applicationId: string | null | undefined): Promise<string | null> {
+  if (!applicationId) return null
+  const { data } = await admin.from('applications').select('schedule_token').eq('id', applicationId).single()
+  const tok = (data as { schedule_token?: string } | null)?.schedule_token
+  return tok ? `${PUBLIC_APP_URL}/#/schedule/${tok}` : null
+}
 
 interface Analysis {
   summary: string
@@ -216,6 +264,7 @@ Deno.serve(async (req: Request) => {
   if (type === 'end-of-call-report' || (type === 'status-update' && msg?.status === 'ended')) {
     const callId = msg?.call?.id ?? payload?.call?.id
     const transcript: string = msg?.artifact?.transcript ?? msg?.transcript ?? ''
+    const endedReason: string = msg?.endedReason ?? msg?.call?.endedReason ?? msg?.artifact?.endedReason ?? ''
     const recordingUrl: string | null =
       msg?.artifact?.recordingUrl ?? msg?.artifact?.recording?.url ?? msg?.recordingUrl ?? msg?.recording?.url ?? null
     const metaScreening = msg?.call?.metadata?.screening_id ?? msg?.call?.assistant?.metadata?.screening_id
@@ -225,11 +274,43 @@ Deno.serve(async (req: Request) => {
     if (!s && callId) s = (await admin.from('screenings').select('*').eq('external_ref', callId).single()).data
     if (!s) return json({ ok: true, note: 'no matching screening' })
 
-    const { data: cand } = await admin.from('candidates').select('id,full_name').eq('id', s.candidate_id as string).single()
+    const { data: cand } = await admin.from('candidates').select('id,full_name,phone').eq('id', s.candidate_id as string).single()
     const { data: reqRow } = s.requisition_id
       ? await admin.from('requisitions').select('role_family').eq('id', s.requisition_id as string).single()
       : { data: null }
     const questions = Array.isArray(s.questions) ? (s.questions as { id?: string; question: string }[]) : []
+
+    // ---- call did not connect (no answer / voicemail / busy / failed) -----
+    // Text the candidate that we'll try again, and leave the screening 'approved'
+    // so it can be re-sent (manually or by another auto-dispatch). No analysis.
+    const noConnect = transcript.trim().length === 0 || NO_CONNECT.test(endedReason)
+    if (noConnect) {
+      const phone = e164(cand?.phone ?? null)
+      const first = cand?.full_name?.split(' ')[0] || 'there'
+      const text =
+        `Hi ${first}, this is American Medical Administrators — we just tried to reach you for a quick screening ` +
+        `but couldn't connect. We'll try again soon, or reply here and our AI assistant can do it by text. Thank you!`
+      const smsId = phone ? await sendSms(phone, text) : null
+      const flags = (Array.isArray(s.ai_flags) ? s.ai_flags : []) as unknown[]
+      flags.push({ type: 'call_no_connect', detail: `Call did not connect${endedReason ? ` (${endedReason})` : ''}.`, severity: 'low' })
+      await admin.from('screenings').update({
+        status: 'approved', ai_flags: flags,
+        ...(transcript ? { transcript } : {}), ...(recordingUrl ? { recording_url: recordingUrl } : {}),
+      }).eq('id', s.id)
+      await admin.from('communications').insert({
+        candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
+        channel: 'call', direction: 'outbound',
+        body: `Screening call did not connect${endedReason ? ` (${endedReason})` : ''}.${smsId ? ' Sent a follow-up text.' : ''}`,
+        ai_generated: true, external_ref: callId,
+      })
+      if (smsId) {
+        await admin.from('communications').insert({
+          candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
+          channel: 'sms', direction: 'outbound', body: text, ai_generated: true, external_ref: smsId,
+        })
+      }
+      return json({ ok: true, no_connect: true, reason: endedReason, texted: !!smsId })
+    }
 
     const a = transcript ? await analyze(transcript, questions, { full_name: cand?.full_name, role: reqRow?.role_family }) : null
     const sentLabel = a ? sentimentEnum(a.sentiment_label, a.sentiment_score) : null
@@ -264,6 +345,20 @@ Deno.serve(async (req: Request) => {
       await writeAiDecision(s, a, sentLabel as string)
       if (s.application_id && a.recommendation === 'advance' && !hasHighFlag(a.flags)) {
         await advanceApplication(s.application_id as string)
+        // Invite the candidate to self-schedule an interview now that they passed screening.
+        const link = await scheduleLinkForApp(s.application_id as string)
+        const phone = e164(cand?.phone ?? null)
+        if (link && phone) {
+          const first = cand?.full_name?.split(' ')[0] || 'there'
+          const text = `Great news ${first} — based on our screening we'd love to set up an interview. Pick a time that works for you here: ${link}`
+          const smsId = await sendSms(phone, text)
+          if (smsId) {
+            await admin.from('communications').insert({
+              candidate_id: s.candidate_id, application_id: s.application_id ?? null, screening_id: s.id,
+              channel: 'sms', direction: 'outbound', body: text, ai_generated: true, external_ref: smsId,
+            })
+          }
+        }
       }
     }
 

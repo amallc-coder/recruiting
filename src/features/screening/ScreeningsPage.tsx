@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Phone, MessageSquare, Sparkles } from 'lucide-react'
+import { Plus, Phone, MessageSquare, Sparkles, CalendarClock } from 'lucide-react'
 import { Button, Card, Badge, Select, Modal, useToast } from '../../components/primitives'
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
@@ -293,13 +293,15 @@ function ScreeningDetail({ row, onClose, onChanged, onDeleted }: { row: Screenin
     }
   }
 
-  async function call(mode: 'call' | 'sms') {
+  async function call(mode: 'call' | 'sms' | 'schedule') {
     setBusy(true)
     const { error } = await placeScreeningCall(row.id, mode)
     setBusy(false)
-    if (error) toast({ tone: 'error', title: 'Could not start', description: error })
+    if (error) toast({ tone: 'error', title: 'Could not send', description: error })
     else {
-      toast({ tone: 'success', title: mode === 'call' ? 'Voice screening started' : 'SMS screening sent' })
+      const title =
+        mode === 'call' ? 'Voice screening started' : mode === 'schedule' ? 'Scheduling link sent' : 'SMS screening sent'
+      toast({ tone: 'success', title })
       onChanged()
     }
   }
@@ -313,7 +315,10 @@ function ScreeningDetail({ row, onClose, onChanged, onDeleted }: { row: Screenin
     }
   }
 
-  const canCall = !demoMode && (row.status === 'approved' || row.status === 'sent') && (row.channel === 'phone' || row.channel === 'sms')
+  // Dispatch is allowed for any approved+ screening (so a call/SMS can be re-sent
+  // if it didn't connect or needs another attempt). Re-labels after the first send.
+  const canDispatch = !demoMode && row.status !== 'draft' && row.status !== 'cancelled'
+  const resend = row.status !== 'approved'
 
   return (
     <Modal
@@ -351,14 +356,19 @@ function ScreeningDetail({ row, onClose, onChanged, onDeleted }: { row: Screenin
           <Badge tone={STATUS_TONE[row.status]}>{row.status}</Badge>
           <span className="text-xs text-muted">{row.channel}</span>
           {row.status === 'approved' && <Button size="sm" loading={busy} onClick={() => transition('sent')}>Mark sent</Button>}
-          {canCall && row.channel === 'phone' && (
+          {canDispatch && (
             <Button size="sm" variant="secondary" leftIcon={<Phone size={14} />} loading={busy} onClick={() => call('call')}>
-              Voice call
+              {resend ? 'Re-send call' : 'Voice call'}
             </Button>
           )}
-          {canCall && (
+          {canDispatch && (
             <Button size="sm" variant="secondary" leftIcon={<MessageSquare size={14} />} loading={busy} onClick={() => call('sms')}>
-              SMS
+              {resend ? 'Re-send SMS' : 'SMS'}
+            </Button>
+          )}
+          {canDispatch && row.application_id && (
+            <Button size="sm" variant="secondary" leftIcon={<CalendarClock size={14} />} loading={busy} onClick={() => call('schedule')}>
+              Send scheduling link
             </Button>
           )}
         </div>

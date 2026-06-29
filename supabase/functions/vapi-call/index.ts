@@ -44,6 +44,7 @@ const VAPI_PHONE_ID = Deno.env.get('VAPI_PHONE_NUMBER_ID')
 //   VAPI_VOICE_PROVIDER  e.g. "vapi" | "11labs" | "playht"  (defaults to vapi)
 const VOICE_ID = Deno.env.get('VAPI_VOICE_ID') || 'Elliot'
 const VOICE_PROVIDER = Deno.env.get('VAPI_VOICE_PROVIDER') || 'vapi'
+const PUBLIC_APP_URL = (Deno.env.get('PUBLIC_APP_URL') || 'https://amallc-coder.github.io/recruiting').replace(/\/+$/, '')
 
 // Normalize a US phone to E.164 (+1XXXXXXXXXX). Returns null if it can't.
 function e164(raw: string | null): string | null {
@@ -133,6 +134,36 @@ Deno.serve(async (req: Request) => {
   if (!phone) return json({ error: 'Candidate has no valid US phone number on file.' }, 400)
 
   const { data: job } = s.requisition_id ? await admin.from('requisitions').select('title').eq('id', s.requisition_id).single() : { data: null }
+
+  if (mode === 'schedule') {
+    // Send the candidate their self-scheduling link (no questions needed).
+    const { data: app } = s.application_id
+      ? await admin.from('applications').select('schedule_token').eq('id', s.application_id).single()
+      : { data: null }
+    const tok = (app as { schedule_token?: string } | null)?.schedule_token
+    if (!tok) return json({ error: 'This screening has no linked application to schedule against.' }, 400)
+    const phoneId = VAPI_PHONE_ID || (await firstVapiPhoneId())
+    if (!phoneId) return json({ error: 'No Vapi phone number found. Add one in your Vapi dashboard.' }, 400)
+    const link = `${PUBLIC_APP_URL}/#/schedule/${tok}`
+    const first = cand.full_name?.split(' ')[0] || 'there'
+    const text =
+      `Hi ${first}, this is American Medical Administrators — we'd love to set up an interview for the ` +
+      `${job?.title ?? 'role'}. Pick a time that works for you here: ${link}`
+    const r = await fetch('https://api.vapi.ai/sms', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${VAPI_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumberId: phoneId, customer: { number: phone }, message: text }),
+    })
+    const body = await r.json().catch(() => ({}))
+    if (!r.ok) return json({ error: `Vapi SMS failed: ${body?.message ?? r.status}` }, 502)
+    await admin.from('communications').insert({
+      candidate_id: cand.id, application_id: s.application_id ?? null, screening_id: s.id,
+      channel: 'sms', direction: 'outbound', body: text, ai_generated: true, created_by: u.user.id,
+      external_ref: body?.id ?? null,
+    })
+    return json({ ok: true, sms_id: body?.id ?? null })
+  }
+
   const questions = Array.isArray(s.questions) ? s.questions : []
   if (!questions.length) return json({ error: 'Screening has no questions.' }, 400)
 
