@@ -620,6 +620,11 @@ export async function captureSnapshot(): Promise<{ captured: number; error: stri
       period_end: today,
     }))
   if (rows.length === 0) return { captured: 0, error: 'No KPI values to capture yet.' }
-  const { error } = await v2.from('kpi_snapshots').insert(rows)
+  // Upsert: kpi_snapshots is unique per (org, metric, dimension, dimension_value,
+  // period_start, period_end), so re-capturing the same day refreshes in place
+  // (and coexists with the nightly pg_cron job).
+  const { error } = await v2
+    .from('kpi_snapshots')
+    .upsert(rows, { onConflict: 'org_id,metric,dimension,dimension_value,period_start,period_end' })
   return { captured: error ? 0 : rows.length, error: error?.message ?? null }
 }

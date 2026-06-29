@@ -44,15 +44,15 @@ export const ACTION_POLICY: Record<string, ActionSpec> = {
     tier: 'auto',
     description: 'Surface an item (stale req, aging candidate) for a human to look at. Informational only.',
     target: 'none',
-    executable: false,
+    executable: true,
   },
   'match.refresh': {
     type: 'match.refresh',
     label: 'Refresh AI match shortlist',
     tier: 'auto',
-    description: 'Re-rank candidates for a requisition. Read-only ranking; writes only an AI decision log.',
+    description: 'Re-rank candidates for a requisition. Read-only ranking — surfaces the top matches.',
     target: 'requisition',
-    executable: false,
+    executable: true,
   },
 
   // ---- approval (human clicks to run) ----
