@@ -99,7 +99,7 @@ export default function App() {
               <>
                 <Route path="/candidates/:id" element={<CandidateProfile />} />
                 <Route path="/requests" element={<RequestsPage />} />
-                <Route path="/org-structure" element={<ProtectedRoute adminOnly><OrgStructurePage /></ProtectedRoute>} />
+                <Route path="/org-structure" element={<OrgStructurePage />} />
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
