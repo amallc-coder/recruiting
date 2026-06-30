@@ -57,6 +57,7 @@ export function RequestsPage() {
 
   const facName = useMemo(() => new Map(facilities.map((f) => [f.id, f.name])), [facilities])
   const rfLabel = useMemo(() => new Map(roleFamilies.map((r) => [r.code, r.label])), [roleFamilies])
+  const deptName = useMemo(() => new Map(departments.map((d) => [d.id, d.name])), [departments])
 
   if (!rows) return <Spinner label="Loading requests…" />
 
@@ -152,6 +153,7 @@ export function RequestsPage() {
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
                     <span>{r.facility_id ? facName.get(r.facility_id) ?? 'Facility' : r.facility_name || 'No facility'}</span>
+                    {r.department_id && <span>{deptName.get(r.department_id) ?? 'Dept'}</span>}
                     <span>{r.role_family ? rfLabel.get(r.role_family) ?? r.role_family : 'No role family'}</span>
                     <span>{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
                     <span className={URGENCY_TONE[r.urgency]}>{r.urgency} priority</span>

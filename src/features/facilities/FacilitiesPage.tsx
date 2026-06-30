@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, Building2 } from 'lucide-react'
-import { Button, Card, Badge, Input, Modal, useToast } from '../../components/primitives'
+import { Button, Card, Badge, Input, Select, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import {
   listFacilities,
@@ -10,6 +10,7 @@ import {
   type FacilityRow,
   type FacilityInput,
 } from '../../lib/v2/facilities'
+import { listDivisions, type Division } from '../../lib/v2/hierarchy'
 
 export function FacilitiesPage() {
   const { toast } = useToast()
@@ -76,6 +77,7 @@ export function FacilitiesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Building2 size={16} className="shrink-0 text-muted" aria-hidden />
                     <span className="font-semibold text-ink">{f.name}</span>
+                    {f.division && <Badge tone="clay">{f.division.name}</Badge>}
                     {f.region && <Badge tone="neutral">{f.region}</Badge>}
                     <Badge tone={f.active ? 'sage' : 'neutral'}>{f.active ? 'Active' : 'Inactive'}</Badge>
                   </div>
@@ -125,8 +127,14 @@ function FacilityForm({
   const [city, setCity] = useState(facility?.city ?? '')
   const [address, setAddress] = useState(facility?.address ?? '')
   const [region, setRegion] = useState(facility?.region ?? '')
+  const [divisionId, setDivisionId] = useState(facility?.division_id ?? '')
+  const [divisions, setDivisions] = useState<Division[]>([])
   const [active, setActive] = useState(facility?.active ?? true)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    listDivisions().then(setDivisions)
+  }, [])
 
   async function save() {
     if (!name.trim()) {
@@ -140,6 +148,7 @@ function FacilityForm({
       city: city.trim() || null,
       address: address.trim() || null,
       region: region.trim() || null,
+      division_id: divisionId || null,
       active,
     }
     const { error } = facility
@@ -175,7 +184,14 @@ function FacilityForm({
           <Input label="State" value={state} onChange={(e) => setState(e.target.value)} placeholder="e.g. TX" />
         </div>
         <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address" />
-        <Input label="Region" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Coverage region" />
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Division" value={divisionId} onChange={(e) => setDivisionId(e.target.value)} placeholder="Unassigned">
+            {divisions.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </Select>
+          <Input label="Region" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Coverage region" />
+        </div>
         <label className="flex items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"

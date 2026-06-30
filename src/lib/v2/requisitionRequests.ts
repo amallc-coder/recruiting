@@ -14,6 +14,7 @@ export interface RequisitionRequest {
   id: string
   org_id: string
   facility_id: string | null
+  department_id: string | null
   title: string
   role_family: string | null
   headcount: number
@@ -34,7 +35,7 @@ export interface RequisitionRequest {
 }
 
 const SELECT =
-  'id,org_id,facility_id,title,role_family,headcount,urgency,reason,target_start,status,requisition_id,review_note,requested_by,reviewed_by,requester_name,requester_email,facility_name,source,created_at'
+  'id,org_id,facility_id,department_id,title,role_family,headcount,urgency,reason,target_start,status,requisition_id,review_note,requested_by,reviewed_by,requester_name,requester_email,facility_name,source,created_at'
 
 export async function listRequisitionRequests(): Promise<RequisitionRequest[]> {
   const rows = await fetchAll<RequisitionRequest>('requisition_requests', SELECT)

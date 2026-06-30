@@ -28,6 +28,8 @@ export interface Facility {
   state: string | null
   city: string | null
   region?: string | null
+  division_id?: string | null
+  division?: { id: string; name: string } | null
 }
 
 export interface OrgUser {
@@ -100,6 +102,7 @@ export interface Application {
 
 export interface RequisitionRow extends Requisition {
   facility: Facility | null
+  department: { id: string; name: string } | null
   manager: { id: string; full_name: string } | null
   // PostgREST count embed → [{ count }]
   applications: { count: number }[]

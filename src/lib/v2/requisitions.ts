@@ -10,12 +10,14 @@ import type {
 } from './types'
 
 const REQ_SELECT =
-  '*, facility:facilities(id,name,state,city), manager:users!requisitions_hiring_manager_id_fkey(id,full_name), applications(count)'
+  '*, facility:facilities(id,name,state,city,division:divisions(id,name)), department:departments(id,name), manager:users!requisitions_hiring_manager_id_fkey(id,full_name), applications(count)'
 
 export interface ReqFilters {
   // Multi-select: empty/undefined array means "all".
   statuses?: RequisitionStatus[]
   facilityIds?: string[]
+  divisionIds?: string[]
+  departmentIds?: string[]
   roleFamilies?: string[]
   managerIds?: string[]
   specialty?: string
@@ -44,11 +46,18 @@ export async function listRequisitions(f: ReqFilters = {}): Promise<RequisitionR
     let query = q
     if (f.statuses?.length) query = query.in('status', f.statuses)
     if (f.facilityIds?.length) query = query.in('facility_id', f.facilityIds)
+    if (f.departmentIds?.length) query = query.in('department_id', f.departmentIds)
     if (f.roleFamilies?.length) query = query.in('role_family', f.roleFamilies)
     if (f.managerIds?.length) query = query.in('hiring_manager_id', f.managerIds)
     return query
   })
   rows = rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+
+  // Division filter is on the embedded facility, so apply it client-side.
+  if (f.divisionIds?.length) {
+    const set = new Set(f.divisionIds)
+    rows = rows.filter((r) => r.facility?.division?.id != null && set.has(r.facility.division.id))
+  }
 
   const term = f.search?.trim().toLowerCase()
   if (term) {

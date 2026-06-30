@@ -1,7 +1,7 @@
 import { v2, fetchAll } from './client'
 import { currentOrgId } from './org'
 
-const FACILITY_SELECT = 'id,name,state,city,address,region,active'
+const FACILITY_SELECT = 'id,name,state,city,address,region,active,division_id,division:divisions(id,name)'
 
 export interface FacilityRow {
   id: string
@@ -11,6 +11,8 @@ export interface FacilityRow {
   address: string | null
   region: string | null
   active: boolean
+  division_id: string | null
+  division: { id: string; name: string } | null
 }
 
 /** All facilities for the org, alphabetical by name. */
@@ -27,6 +29,7 @@ export interface FacilityInput {
   address?: string | null
   region?: string | null
   active?: boolean
+  division_id?: string | null
 }
 
 /** Insert a facility, scoped to the caller's org. */
