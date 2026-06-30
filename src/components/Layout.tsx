@@ -154,6 +154,7 @@ export function Layout() {
         { to: '/facilities', label: 'Facilities', cap: 'view_facilities', icon: Building2 },
         { to: '/org-structure', label: 'Org structure', cap: 'view_facilities', icon: Network },
         { to: '/positions', label: 'Positions', cap: 'view_positions', icon: ClipboardList },
+        { to: '/job-templates', label: 'Job templates', cap: 'view_positions', icon: FileText },
         { to: '/templates', label: 'Templates', cap: 'view_candidates', icon: MessageSquare },
       ],
     },
@@ -171,7 +172,7 @@ export function Layout() {
     },
   ]
   // v2-only routes (hidden until v2 is active) and legacy routes hidden under v2.
-  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/inbox', '/templates', '/org-structure', '/autopilot', '/console', '/screening', '/offers', '/finance', '/ad-campaigns', '/handbook']
+  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/inbox', '/templates', '/job-templates', '/org-structure', '/autopilot', '/console', '/screening', '/offers', '/finance', '/ad-campaigns', '/handbook']
   const v2Hidden = useV2 ? ['/jobs'] : []
   const navGroups = navGroupDefs
     .map((g) => ({
