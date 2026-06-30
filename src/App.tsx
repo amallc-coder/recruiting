@@ -44,7 +44,7 @@ import { MatchingPage as V2Matching } from './features/matching'
 import { HandbookPage } from './features/handbook'
 import { ReferralsPage, PublicReferralPage } from './features/referrals'
 import { PublicReferencePage } from './features/references'
-import { RequestsPage } from './features/requests'
+import { RequestsPage, PublicStaffingRequestPage } from './features/requests'
 import { InboxPage } from './features/inbox'
 import { AdCampaignsPage } from './features/ads'
 import { PublicPortalPage } from './features/portal'
@@ -68,6 +68,8 @@ export default function App() {
           {useV2 && <Route path="/schedule/:token" element={<SchedulePage />} />}
           {/* Public refer-a-friend page — no authentication required. */}
           {useV2 && <Route path="/refer" element={<PublicReferralPage />} />}
+          {/* Public staffing-request page — facility managers submit without a login. */}
+          {useV2 && <Route path="/staffing-request" element={<PublicStaffingRequestPage />} />}
           {/* Public token-gated reference form — no authentication required. */}
           {useV2 && <Route path="/reference/:token" element={<PublicReferencePage />} />}
           {/* Public candidate portal — token-gated status view, no authentication. */}
