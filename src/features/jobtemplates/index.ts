@@ -1,0 +1,1 @@
+export { JobTemplatesPage } from './JobTemplatesPage'

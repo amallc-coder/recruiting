@@ -7,6 +7,7 @@ import { currentOrgId } from './org'
 
 export type RequestStatus = 'requested' | 'approved' | 'declined' | 'converted'
 export type Urgency = 'low' | 'normal' | 'high' | 'urgent'
+export type PositionType = 'new' | 'replacement'
 
 export const REQUEST_URGENCIES: Urgency[] = ['low', 'normal', 'high', 'urgent']
 
@@ -30,12 +31,16 @@ export interface RequisitionRequest {
   requester_name: string | null
   requester_email: string | null
   facility_name: string | null
+  /** Whether the opening is a brand-new seat or backfills a departing person. */
+  position_type: PositionType
+  /** Name of the person being replaced (only when position_type = 'replacement'). */
+  replacing_name: string | null
   source: 'internal' | 'public'
   created_at: string
 }
 
 const SELECT =
-  'id,org_id,facility_id,department_id,title,role_family,headcount,urgency,reason,target_start,status,requisition_id,review_note,requested_by,reviewed_by,requester_name,requester_email,facility_name,source,created_at'
+  'id,org_id,facility_id,department_id,title,role_family,headcount,urgency,reason,target_start,status,requisition_id,review_note,requested_by,reviewed_by,requester_name,requester_email,facility_name,position_type,replacing_name,source,created_at'
 
 export async function listRequisitionRequests(): Promise<RequisitionRequest[]> {
   const rows = await fetchAll<RequisitionRequest>('requisition_requests', SELECT)
@@ -51,6 +56,8 @@ export interface RequestInput {
   urgency: Urgency
   reason?: string | null
   target_start?: string | null
+  position_type?: PositionType
+  replacing_name?: string | null
 }
 
 export async function createRequisitionRequest(input: RequestInput): Promise<{ error: string | null }> {
@@ -100,6 +107,8 @@ export interface PublicStaffingInput {
   urgency: Urgency
   reason?: string | null
   target_start?: string | null
+  position_type?: PositionType
+  replacing_name?: string | null
 }
 
 /** Public (anon) staffing request via the submit_staffing_request RPC — no login. */
@@ -115,6 +124,8 @@ export async function submitPublicStaffingRequest(input: PublicStaffingInput): P
     p_headcount: input.headcount,
     p_urgency: input.urgency,
     p_reason: input.reason ?? null,
+    p_position_type: input.position_type ?? 'new',
+    p_replacing_name: input.replacing_name ?? null,
     p_target_start: input.target_start ?? null,
   })
   return { id: (data as string | null) ?? null, error: error?.message ?? null }

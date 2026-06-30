@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, Briefcase, Search, X } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { MapPin, Briefcase, Search, X, Link2, ArrowLeft } from 'lucide-react'
 import { Button, Card, Badge, Input, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import {
   listPublicRequisitions,
+  getPublicRequisition,
   applyToRequisition,
   salaryLabel,
   prescreenFor,
   careerMatchScore,
   otherMatchingRoles,
+  jobSlug,
+  jobUrl,
+  reqIdFromSlug,
   CAREER_MATCH_THRESHOLD,
   type PublicReq,
   type RoleMatch,
@@ -16,15 +21,23 @@ import {
 import { getOrgHierarchy, type OrgHierarchy } from '../../lib/v2/hierarchy'
 
 /**
- * PUBLIC careers page (v2). Renders OUTSIDE the authenticated app shell —
- * anonymous visitors browse open postings and apply via the public-intake RPC.
+ * PUBLIC careers page (v2). Renders OUTSIDE the authenticated app shell. With a
+ * `:slug` route param it shows a single shareable job page; otherwise the full
+ * filterable listing.
  */
 export function CareersPage() {
+  const { slug } = useParams<{ slug: string }>()
+  return slug ? <JobDetailPage slug={slug} /> : <CareersList />
+}
+
+function CareersList() {
   const [reqs, setReqs] = useState<PublicReq[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<PublicReq | null>(null)
   const [hier, setHier] = useState<OrgHierarchy | null>(null)
   const [divisionKey, setDivisionKey] = useState('') // index into hier.divisions
+  const [stateFilter, setStateFilter] = useState('')
+  const [cityFilter, setCityFilter] = useState('')
   const [facilityId, setFacilityId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [role, setRole] = useState('')
@@ -50,13 +63,57 @@ export function CareersPage() {
     divisions.forEach((d, i) => d.facilities.forEach((f) => m.set(f.id, String(i))))
     return m
   }, [divisions])
-  const facilityOptions = divisionKey ? divisions[Number(divisionKey)]?.facilities ?? [] : divisions.flatMap((d) => d.facilities)
-  const departmentOptions = facilityId ? facilityOptions.find((f) => f.id === facilityId)?.departments ?? [] : []
+  // Facilities that actually have open roles, enriched with state/city/division —
+  // the hierarchy nodes don't carry location, so derive it from the postings.
+  const facilityMeta = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; state: string | null; city: string | null; divKey: string }>()
+    for (const r of reqs) {
+      if (!r.facility_id || m.has(r.facility_id)) continue
+      m.set(r.facility_id, {
+        id: r.facility_id,
+        name: r.facility?.name ?? 'Facility',
+        state: r.facility?.state ?? null,
+        city: r.facility?.city ?? null,
+        divKey: facilityToDivKey.get(r.facility_id) ?? '',
+      })
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [reqs, facilityToDivKey])
+
+  const states = useMemo(
+    () => [...new Set(facilityMeta.map((f) => f.state).filter(Boolean) as string[])].sort(),
+    [facilityMeta],
+  )
+  // Cities are contextual to the selected state.
+  const cities = useMemo(
+    () =>
+      [
+        ...new Set(
+          facilityMeta.filter((f) => !stateFilter || f.state === stateFilter).map((f) => f.city).filter(Boolean) as string[],
+        ),
+      ].sort(),
+    [facilityMeta, stateFilter],
+  )
+  // Facility list is contextual to both the chosen division and state.
+  const facilityOptions = useMemo(
+    () => facilityMeta.filter((f) => (!divisionKey || f.divKey === divisionKey) && (!stateFilter || f.state === stateFilter)),
+    [facilityMeta, divisionKey, stateFilter],
+  )
+  const departmentOptions = facilityId
+    ? divisions.flatMap((d) => d.facilities).find((f) => f.id === facilityId)?.departments ?? []
+    : []
+  // Division quick-filter chips — only divisions that have open roles.
+  const divisionChips = useMemo(() => {
+    const present = new Set(facilityMeta.map((f) => f.divKey))
+    return divisions.map((d, i) => ({ key: String(i), name: d.name })).filter((d) => present.has(d.key))
+  }, [divisions, facilityMeta])
 
   const term = search.trim().toLowerCase()
   const filtered = useMemo(() => {
     return reqs.filter((r) => {
       if (divisionKey && (r.facility_id == null || facilityToDivKey.get(r.facility_id) !== divisionKey)) return false
+      if (stateFilter && r.facility?.state !== stateFilter) return false
+      if (cityFilter && r.facility?.city !== cityFilter) return false
       if (facilityId && r.facility_id !== facilityId) return false
       if (departmentId && r.department_id !== departmentId) return false
       if (role && r.role_family !== role) return false
@@ -66,11 +123,18 @@ export function CareersPage() {
       }
       return true
     })
-  }, [reqs, divisionKey, facilityId, departmentId, role, term, facilityToDivKey])
+  }, [reqs, divisionKey, stateFilter, cityFilter, facilityId, departmentId, role, term, facilityToDivKey])
 
-  const anyFilter = !!(divisionKey || facilityId || departmentId || role || term)
+  const anyFilter = !!(divisionKey || stateFilter || cityFilter || facilityId || departmentId || role || term)
   function clearFilters() {
-    setDivisionKey(''); setFacilityId(''); setDepartmentId(''); setRole(''); setSearch('')
+    setDivisionKey(''); setStateFilter(''); setCityFilter(''); setFacilityId(''); setDepartmentId(''); setRole(''); setSearch('')
+  }
+  // Picking a division or state narrows what's below it, so reset the dependents.
+  function selectDivision(key: string) {
+    setDivisionKey(key); setFacilityId(''); setDepartmentId('')
+  }
+  function selectState(s: string) {
+    setStateFilter(s); setCityFilter(''); setFacilityId(''); setDepartmentId('')
   }
 
   return (
@@ -102,11 +166,37 @@ export function CareersPage() {
                   className="w-full bg-transparent text-sm outline-none"
                 />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <select className="input" value={divisionKey} onChange={(e) => { setDivisionKey(e.target.value); setFacilityId(''); setDepartmentId('') }}>
-                  <option value="">All divisions</option>
-                  {divisions.map((d, i) => (
-                    <option key={d.id ?? `d${i}`} value={String(i)}>{d.name}</option>
+              {/* Division quick-filter chips */}
+              {divisionChips.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => selectDivision('')}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${divisionKey === '' ? 'bg-ink text-paper' : 'bg-brand-50 text-muted hover:text-ink'}`}
+                  >
+                    All
+                  </button>
+                  {divisionChips.map((d) => (
+                    <button
+                      key={d.key}
+                      onClick={() => selectDivision(d.key)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${divisionKey === d.key ? 'bg-ink text-paper' : 'bg-brand-50 text-muted hover:text-ink'}`}
+                    >
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <select className="input" value={stateFilter} onChange={(e) => selectState(e.target.value)}>
+                  <option value="">All states</option>
+                  {states.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select className="input" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+                  <option value="">All cities</option>
+                  {cities.map((c) => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
                 <select className="input" value={facilityId} onChange={(e) => { setFacilityId(e.target.value); setDepartmentId('') }}>
@@ -116,7 +206,7 @@ export function CareersPage() {
                   ))}
                 </select>
                 <select className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} disabled={!facilityId}>
-                  <option value="">{facilityId ? 'All departments' : 'All departments'}</option>
+                  <option value="">All departments</option>
                   {departmentOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -165,10 +255,18 @@ export function CareersPage() {
 function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
   const place = [req.facility?.city, req.facility?.state].filter(Boolean).join(', ')
   const salary = salaryLabel(req)
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard?.writeText(jobUrl(req))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
   return (
     <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{req.title}</h2>
+        <Link to={`/careers/${jobSlug(req)}`} className="block text-lg font-semibold tracking-tight text-ink hover:text-sage-700 hover:underline">
+          {req.title}
+        </Link>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="sage">{req.role_family}</Badge>
           {req.employment_type && <Badge tone="neutral">{req.employment_type}</Badge>}
@@ -191,12 +289,101 @@ function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
         </div>
         {req.description && <p className="line-clamp-2 max-w-xl text-sm text-muted">{req.description}</p>}
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
+        <button onClick={copy} title="Copy shareable link" className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-2 text-xs text-muted hover:border-ink hover:text-ink">
+          <Link2 size={14} /> {copied ? 'Copied' : 'Link'}
+        </button>
         <Button leftIcon={<Briefcase size={14} />} onClick={onApply}>
           Apply
         </Button>
       </div>
     </Card>
+  )
+}
+
+/** Dedicated, shareable single-job page (#/careers/:slug). */
+function JobDetailPage({ slug }: { slug: string }) {
+  const { toast } = useToast()
+  const [req, setReq] = useState<PublicReq | null | undefined>(undefined)
+  const [allReqs, setAllReqs] = useState<PublicReq[]>([])
+  const [applying, setApplying] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getPublicRequisition(reqIdFromSlug(slug)).then((r) => active && setReq(r))
+    listPublicRequisitions().then((d) => active && setAllReqs(d))
+    return () => {
+      active = false
+    }
+  }, [slug])
+
+  const place = req ? [req.facility?.city, req.facility?.state].filter(Boolean).join(', ') : ''
+  const salary = req ? salaryLabel(req) : null
+
+  return (
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line bg-surface/90 backdrop-blur">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+          <Link to="/careers" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+            <ArrowLeft size={15} /> All openings
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+        {req === undefined ? (
+          <Spinner label="Loading role…" />
+        ) : req === null ? (
+          <EmptyState title="This role isn't available" hint="It may have been filled or closed. Browse our other open roles." />
+        ) : (
+          <Card className="space-y-5 p-6">
+            <div className="space-y-3">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink">{req.title}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="sage">{req.role_family}</Badge>
+                {req.employment_type && <Badge tone="neutral">{req.employment_type}</Badge>}
+                {req.workplace && <Badge tone="clay">{req.workplace}</Badge>}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                {(req.facility?.name || place) && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={14} /> {[req.facility?.name, place].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+                {salary && <span className="font-medium text-ink">{salary}</span>}
+              </div>
+            </div>
+
+            {req.description && (
+              <div>
+                <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">About this role</h2>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.description}</p>
+              </div>
+            )}
+            {req.requirements && (
+              <div>
+                <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">Requirements</h2>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.requirements}</p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+              <Button leftIcon={<Briefcase size={15} />} onClick={() => setApplying(true)}>
+                Apply for this role
+              </Button>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(jobUrl(req)); toast({ tone: 'success', title: 'Link copied', description: 'Share this role anywhere.' }) }}
+                className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+              >
+                <Link2 size={15} /> Copy shareable link
+              </button>
+            </div>
+          </Card>
+        )}
+      </main>
+
+      {applying && req && <ApplyModal req={req} allReqs={allReqs.length ? allReqs : [req]} onClose={() => setApplying(false)} />}
+    </div>
   )
 }
 
