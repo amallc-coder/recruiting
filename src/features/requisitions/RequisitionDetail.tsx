@@ -90,7 +90,9 @@ export function RequisitionDetail() {
             <ReqStatusBadge status={req.status} />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {req.facility?.name ?? '—'} · {req.role_family}
+            {req.facility?.division?.name ? `${req.facility.division.name} · ` : ''}
+            {req.facility?.name ?? '—'}
+            {req.department?.name ? ` · ${req.department.name}` : ''} · {req.role_family}
             {req.specialty ? ` · ${req.specialty}` : ''} · Manager: {managerName}
           </p>
         </div>

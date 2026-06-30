@@ -15,6 +15,7 @@ import {
   type ReqFilters,
 } from '../../lib/v2/requisitions'
 import type { Facility, OrgUser, RoleFamily, RequisitionRow, RequisitionStatus } from '../../lib/v2/types'
+import { listDivisions, listDepartments, type Division, type Department } from '../../lib/v2/hierarchy'
 
 const STATUSES: RequisitionStatus[] = ['draft', 'pending_approval', 'open', 'on_hold', 'filled', 'closed', 'cancelled']
 const SAVED_KEY = 'clinilytics.req.savedFilters'
@@ -34,7 +35,7 @@ function persistSaved(list: SavedFilter[]) {
   localStorage.setItem(SAVED_KEY, JSON.stringify(list))
 }
 
-const EMPTY_FILTERS: ReqFilters = { statuses: [], facilityIds: [], roleFamilies: [], managerIds: [], specialty: '', search: '', maxAgeDays: null }
+const EMPTY_FILTERS: ReqFilters = { statuses: [], facilityIds: [], divisionIds: [], departmentIds: [], roleFamilies: [], managerIds: [], specialty: '', search: '', maxAgeDays: null }
 
 type SortKey = 'title' | 'facility' | 'status' | 'age' | 'candidates'
 
@@ -45,6 +46,8 @@ export function RequisitionsPage() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [users, setUsers] = useState<OrgUser[]>([])
   const [roleFamilies, setRoleFamilies] = useState<RoleFamily[]>([])
+  const [divisions, setDivisions] = useState<Division[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [filters, setFilters] = useState<ReqFilters>(EMPTY_FILTERS)
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'age', dir: -1 })
@@ -52,10 +55,12 @@ export function RequisitionsPage() {
   const [saved, setSaved] = useState<SavedFilter[]>(loadSaved)
 
   useEffect(() => {
-    Promise.all([listFacilities(), listOrgUsers(), listRoleFamilies()]).then(([f, u, r]) => {
+    Promise.all([listFacilities(), listOrgUsers(), listRoleFamilies(), listDivisions(), listDepartments()]).then(([f, u, r, dv, dp]) => {
       setFacilities(f)
       setUsers(u)
       setRoleFamilies(r)
+      setDivisions(dv)
+      setDepartments(dp)
     })
   }, [])
 
@@ -151,11 +156,25 @@ export function RequisitionsPage() {
             options={STATUSES.map((s) => ({ value: s, label: s.replace('_', ' ') }))}
           />
           <MultiSelect
+            label="Division"
+            placeholder="All divisions"
+            value={filters.divisionIds ?? []}
+            onChange={(v) => setFilter('divisionIds', v)}
+            options={divisions.map((d) => ({ value: d.id, label: d.name }))}
+          />
+          <MultiSelect
             label="Facility"
             placeholder="All facilities"
             value={filters.facilityIds ?? []}
             onChange={(v) => setFilter('facilityIds', v)}
             options={facilities.map((f) => ({ value: f.id, label: f.name }))}
+          />
+          <MultiSelect
+            label="Department"
+            placeholder="All departments"
+            value={filters.departmentIds ?? []}
+            onChange={(v) => setFilter('departmentIds', v)}
+            options={departments.map((d) => ({ value: d.id, label: d.name }))}
           />
           <MultiSelect
             label="Role family"
@@ -215,7 +234,9 @@ export function RequisitionsPage() {
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-ink">{r.title}</div>
                   <div className="mt-0.5 truncate text-xs text-muted">
-                    {r.facility?.name ?? facilityName(r.facility_id)} · {r.role_family}
+                    {r.facility?.division?.name ? `${r.facility.division.name} · ` : ''}
+                    {r.facility?.name ?? facilityName(r.facility_id)}
+                    {r.department?.name ? ` · ${r.department.name}` : ''} · {r.role_family}
                     {r.specialty ? ` · ${r.specialty}` : ''}
                   </div>
                 </div>

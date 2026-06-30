@@ -33,6 +33,7 @@ import {
   FilePlus,
   Inbox,
   Megaphone,
+  Network,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -179,6 +180,7 @@ export function Layout() {
     .filter((g) => g.items.length > 0)
   const adminLinks: { to: string; label: string; icon: LucideIcon }[] = [
     { to: '/team', label: 'Team', icon: Users },
+    ...(useV2 ? [{ to: '/org-structure', label: 'Org structure', icon: Network }] : []),
     ...(useV2 ? [{ to: '/governance', label: 'Governance', icon: ShieldCheck }] : []),
     { to: '/import', label: 'Import', icon: Upload },
     { to: '/integrations', label: 'Integrations', icon: Plug },

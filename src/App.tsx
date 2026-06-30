@@ -45,6 +45,7 @@ import { HandbookPage } from './features/handbook'
 import { ReferralsPage, PublicReferralPage } from './features/referrals'
 import { PublicReferencePage } from './features/references'
 import { RequestsPage, PublicStaffingRequestPage } from './features/requests'
+import { OrgStructurePage } from './features/orgstructure'
 import { InboxPage } from './features/inbox'
 import { AdCampaignsPage } from './features/ads'
 import { PublicPortalPage } from './features/portal'
@@ -98,6 +99,7 @@ export default function App() {
               <>
                 <Route path="/candidates/:id" element={<CandidateProfile />} />
                 <Route path="/requests" element={<RequestsPage />} />
+                <Route path="/org-structure" element={<ProtectedRoute adminOnly><OrgStructurePage /></ProtectedRoute>} />
                 <Route path="/requisitions" element={<RequisitionsPage />} />
                 <Route path="/requisitions/:id" element={<RequisitionDetail />} />
                 <Route path="/coverage" element={<CoveragePage />} />
