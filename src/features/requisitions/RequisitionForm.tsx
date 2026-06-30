@@ -145,7 +145,7 @@ export function RequisitionForm({
         </Select>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="Med/Surg, Primary Care…" />
-          <Select label="Hiring manager" value={managerId} onChange={(e) => setManagerId(e.target.value)} placeholder="Unassigned">
+          <Select label="Recruiter" value={managerId} onChange={(e) => setManagerId(e.target.value)} placeholder="Unassigned">
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name}

@@ -184,8 +184,8 @@ export function RequisitionsPage() {
             options={roleFamilies.map((rf) => ({ value: rf.code, label: rf.code }))}
           />
           <MultiSelect
-            label="Hiring manager"
-            placeholder="Any manager"
+            label="Recruiter"
+            placeholder="Any recruiter"
             value={filters.managerIds ?? []}
             onChange={(v) => setFilter('managerIds', v)}
             options={users.map((u) => ({ value: u.id, label: u.full_name }))}

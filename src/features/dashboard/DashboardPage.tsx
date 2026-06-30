@@ -48,17 +48,43 @@ export function DashboardPage() {
         <p className="mt-1 text-sm text-muted">Open requisitions, pipeline, and coverage at a glance.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Open requisitions" value={summary.openReqs} hint="status = open" />
-        <StatCard label="Candidates" value={summary.totalCandidates} hint="total in talent pool" />
-        <StatCard label="Active applications" value={summary.activeApplications} hint="in pipeline" />
-        <StatCard label="Hires" value={summary.hires} tone="good" hint="applications hired" />
-        <StatCard label="Placement-ready" value={summary.placementReady} tone="good" hint="credentials verified" />
+      {/* At-a-glance summary — mirrors the master tracker. */}
+      <div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">At a glance</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <StatCard label="Openings" value={summary.openings} info="Total seats we're hiring for — the sum of headcount across all open requisitions." />
+          <StatCard
+            label="Openings remaining"
+            value={summary.openingsRemaining}
+            tone={summary.openingsRemaining > 0 ? 'warn' : 'good'}
+            info="Seats still unfilled — openings minus hires already made against open requisitions."
+          />
+          <StatCard label="Total candidates" value={summary.totalCandidates} info="Every candidate in the talent pool, regardless of stage." />
+          <StatCard label="Interviews" value={summary.interviews} info="Total interviews scheduled across all candidates." />
+          <StatCard label="Offers" value={summary.offers} info="Total offers created (sent, accepted, or declined)." />
+          <StatCard label="Hires" value={summary.hires} tone="good" info="Applications that reached a hired outcome." />
+        </div>
+      </div>
+
+      {/* Operational counts. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Open requisitions"
+          value={summary.openReqs}
+          info="Number of job postings currently open (requisition status = open). Each requisition may have more than one opening."
+        />
         <StatCard
           label="Open positions"
           value={summary.openPositions}
           tone={summary.openPositions > 0 ? 'warn' : 'default'}
-          hint="sum of need − have"
+          info="The SNF/LTC coverage gap — sum of (needed − currently filled) across facility coverage needs. This is a staffing-gap view, not a count of requisitions."
+        />
+        <StatCard label="Active applications" value={summary.activeApplications} info="Applications currently moving through the pipeline (status = active)." />
+        <StatCard
+          label="Placement-ready"
+          value={summary.placementReady}
+          tone="good"
+          info="Candidates whose required licenses and credentials are complete and unexpired, so they're cleared to be placed. 'Credential verified' means a credential's authenticity/expiry has been confirmed — once all required ones are verified, the candidate becomes placement-ready."
         />
       </div>
 
