@@ -47,6 +47,7 @@ import { PublicReferencePage } from './features/references'
 import { RequestsPage } from './features/requests'
 import { InboxPage } from './features/inbox'
 import { AdCampaignsPage } from './features/ads'
+import { PublicPortalPage } from './features/portal'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { useV2 } from './lib/v2/client'
@@ -68,6 +69,8 @@ export default function App() {
           {useV2 && <Route path="/refer" element={<PublicReferralPage />} />}
           {/* Public token-gated reference form — no authentication required. */}
           {useV2 && <Route path="/reference/:token" element={<PublicReferencePage />} />}
+          {/* Public candidate portal — token-gated status view, no authentication. */}
+          {useV2 && <Route path="/portal/:token" element={<PublicPortalPage />} />}
           <Route
             element={
               <ProtectedRoute>
