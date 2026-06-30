@@ -75,6 +75,7 @@ export function RequisitionDetail() {
   if (!req) return <EmptyState title="Requisition not found" hint="It may have been removed." />
 
   const managerName = req.manager?.full_name ?? 'Unassigned'
+  const hmName = req.hiring_manager?.full_name ?? null
   const vacancy = costOfVacancy(req, dailyRate)
 
   return (
@@ -94,6 +95,7 @@ export function RequisitionDetail() {
             {req.facility?.name ?? '—'}
             {req.department?.name ? ` · ${req.department.name}` : ''} · {req.role_family}
             {req.specialty ? ` · ${req.specialty}` : ''} · Recruiter: {managerName}
+            {hmName ? ` · Hiring manager: ${hmName}` : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
