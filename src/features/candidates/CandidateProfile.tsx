@@ -20,6 +20,7 @@ import { Button, Card, Badge, Input, Select, Tabs, useToast } from '../../compon
 import type { BadgeTone } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { MatchCard } from '../screening/MatchCard'
+import { ReferencesTab } from '../references'
 import { orderBackgroundCheck } from '../../lib/v2/checkr'
 import { scheduleUrl } from '../../lib/v2/slots'
 import {
@@ -145,6 +146,7 @@ export function CandidateProfile() {
     { value: 'credentials', label: 'Credentials' },
     { value: 'documents', label: 'Documents' },
     { value: 'communications', label: 'Communications' },
+    { value: 'references', label: 'References' },
     { value: 'scorecards', label: 'Scorecards' },
     { value: 'activity', label: 'Activity' },
   ]
@@ -235,6 +237,7 @@ export function CandidateProfile() {
           if (active === 'credentials') return <CredentialsTab profile={profile} onChanged={load} />
           if (active === 'documents') return <DocumentsTab candidateId={id} />
           if (active === 'communications') return <CommunicationsTab candidateId={id} />
+          if (active === 'references') return <ReferencesTab candidateId={id} />
           if (active === 'scorecards') return <ScorecardsTab candidateId={id} />
           if (active === 'activity') return <ActivityTab candidateId={id} />
           return null
