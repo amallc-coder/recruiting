@@ -78,7 +78,7 @@ async function headCount(table: string, build?: (q: any) => any): Promise<number
 export async function loadAiActivity(): Promise<AiActivity> {
   const [decRes, auditRes, decisionsLogged, overrides, autopilotPlans, autopilotExecs, consoleQueries] = await Promise.all([
     v2.from('ai_decisions').select('entity_type,model,score,rationale,created_by_agent,human_override,created_at').order('created_at', { ascending: false }).limit(50),
-    v2.from('audit_logs').select('action,entity_type,detail,created_at').in('action', ['console.query', 'autopilot.plan', 'autopilot.execute', 'screening.callback_scheduled']).order('created_at', { ascending: false }).limit(50),
+    v2.from('audit_logs').select('action,entity_type,detail,created_at').in('action', ['console.query', 'autopilot.plan', 'autopilot.execute', 'screening.callback_scheduled', 'screening.inbound_call']).order('created_at', { ascending: false }).limit(50),
     headCount('ai_decisions'),
     headCount('ai_decisions', (q) => q.eq('human_override', true)),
     headCount('audit_logs', (q) => q.eq('action', 'autopilot.plan')),
