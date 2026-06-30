@@ -46,6 +46,7 @@ import { ReferralsPage, PublicReferralPage } from './features/referrals'
 import { PublicReferencePage } from './features/references'
 import { RequestsPage } from './features/requests'
 import { InboxPage } from './features/inbox'
+import { AdCampaignsPage } from './features/ads'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { useV2 } from './lib/v2/client'
@@ -101,6 +102,7 @@ export default function App() {
                 <Route path="/screening" element={<ScreeningsPage />} />
                 <Route path="/offers" element={<OffersPage />} />
                 <Route path="/finance" element={<FinancePage />} />
+                <Route path="/ad-campaigns" element={<AdCampaignsPage />} />
                 <Route path="/governance" element={<GovernancePage />} />
                 <Route path="/handbook" element={<HandbookPage />} />
               </>
