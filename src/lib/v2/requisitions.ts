@@ -10,7 +10,7 @@ import type {
 } from './types'
 
 const REQ_SELECT =
-  '*, facility:facilities(id,name,state,city,division:divisions(id,name)), department:departments(id,name), manager:users!requisitions_hiring_manager_id_fkey(id,full_name), applications(count)'
+  '*, facility:facilities(id,name,state,city,division:divisions(id,name)), department:departments(id,name), manager:users!requisitions_hiring_manager_id_fkey(id,full_name), hiring_manager:users!requisitions_actual_hiring_manager_id_fkey(id,full_name), applications(count)'
 
 export interface ReqFilters {
   // Multi-select: empty/undefined array means "all".
@@ -20,6 +20,7 @@ export interface ReqFilters {
   departmentIds?: string[]
   roleFamilies?: string[]
   managerIds?: string[]
+  hiringManagerIds?: string[]
   specialty?: string
   maxAgeDays?: number | null
   search?: string
@@ -49,6 +50,7 @@ export async function listRequisitions(f: ReqFilters = {}): Promise<RequisitionR
     if (f.departmentIds?.length) query = query.in('department_id', f.departmentIds)
     if (f.roleFamilies?.length) query = query.in('role_family', f.roleFamilies)
     if (f.managerIds?.length) query = query.in('hiring_manager_id', f.managerIds)
+    if (f.hiringManagerIds?.length) query = query.in('actual_hiring_manager_id', f.hiringManagerIds)
     return query
   })
   rows = rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
@@ -97,6 +99,7 @@ export interface ReqInput {
   headcount: number
   budget?: number | null
   hiring_manager_id?: string | null
+  actual_hiring_manager_id?: string | null
   // Plain `text` columns feeding AI matching + the public careers page.
   description?: string | null
   requirements?: string | null

@@ -58,7 +58,10 @@ export interface Requisition {
   status: RequisitionStatus
   headcount: number
   budget: number | null
+  // The owning recruiter (surfaced in the UI as "Recruiter").
   hiring_manager_id: string | null
+  // The actual facility hiring manager — distinct from the recruiter above.
+  actual_hiring_manager_id?: string | null
   // Free-form text (plain `text` columns) feeding AI matching + the public careers page.
   description: string | null
   requirements: string | null
@@ -104,6 +107,8 @@ export interface RequisitionRow extends Requisition {
   facility: Facility | null
   department: { id: string; name: string } | null
   manager: { id: string; full_name: string } | null
+  // The actual facility hiring manager (embedded via actual_hiring_manager_id).
+  hiring_manager: { id: string; full_name: string } | null
   // PostgREST count embed → [{ count }]
   applications: { count: number }[]
 }

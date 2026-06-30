@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LayoutGrid, Table as TableIcon, Save, Trash2, ArrowUpDown } from 'lucide-react'
+import { Plus, LayoutGrid, Table as TableIcon, Save, Trash2, ArrowUpDown, UserCog } from 'lucide-react'
 import { Button, Card, Input, Select, MultiSelect, Table, THead, TBody, Tr, Th, Td, Badge } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { ReqStatusBadge } from './badges'
@@ -35,7 +35,7 @@ function persistSaved(list: SavedFilter[]) {
   localStorage.setItem(SAVED_KEY, JSON.stringify(list))
 }
 
-const EMPTY_FILTERS: ReqFilters = { statuses: [], facilityIds: [], divisionIds: [], departmentIds: [], roleFamilies: [], managerIds: [], specialty: '', search: '', maxAgeDays: null }
+const EMPTY_FILTERS: ReqFilters = { statuses: [], facilityIds: [], divisionIds: [], departmentIds: [], roleFamilies: [], managerIds: [], hiringManagerIds: [], specialty: '', search: '', maxAgeDays: null }
 
 type SortKey = 'title' | 'facility' | 'status' | 'age' | 'candidates'
 
@@ -49,7 +49,7 @@ export function RequisitionsPage() {
   const [divisions, setDivisions] = useState<Division[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [filters, setFilters] = useState<ReqFilters>(EMPTY_FILTERS)
-  const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [view, setView] = useState<'cards' | 'table' | 'byHM'>('cards')
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'age', dir: -1 })
   const [creating, setCreating] = useState(false)
   const [saved, setSaved] = useState<SavedFilter[]>(loadSaved)
@@ -91,8 +91,52 @@ export function RequisitionsPage() {
     })
   }, [reqs, sort]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Hiring managers are a distinct population from recruiters; fall back to all
+  // users only if no hiring_manager-role users exist yet.
+  const hmOptions = useMemo(() => {
+    const hm = users.filter((u) => u.role === 'hiring_manager')
+    return hm.length ? hm : users
+  }, [users])
+
+  // "By manager" view: group requisitions under their hiring manager.
+  const grouped = useMemo(() => {
+    const map = new Map<string, { name: string; rows: RequisitionRow[] }>()
+    for (const r of sorted) {
+      const id = r.hiring_manager?.id ?? '__none__'
+      const name = r.hiring_manager?.full_name ?? 'Unassigned'
+      if (!map.has(id)) map.set(id, { name, rows: [] })
+      map.get(id)!.rows.push(r)
+    }
+    return [...map.values()].sort((a, b) =>
+      a.name === 'Unassigned' ? 1 : b.name === 'Unassigned' ? -1 : a.name.localeCompare(b.name),
+    )
+  }, [sorted])
+
   function setFilter<K extends keyof ReqFilters>(key: K, value: ReqFilters[K]) {
     setFilters((f) => ({ ...f, [key]: value }))
+  }
+  function renderCard(r: RequisitionRow) {
+    return (
+      <button key={r.id} onClick={() => navigate(`/requisitions/${r.id}`)} className="card p-4 text-left transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-ink">{r.title}</div>
+            <div className="mt-0.5 truncate text-xs text-muted">
+              {r.facility?.division?.name ? `${r.facility.division.name} · ` : ''}
+              {r.facility?.name ?? facilityName(r.facility_id)}
+              {r.department?.name ? ` · ${r.department.name}` : ''} · {r.role_family}
+              {r.specialty ? ` · ${r.specialty}` : ''}
+            </div>
+          </div>
+          <ReqStatusBadge status={r.status} />
+        </div>
+        <div className="mt-3 flex items-center gap-3 text-xs text-muted">
+          <span className="tnum">{appCount(r)} candidates</span>
+          <span className="tnum">{daysOpen(r)}d open</span>
+          <span className="tnum">{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
+        </div>
+      </button>
+    )
   }
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }))
@@ -136,6 +180,13 @@ export function RequisitionsPage() {
               className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm ${view === 'table' ? 'bg-ink text-paper' : 'text-muted hover:text-ink'}`}
             >
               <TableIcon size={15} /> Table
+            </button>
+            <button
+              onClick={() => setView('byHM')}
+              aria-pressed={view === 'byHM'}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm ${view === 'byHM' ? 'bg-ink text-paper' : 'text-muted hover:text-ink'}`}
+            >
+              <UserCog size={15} /> By manager
             </button>
           </div>
           <Button onClick={() => setCreating(true)} leftIcon={<Plus size={16} />}>
@@ -190,6 +241,13 @@ export function RequisitionsPage() {
             onChange={(v) => setFilter('managerIds', v)}
             options={users.map((u) => ({ value: u.id, label: u.full_name }))}
           />
+          <MultiSelect
+            label="Hiring manager"
+            placeholder="Any hiring manager"
+            value={filters.hiringManagerIds ?? []}
+            onChange={(v) => setFilter('hiringManagerIds', v)}
+            options={hmOptions.map((u) => ({ value: u.id, label: u.full_name }))}
+          />
           <Select label="Age" value={filters.maxAgeDays == null ? 'any' : String(filters.maxAgeDays)} onChange={(e) => setFilter('maxAgeDays', e.target.value === 'any' ? null : Number(e.target.value))}>
             <option value="any">Any age</option>
             <option value="7">≤ 7 days</option>
@@ -227,27 +285,20 @@ export function RequisitionsPage() {
       ) : sorted.length === 0 ? (
         <EmptyState title="No requisitions match" hint="Adjust the filters, or create a new requisition." />
       ) : view === 'cards' ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((r) => (
-            <button key={r.id} onClick={() => navigate(`/requisitions/${r.id}`)} className="card p-4 text-left transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-ink">{r.title}</div>
-                  <div className="mt-0.5 truncate text-xs text-muted">
-                    {r.facility?.division?.name ? `${r.facility.division.name} · ` : ''}
-                    {r.facility?.name ?? facilityName(r.facility_id)}
-                    {r.department?.name ? ` · ${r.department.name}` : ''} · {r.role_family}
-                    {r.specialty ? ` · ${r.specialty}` : ''}
-                  </div>
-                </div>
-                <ReqStatusBadge status={r.status} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{sorted.map(renderCard)}</div>
+      ) : view === 'byHM' ? (
+        <div className="space-y-6">
+          {grouped.map((g) => (
+            <div key={g.name}>
+              <div className="mb-2 flex items-center gap-2 border-b border-line pb-1">
+                <UserCog size={15} className="text-muted" />
+                <h2 className="text-sm font-semibold tracking-tight text-ink">{g.name}</h2>
+                <span className="text-xs text-muted tnum">
+                  {g.rows.length} requisition{g.rows.length === 1 ? '' : 's'}
+                </span>
               </div>
-              <div className="mt-3 flex items-center gap-3 text-xs text-muted">
-                <span className="tnum">{appCount(r)} candidates</span>
-                <span className="tnum">{daysOpen(r)}d open</span>
-                <span className="tnum">{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
-              </div>
-            </button>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{g.rows.map(renderCard)}</div>
+            </div>
           ))}
         </div>
       ) : (

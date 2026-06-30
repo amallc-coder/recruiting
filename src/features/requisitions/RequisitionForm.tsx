@@ -33,6 +33,7 @@ export function RequisitionForm({
   const [headcount, setHeadcount] = useState(String(existing?.headcount ?? 1))
   const [budget, setBudget] = useState(existing?.budget != null ? String(existing.budget) : '')
   const [managerId, setManagerId] = useState(existing?.hiring_manager_id ?? '')
+  const [hmId, setHmId] = useState(existing?.actual_hiring_manager_id ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
   const [requirements, setRequirements] = useState(existing?.requirements ?? '')
   // Pre-application screening questionnaire (requisitions.screening_questions) —
@@ -48,6 +49,10 @@ export function RequisitionForm({
     listDepartments().then(setDepartments)
   }, [])
   const facilityDepts = departments.filter((d) => d.facility_id === facilityId)
+  // Hiring managers are a distinct population from recruiters; fall back to all
+  // users only if no hiring_manager-role users exist yet.
+  const hmUsers = users.filter((u) => u.role === 'hiring_manager')
+  const hmList = hmUsers.length ? hmUsers : users
 
   function addQuestion() {
     setQuestions((q) => [...q, { id: qid(), question: '' }])
@@ -78,6 +83,7 @@ export function RequisitionForm({
       headcount: Math.max(1, parseInt(headcount, 10) || 1),
       budget: budget.trim() ? Number(budget) : null,
       hiring_manager_id: managerId || null,
+      actual_hiring_manager_id: hmId || null,
       description: description.trim() || null,
       requirements: requirements.trim() || null,
     }
@@ -153,6 +159,19 @@ export function RequisitionForm({
             ))}
           </Select>
         </div>
+        <Select
+          label="Hiring manager"
+          value={hmId}
+          onChange={(e) => setHmId(e.target.value)}
+          placeholder={hmUsers.length ? 'Unassigned' : 'Unassigned (no hiring-manager users yet)'}
+        >
+          {hmList.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.full_name}
+              {u.role && u.role !== 'hiring_manager' ? ` · ${u.role}` : ''}
+            </option>
+          ))}
+        </Select>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Headcount" type="number" min={1} value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
           <Input label="Budget (annual, $)" type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="95000" />
