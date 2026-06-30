@@ -15,6 +15,7 @@ import {
   type RequisitionRequest,
   type RequestStatus,
   type Urgency,
+  type PositionType,
 } from '../../lib/v2/requisitionRequests'
 import { listFacilities, listRoleFamilies } from '../../lib/v2/requisitions'
 import { listDepartments, type Department } from '../../lib/v2/hierarchy'
@@ -158,6 +159,13 @@ export function RequestsPage() {
                     <span>{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
                     <span className={URGENCY_TONE[r.urgency]}>{r.urgency} priority</span>
                     {r.target_start && <span>needs by {r.target_start}</span>}
+                    {r.position_type === 'replacement' ? (
+                      <span className="rounded bg-clay-50 px-1.5 text-clay-600">
+                        Replacement{r.replacing_name ? ` · ${r.replacing_name}` : ''}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-sage-50 px-1.5 text-sage-700">New position</span>
+                    )}
                     {r.source === 'public' && <span className="rounded bg-clay-50 px-1.5 text-clay-600">via link</span>}
                   </div>
                   {r.requester_name && (
@@ -269,6 +277,8 @@ function NewRequestModal({
   const [departmentId, setDepartmentId] = useState('')
   const [roleFamily, setRoleFamily] = useState('')
   const [headcount, setHeadcount] = useState('1')
+  const [positionType, setPositionType] = useState<PositionType>('new')
+  const [replacingName, setReplacingName] = useState('')
   const [urgency, setUrgency] = useState<Urgency>('normal')
   const [targetStart, setTargetStart] = useState('')
   const [reason, setReason] = useState('')
@@ -290,6 +300,8 @@ function NewRequestModal({
       role_family: roleFamily || null,
       headcount: Math.max(1, parseInt(headcount, 10) || 1),
       urgency,
+      position_type: positionType,
+      replacing_name: positionType === 'replacement' ? replacingName.trim() || null : null,
       target_start: targetStart || null,
       reason: reason.trim() || null,
     })
@@ -332,6 +344,15 @@ function NewRequestModal({
             <option key={rf.code} value={rf.code}>{rf.label}</option>
           ))}
         </Select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Select label="New or replacement position" value={positionType} onChange={(e) => setPositionType(e.target.value as PositionType)}>
+            <option value="new">New position</option>
+            <option value="replacement">Replacement</option>
+          </Select>
+          {positionType === 'replacement' && (
+            <Input label="Who is being replaced" value={replacingName} onChange={(e) => setReplacingName(e.target.value)} placeholder="Name of departing staff member" />
+          )}
+        </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <Input label="Openings" type="number" min={1} value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
           <Select label="Priority" value={urgency} onChange={(e) => setUrgency(e.target.value as Urgency)}>

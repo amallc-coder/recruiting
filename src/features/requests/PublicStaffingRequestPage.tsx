@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FilePlus, CheckCircle2 } from 'lucide-react'
 import { Button, Card, Input, Select } from '../../components/primitives'
-import { submitPublicStaffingRequest, REQUEST_URGENCIES, type Urgency } from '../../lib/v2/requisitionRequests'
+import { submitPublicStaffingRequest, REQUEST_URGENCIES, type Urgency, type PositionType } from '../../lib/v2/requisitionRequests'
 import { getOrgHierarchy, type OrgHierarchy } from '../../lib/v2/hierarchy'
 
 /**
@@ -19,6 +19,8 @@ export function PublicStaffingRequestPage() {
   const [roleFamily, setRoleFamily] = useState('')
   const [title, setTitle] = useState('')
   const [headcount, setHeadcount] = useState('1')
+  const [positionType, setPositionType] = useState<PositionType>('new')
+  const [replacingName, setReplacingName] = useState('')
   const [urgency, setUrgency] = useState<Urgency>('normal')
   const [targetStart, setTargetStart] = useState('')
   const [reason, setReason] = useState('')
@@ -65,6 +67,8 @@ export function PublicStaffingRequestPage() {
       role_family: roleFamily || null,
       headcount: Math.max(1, parseInt(headcount, 10) || 1),
       urgency,
+      position_type: positionType,
+      replacing_name: positionType === 'replacement' ? replacingName.trim() || null : null,
       target_start: targetStart || null,
       reason: reason.trim() || null,
     })
@@ -106,6 +110,8 @@ export function PublicStaffingRequestPage() {
                 setRoleFamily('')
                 setDepartmentId('')
                 setHeadcount('1')
+                setPositionType('new')
+                setReplacingName('')
                 setUrgency('normal')
                 setTargetStart('')
                 setReason('')
@@ -149,6 +155,20 @@ export function PublicStaffingRequestPage() {
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">What you need</h3>
               <div className="mt-3 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
+                  <Select label="New or replacement position" value={positionType} onChange={(e) => setPositionType(e.target.value as PositionType)}>
+                    <option value="new">New position</option>
+                    <option value="replacement">Replacement</option>
+                  </Select>
+                  {positionType === 'replacement' && (
+                    <Input
+                      label="Who is being replaced"
+                      value={replacingName}
+                      onChange={(e) => setReplacingName(e.target.value)}
+                      placeholder="Name of departing staff member"
+                    />
+                  )}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Select label="Role" value={roleFamily} onChange={(e) => setRoleFamily(e.target.value)} placeholder="Select role…">
                     {(hier?.role_families ?? []).map((r) => (
                       <option key={r.code} value={r.code}>{r.label}</option>
@@ -172,6 +192,10 @@ export function PublicStaffingRequestPage() {
               </div>
             </div>
             {error && <p className="text-sm text-rust-700">{error}</p>}
+            <p className="text-xs text-muted">
+              Submitting sends this to the recruiting leadership review queue for approval — it does not open a
+              requisition automatically. You'll hear back once it's reviewed.
+            </p>
             <Button onClick={submit} loading={submitting} className="w-full">
               Submit request
             </Button>
