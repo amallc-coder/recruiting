@@ -31,6 +31,7 @@ import {
   BookOpen,
   Gift,
   FilePlus,
+  Inbox,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -139,6 +140,7 @@ export function Layout() {
         { to: '/sourcing', label: 'Sourcing', cap: 'view_candidates', icon: Radar },
         { to: '/referrals', label: 'Referrals', cap: 'view_candidates', icon: Gift },
         { to: '/screening', label: 'Screening', cap: 'view_candidates', icon: Bot },
+        { to: '/inbox', label: 'Inbox', cap: 'view_candidates', icon: Inbox },
         { to: '/matching', label: 'Matching', cap: 'view_matching', icon: Sparkles },
         { to: '/offers', label: 'Offers', cap: 'view_candidates', icon: Handshake },
       ],
@@ -165,7 +167,7 @@ export function Layout() {
     },
   ]
   // v2-only routes (hidden until v2 is active) and legacy routes hidden under v2.
-  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
+  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/inbox', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
   const v2Hidden = useV2 ? ['/jobs'] : []
   const navGroups = navGroupDefs
     .map((g) => ({
