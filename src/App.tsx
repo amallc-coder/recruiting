@@ -39,6 +39,7 @@ import { ConsolePage } from './features/console'
 import { AutopilotPage } from './features/autopilot'
 import { GovernancePage } from './features/governance'
 import { TemplatesPage } from './features/templates'
+import { JobTemplatesPage } from './features/jobtemplates'
 import { AnalyticsPage as V2Analytics } from './features/analytics'
 import { MatchingPage as V2Matching } from './features/matching'
 import { HandbookPage } from './features/handbook'
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="/positions" element={useV2 ? <V2Positions /> : <Positions />} />
             {useV2 && (
               <>
+                <Route path="/job-templates" element={<JobTemplatesPage />} />
                 <Route path="/candidates/:id" element={<CandidateProfile />} />
                 <Route path="/requests" element={<RequestsPage />} />
                 <Route path="/org-structure" element={<OrgStructurePage />} />
