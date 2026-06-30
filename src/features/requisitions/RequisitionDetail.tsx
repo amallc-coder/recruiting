@@ -93,7 +93,7 @@ export function RequisitionDetail() {
             {req.facility?.division?.name ? `${req.facility.division.name} · ` : ''}
             {req.facility?.name ?? '—'}
             {req.department?.name ? ` · ${req.department.name}` : ''} · {req.role_family}
-            {req.specialty ? ` · ${req.specialty}` : ''} · Manager: {managerName}
+            {req.specialty ? ` · ${req.specialty}` : ''} · Recruiter: {managerName}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -112,7 +112,12 @@ export function RequisitionDetail() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Days open" value={daysOpen(req)} hint={req.filled_at ? 'to fill' : req.opened_at ? 'and counting' : 'not opened yet'} />
         <StatCard label="Candidates" value={appCount(req)} hint={`${req.headcount} opening${req.headcount === 1 ? '' : 's'}`} />
-        <StatCard label="Approval" value={req.approval_status} tone={req.approval_status === 'approved' ? 'good' : req.approval_status === 'rejected' ? 'warn' : 'default'} />
+        <StatCard
+          label="Approval"
+          value={req.approval_status}
+          tone={req.approval_status === 'approved' ? 'good' : req.approval_status === 'rejected' ? 'warn' : 'default'}
+          info="Where the requisition sits in the approval chain. 'Approved' = it cleared sign-off and can be opened/published to candidates. (TODO: confirm exact lifecycle wording — pending_approval → approved → open — with recruiting leadership.)"
+        />
         <Card className="p-5">
           <div className="stat-label">Cost of vacancy</div>
           <div className="mt-1.5 text-3xl font-semibold tracking-tight tnum text-rust-600">${vacancy.toLocaleString()}</div>

@@ -1,6 +1,19 @@
 import type { ReactNode } from 'react'
+import { Info } from 'lucide-react'
 import { STAGE_LABELS, PRIORITY_LABELS, ROLE_LABELS } from '../lib/types'
 import type { Stage, Priority, ClinicalRole } from '../lib/types'
+
+/** Small "ⓘ" with a hover/focus tooltip — for defining a metric or term inline. */
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle" tabIndex={0} aria-label={text} title={text}>
+      <Info size={13} className="cursor-help text-muted/70 hover:text-muted" />
+      <span className="pointer-events-none absolute left-1/2 top-5 z-20 hidden w-52 -translate-x-1/2 rounded-md bg-ink px-2.5 py-1.5 text-[11px] font-normal normal-case leading-snug tracking-normal text-paper shadow-lg group-hover:block group-focus:block">
+        {text}
+      </span>
+    </span>
+  )
+}
 
 export function Spinner({ label }: { label?: string }) {
   return (
@@ -16,17 +29,23 @@ export function StatCard({
   value,
   hint,
   tone,
+  info,
 }: {
   label: string
   value: ReactNode
   hint?: string
   tone?: 'default' | 'warn' | 'good'
+  /** Optional definition shown via an info tooltip next to the label. */
+  info?: string
 }) {
   const valueColor =
     tone === 'warn' ? 'text-rust-500' : tone === 'good' ? 'text-sage-600' : 'text-ink'
   return (
     <div className="card p-5">
-      <div className="stat-label">{label}</div>
+      <div className="flex items-center gap-1 stat-label">
+        <span>{label}</span>
+        {info && <InfoTip text={info} />}
+      </div>
       <div className={`mt-1.5 text-3xl font-semibold tracking-tight tnum ${valueColor}`}>{value}</div>
       {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
     </div>

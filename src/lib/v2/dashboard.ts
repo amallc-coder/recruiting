@@ -12,6 +12,12 @@ export interface DashboardSummary {
   hires: number
   placementReady: number
   openPositions: number
+  /** Σ headcount across open requisitions — total seats we're hiring for. */
+  openings: number
+  /** Openings still unfilled = Σ max(0, headcount − hires) over open reqs. */
+  openingsRemaining: number
+  interviews: number
+  offers: number
   byStage: { stage: string; count: number }[]
   recentReqs: { id: string; title: string; status: string; role_family: string }[]
 }
@@ -30,6 +36,9 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     hires,
     placementReady,
     openPositions,
+    openingsAgg,
+    interviews,
+    offers,
     byStage,
     recentReqs,
   ] = await Promise.all([
@@ -39,6 +48,9 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     countApplications('hired'),
     countPlacementReady(),
     sumOpenPositions(),
+    loadOpenings(),
+    countRows('interviews'),
+    countRows('offers'),
     loadByStage(),
     loadRecentReqs(),
   ])
@@ -50,9 +62,33 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     hires,
     placementReady,
     openPositions,
+    openings: openingsAgg.openings,
+    openingsRemaining: openingsAgg.remaining,
+    interviews,
+    offers,
     byStage,
     recentReqs,
   }
+}
+
+async function countRows(table: string): Promise<number> {
+  const { count } = await v2.from(table).select('id', { count: 'exact', head: true })
+  return count ?? 0
+}
+
+/** Openings = Σ headcount over open reqs; remaining = Σ max(0, headcount − hires-on-that-req). */
+async function loadOpenings(): Promise<{ openings: number; remaining: number }> {
+  const reqs = await fetchAll<{ id: string; headcount: number | null }>('requisitions', 'id,headcount', (q) => q.eq('status', 'open'))
+  const openings = reqs.reduce((s, r) => s + (r.headcount || 0), 0)
+  if (reqs.length === 0) return { openings: 0, remaining: 0 }
+  const ids = new Set(reqs.map((r) => r.id))
+  const hired = await fetchAll<{ requisition_id: string | null }>('applications', 'requisition_id', (q) => q.eq('status', 'hired'))
+  const hiredByReq = new Map<string, number>()
+  for (const h of hired) {
+    if (h.requisition_id && ids.has(h.requisition_id)) hiredByReq.set(h.requisition_id, (hiredByReq.get(h.requisition_id) ?? 0) + 1)
+  }
+  const remaining = reqs.reduce((s, r) => s + Math.max(0, (r.headcount || 0) - (hiredByReq.get(r.id) ?? 0)), 0)
+  return { openings, remaining }
 }
 
 async function countOpenReqs(): Promise<number> {
