@@ -15,6 +15,8 @@ export interface PublicReq {
   id: string
   title: string
   role_family: string
+  facility_id: string | null
+  department_id: string | null
   specialty: string | null
   location: string | null
   description: string | null
@@ -48,7 +50,7 @@ export async function listPublicRequisitions(): Promise<PublicReq[]> {
   // Paginate past the 1000-row cap so every open public role is listed; re-sort newest-first.
   const rows = await fetchAll<PublicReq & { created_at?: string }>(
     'requisitions',
-    'id,title,role_family,specialty,location,description,requirements,employment_type,workplace,salary_min,salary_max,salary_unit,screening_questions,created_at, facility:facilities(name,city,state)',
+    'id,title,role_family,facility_id,department_id,specialty,location,description,requirements,employment_type,workplace,salary_min,salary_max,salary_unit,screening_questions,created_at, facility:facilities(name,city,state)',
     (q) => q.eq('is_public', true).eq('status', 'open'),
   )
   return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')) as PublicReq[]

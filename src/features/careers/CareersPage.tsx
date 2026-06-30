@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { MapPin, Briefcase } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { MapPin, Briefcase, Search, X } from 'lucide-react'
 import { Button, Card, Badge, Input, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import {
@@ -13,6 +13,7 @@ import {
   type PublicReq,
   type RoleMatch,
 } from '../../lib/v2/careers'
+import { getOrgHierarchy, type OrgHierarchy } from '../../lib/v2/hierarchy'
 
 /**
  * PUBLIC careers page (v2). Renders OUTSIDE the authenticated app shell —
@@ -22,6 +23,12 @@ export function CareersPage() {
   const [reqs, setReqs] = useState<PublicReq[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<PublicReq | null>(null)
+  const [hier, setHier] = useState<OrgHierarchy | null>(null)
+  const [divisionKey, setDivisionKey] = useState('') // index into hier.divisions
+  const [facilityId, setFacilityId] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
+  const [role, setRole] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     let active = true
@@ -30,10 +37,41 @@ export function CareersPage() {
       setReqs(data)
       setLoading(false)
     })
+    getOrgHierarchy().then((h) => active && setHier(h)).catch(() => {})
     return () => {
       active = false
     }
   }, [])
+
+  const divisions = hier?.divisions ?? []
+  // facility_id → division index (string), for filtering postings by division.
+  const facilityToDivKey = useMemo(() => {
+    const m = new Map<string, string>()
+    divisions.forEach((d, i) => d.facilities.forEach((f) => m.set(f.id, String(i))))
+    return m
+  }, [divisions])
+  const facilityOptions = divisionKey ? divisions[Number(divisionKey)]?.facilities ?? [] : divisions.flatMap((d) => d.facilities)
+  const departmentOptions = facilityId ? facilityOptions.find((f) => f.id === facilityId)?.departments ?? [] : []
+
+  const term = search.trim().toLowerCase()
+  const filtered = useMemo(() => {
+    return reqs.filter((r) => {
+      if (divisionKey && (r.facility_id == null || facilityToDivKey.get(r.facility_id) !== divisionKey)) return false
+      if (facilityId && r.facility_id !== facilityId) return false
+      if (departmentId && r.department_id !== departmentId) return false
+      if (role && r.role_family !== role) return false
+      if (term) {
+        const hay = [r.title, r.specialty, r.location, r.facility?.name, r.facility?.city, r.facility?.state, r.description].join(' ').toLowerCase()
+        if (!hay.includes(term)) return false
+      }
+      return true
+    })
+  }, [reqs, divisionKey, facilityId, departmentId, role, term, facilityToDivKey])
+
+  const anyFilter = !!(divisionKey || facilityId || departmentId || role || term)
+  function clearFilters() {
+    setDivisionKey(''); setFacilityId(''); setDepartmentId(''); setRole(''); setSearch('')
+  }
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -52,11 +90,64 @@ export function CareersPage() {
         ) : reqs.length === 0 ? (
           <EmptyState title="No open roles right now" hint="Check back soon — new positions are posted regularly." />
         ) : (
-          <div className="space-y-3">
-            {reqs.map((r) => (
-              <Posting key={r.id} req={r} onApply={() => setApplying(r)} />
-            ))}
-          </div>
+          <>
+            {/* Filters */}
+            <Card className="mb-4 p-4">
+              <div className="flex items-center gap-2 rounded-lg bg-paper px-2.5 py-2">
+                <Search size={16} className="shrink-0 text-muted" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search roles, titles, locations…"
+                  className="w-full bg-transparent text-sm outline-none"
+                />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <select className="input" value={divisionKey} onChange={(e) => { setDivisionKey(e.target.value); setFacilityId(''); setDepartmentId('') }}>
+                  <option value="">All divisions</option>
+                  {divisions.map((d, i) => (
+                    <option key={d.id ?? `d${i}`} value={String(i)}>{d.name}</option>
+                  ))}
+                </select>
+                <select className="input" value={facilityId} onChange={(e) => { setFacilityId(e.target.value); setDepartmentId('') }}>
+                  <option value="">All facilities</option>
+                  {facilityOptions.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+                <select className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} disabled={!facilityId}>
+                  <option value="">{facilityId ? 'All departments' : 'All departments'}</option>
+                  {departmentOptions.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="">All roles</option>
+                  {(hier?.role_families ?? []).map((r) => (
+                    <option key={r.code} value={r.code}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted">
+                <span>{filtered.length} of {reqs.length} open role{reqs.length === 1 ? '' : 's'}</span>
+                {anyFilter && (
+                  <button onClick={clearFilters} className="inline-flex items-center gap-1 underline-offset-2 hover:text-ink hover:underline">
+                    <X size={12} /> Clear filters
+                  </button>
+                )}
+              </div>
+            </Card>
+
+            {filtered.length === 0 ? (
+              <EmptyState title="No roles match your filters" hint="Try clearing a filter or broadening your search." />
+            ) : (
+              <div className="space-y-3">
+                {filtered.map((r) => (
+                  <Posting key={r.id} req={r} onApply={() => setApplying(r)} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 
