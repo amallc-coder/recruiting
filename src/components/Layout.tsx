@@ -30,6 +30,7 @@ import {
   MessageSquare,
   BookOpen,
   Gift,
+  FilePlus,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -132,6 +133,7 @@ export function Layout() {
       label: 'Hire workflow',
       items: [
         { to: '/jobs', label: 'Jobs', cap: 'view_jobs', icon: Briefcase },
+        { to: '/requests', label: 'Requests', cap: 'view_jobs', icon: FilePlus },
         { to: '/requisitions', label: 'Requisitions', cap: 'view_jobs', icon: FileText },
         { to: '/candidates', label: 'Candidates', cap: 'view_candidates', icon: UserRound },
         { to: '/sourcing', label: 'Sourcing', cap: 'view_candidates', icon: Radar },
@@ -163,7 +165,7 @@ export function Layout() {
     },
   ]
   // v2-only routes (hidden until v2 is active) and legacy routes hidden under v2.
-  const v2Only = ['/requisitions', '/coverage', '/sourcing', '/referrals', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
+  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
   const v2Hidden = useV2 ? ['/jobs'] : []
   const navGroups = navGroupDefs
     .map((g) => ({
