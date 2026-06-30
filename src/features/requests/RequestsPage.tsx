@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FilePlus, Plus, Check, X, ArrowRight, Trash2 } from 'lucide-react'
+import { FilePlus, Plus, Check, X, ArrowRight, Trash2, Link2, Mail } from 'lucide-react'
 import { Button, Card, Input, Select, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState, StatCard } from '../../components/ui'
 import { useAuth } from '../../context/AuthContext'
@@ -10,6 +10,7 @@ import {
   reviewRequest,
   convertRequest,
   deleteRequest,
+  patchRequest,
   REQUEST_URGENCIES,
   type RequisitionRequest,
   type RequestStatus,
@@ -86,6 +87,17 @@ export function RequestsPage() {
     await deleteRequest(r.id)
   }
 
+  async function triage(r: RequisitionRequest, patch: Partial<RequisitionRequest>) {
+    setRows((p) => p!.map((x) => (x.id === r.id ? { ...x, ...patch } : x)))
+    const { error } = await patchRequest(r.id, patch)
+    if (error) {
+      toast({ tone: 'error', title: 'Update failed', description: error })
+      refresh()
+    }
+  }
+
+  const publicLink = `${window.location.origin}${import.meta.env.BASE_URL}#/staffing-request`
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -99,9 +111,22 @@ export function RequestsPage() {
               : 'Request coverage for your facility. Recruiting will review and open a requisition.'}
           </p>
         </div>
-        <Button onClick={() => setAdding(true)}>
-          <Plus size={15} className="mr-1.5" /> New request
-        </Button>
+        <div className="flex items-center gap-2">
+          {isReviewer && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard?.writeText(publicLink)
+                toast({ tone: 'success', title: 'Public request link copied', description: 'Share it with facility managers — no login needed.' })
+              }}
+            >
+              <Link2 size={15} className="mr-1.5" /> Copy facility link
+            </Button>
+          )}
+          <Button onClick={() => setAdding(true)}>
+            <Plus size={15} className="mr-1.5" /> New request
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -123,13 +148,55 @@ export function RequestsPage() {
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_TONE[r.status]}`}>{r.status}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
-                    <span>{r.facility_id ? facName.get(r.facility_id) ?? 'Facility' : 'No facility'}</span>
+                    <span>{r.facility_id ? facName.get(r.facility_id) ?? 'Facility' : r.facility_name || 'No facility'}</span>
                     <span>{r.role_family ? rfLabel.get(r.role_family) ?? r.role_family : 'No role family'}</span>
                     <span>{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
                     <span className={URGENCY_TONE[r.urgency]}>{r.urgency} priority</span>
                     {r.target_start && <span>needs by {r.target_start}</span>}
+                    {r.source === 'public' && <span className="rounded bg-clay-50 px-1.5 text-clay-600">via link</span>}
                   </div>
+                  {r.requester_name && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                      <span>Requested by <span className="text-ink">{r.requester_name}</span></span>
+                      {r.requester_email && (
+                        <a href={`mailto:${r.requester_email}`} className="inline-flex items-center gap-1 text-sage-700 hover:underline">
+                          <Mail size={11} /> {r.requester_email}
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {r.reason && <p className="mt-2 text-sm text-ink">{r.reason}</p>}
+
+                  {/* Triage: public requests often lack a facility_id / role_family; set them so Convert works. */}
+                  {isReviewer && r.status !== 'converted' && (!r.facility_id || !r.role_family) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-2 py-1.5">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Triage:</span>
+                      {!r.facility_id && (
+                        <select
+                          value={r.facility_id ?? ''}
+                          onChange={(e) => triage(r, { facility_id: e.target.value || null })}
+                          className="rounded border border-line bg-paper px-1.5 py-0.5 text-xs"
+                        >
+                          <option value="">Set facility…</option>
+                          {facilities.map((f) => (
+                            <option key={f.id} value={f.id}>{f.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      {!r.role_family && (
+                        <select
+                          value={r.role_family ?? ''}
+                          onChange={(e) => triage(r, { role_family: e.target.value || null })}
+                          className="rounded border border-line bg-paper px-1.5 py-0.5 text-xs"
+                        >
+                          <option value="">Set role family…</option>
+                          {roleFamilies.map((rf) => (
+                            <option key={rf.code} value={rf.code}>{rf.label}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   {r.requisition_id && (
                     <Link to={`/requisitions/${r.requisition_id}`} className="mt-2 inline-flex items-center gap-1 text-xs text-sage-700 hover:underline">
                       View requisition <ArrowRight size={12} />

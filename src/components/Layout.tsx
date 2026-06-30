@@ -337,6 +337,17 @@ export function Layout() {
                 >
                   <Briefcase size={14} /> Careers page
                 </a>
+                {useV2 && (
+                  <a
+                    href="#/staffing-request"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-brand-50 hover:text-ink sm:inline-flex"
+                    title="Open the public staffing-request page for facility managers"
+                  >
+                    <FilePlus size={14} /> Facility request
+                  </a>
+                )}
                 <span className="hidden items-center gap-1.5 px-1.5 text-sm text-muted sm:inline-flex">
                   <span className={`h-2 w-2 rounded-full ${demoMode ? 'bg-clay-500' : 'bg-sage-500'}`} />
                   {demoMode ? 'Local' : 'Live'}
