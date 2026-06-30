@@ -48,6 +48,7 @@ import { RequestsPage } from './features/requests'
 import { InboxPage } from './features/inbox'
 import { AdCampaignsPage } from './features/ads'
 import { PublicPortalPage } from './features/portal'
+import { PublicVideoPage } from './features/video'
 // Lazy-loaded for the same reason as the old importer: keep SheetJS out of the main bundle.
 const V2Import = lazy(() => import('./features/import').then((m) => ({ default: m.ImportPage })))
 import { useV2 } from './lib/v2/client'
@@ -71,6 +72,8 @@ export default function App() {
           {useV2 && <Route path="/reference/:token" element={<PublicReferencePage />} />}
           {/* Public candidate portal — token-gated status view, no authentication. */}
           {useV2 && <Route path="/portal/:token" element={<PublicPortalPage />} />}
+          {/* Public one-way video screening recorder — token-gated, no authentication. */}
+          {useV2 && <Route path="/video/:token" element={<PublicVideoPage />} />}
           <Route
             element={
               <ProtectedRoute>
