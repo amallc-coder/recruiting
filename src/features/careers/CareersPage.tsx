@@ -36,6 +36,8 @@ function CareersList() {
   const [applying, setApplying] = useState<PublicReq | null>(null)
   const [hier, setHier] = useState<OrgHierarchy | null>(null)
   const [divisionKey, setDivisionKey] = useState('') // index into hier.divisions
+  const [stateFilter, setStateFilter] = useState('')
+  const [cityFilter, setCityFilter] = useState('')
   const [facilityId, setFacilityId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [role, setRole] = useState('')
@@ -61,13 +63,57 @@ function CareersList() {
     divisions.forEach((d, i) => d.facilities.forEach((f) => m.set(f.id, String(i))))
     return m
   }, [divisions])
-  const facilityOptions = divisionKey ? divisions[Number(divisionKey)]?.facilities ?? [] : divisions.flatMap((d) => d.facilities)
-  const departmentOptions = facilityId ? facilityOptions.find((f) => f.id === facilityId)?.departments ?? [] : []
+  // Facilities that actually have open roles, enriched with state/city/division —
+  // the hierarchy nodes don't carry location, so derive it from the postings.
+  const facilityMeta = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; state: string | null; city: string | null; divKey: string }>()
+    for (const r of reqs) {
+      if (!r.facility_id || m.has(r.facility_id)) continue
+      m.set(r.facility_id, {
+        id: r.facility_id,
+        name: r.facility?.name ?? 'Facility',
+        state: r.facility?.state ?? null,
+        city: r.facility?.city ?? null,
+        divKey: facilityToDivKey.get(r.facility_id) ?? '',
+      })
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [reqs, facilityToDivKey])
+
+  const states = useMemo(
+    () => [...new Set(facilityMeta.map((f) => f.state).filter(Boolean) as string[])].sort(),
+    [facilityMeta],
+  )
+  // Cities are contextual to the selected state.
+  const cities = useMemo(
+    () =>
+      [
+        ...new Set(
+          facilityMeta.filter((f) => !stateFilter || f.state === stateFilter).map((f) => f.city).filter(Boolean) as string[],
+        ),
+      ].sort(),
+    [facilityMeta, stateFilter],
+  )
+  // Facility list is contextual to both the chosen division and state.
+  const facilityOptions = useMemo(
+    () => facilityMeta.filter((f) => (!divisionKey || f.divKey === divisionKey) && (!stateFilter || f.state === stateFilter)),
+    [facilityMeta, divisionKey, stateFilter],
+  )
+  const departmentOptions = facilityId
+    ? divisions.flatMap((d) => d.facilities).find((f) => f.id === facilityId)?.departments ?? []
+    : []
+  // Division quick-filter chips — only divisions that have open roles.
+  const divisionChips = useMemo(() => {
+    const present = new Set(facilityMeta.map((f) => f.divKey))
+    return divisions.map((d, i) => ({ key: String(i), name: d.name })).filter((d) => present.has(d.key))
+  }, [divisions, facilityMeta])
 
   const term = search.trim().toLowerCase()
   const filtered = useMemo(() => {
     return reqs.filter((r) => {
       if (divisionKey && (r.facility_id == null || facilityToDivKey.get(r.facility_id) !== divisionKey)) return false
+      if (stateFilter && r.facility?.state !== stateFilter) return false
+      if (cityFilter && r.facility?.city !== cityFilter) return false
       if (facilityId && r.facility_id !== facilityId) return false
       if (departmentId && r.department_id !== departmentId) return false
       if (role && r.role_family !== role) return false
@@ -77,11 +123,18 @@ function CareersList() {
       }
       return true
     })
-  }, [reqs, divisionKey, facilityId, departmentId, role, term, facilityToDivKey])
+  }, [reqs, divisionKey, stateFilter, cityFilter, facilityId, departmentId, role, term, facilityToDivKey])
 
-  const anyFilter = !!(divisionKey || facilityId || departmentId || role || term)
+  const anyFilter = !!(divisionKey || stateFilter || cityFilter || facilityId || departmentId || role || term)
   function clearFilters() {
-    setDivisionKey(''); setFacilityId(''); setDepartmentId(''); setRole(''); setSearch('')
+    setDivisionKey(''); setStateFilter(''); setCityFilter(''); setFacilityId(''); setDepartmentId(''); setRole(''); setSearch('')
+  }
+  // Picking a division or state narrows what's below it, so reset the dependents.
+  function selectDivision(key: string) {
+    setDivisionKey(key); setFacilityId(''); setDepartmentId('')
+  }
+  function selectState(s: string) {
+    setStateFilter(s); setCityFilter(''); setFacilityId(''); setDepartmentId('')
   }
 
   return (
@@ -113,11 +166,37 @@ function CareersList() {
                   className="w-full bg-transparent text-sm outline-none"
                 />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <select className="input" value={divisionKey} onChange={(e) => { setDivisionKey(e.target.value); setFacilityId(''); setDepartmentId('') }}>
-                  <option value="">All divisions</option>
-                  {divisions.map((d, i) => (
-                    <option key={d.id ?? `d${i}`} value={String(i)}>{d.name}</option>
+              {/* Division quick-filter chips */}
+              {divisionChips.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => selectDivision('')}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${divisionKey === '' ? 'bg-ink text-paper' : 'bg-brand-50 text-muted hover:text-ink'}`}
+                  >
+                    All
+                  </button>
+                  {divisionChips.map((d) => (
+                    <button
+                      key={d.key}
+                      onClick={() => selectDivision(d.key)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${divisionKey === d.key ? 'bg-ink text-paper' : 'bg-brand-50 text-muted hover:text-ink'}`}
+                    >
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <select className="input" value={stateFilter} onChange={(e) => selectState(e.target.value)}>
+                  <option value="">All states</option>
+                  {states.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select className="input" value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}>
+                  <option value="">All cities</option>
+                  {cities.map((c) => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
                 <select className="input" value={facilityId} onChange={(e) => { setFacilityId(e.target.value); setDepartmentId('') }}>
@@ -127,7 +206,7 @@ function CareersList() {
                   ))}
                 </select>
                 <select className="input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} disabled={!facilityId}>
-                  <option value="">{facilityId ? 'All departments' : 'All departments'}</option>
+                  <option value="">All departments</option>
                   {departmentOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
