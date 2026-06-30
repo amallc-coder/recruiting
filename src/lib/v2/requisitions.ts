@@ -82,6 +82,7 @@ export async function getRequisition(id: string): Promise<RequisitionRow | null>
 export interface ReqInput {
   title: string
   facility_id: string
+  department_id?: string | null
   role_family: string
   specialty?: string | null
   headcount: number

@@ -17,6 +17,7 @@ import {
   type Urgency,
 } from '../../lib/v2/requisitionRequests'
 import { listFacilities, listRoleFamilies } from '../../lib/v2/requisitions'
+import { listDepartments, type Department } from '../../lib/v2/hierarchy'
 import type { Facility, RoleFamily } from '../../lib/v2/types'
 
 const STATUS_TONE: Record<RequestStatus, string> = {
@@ -40,6 +41,7 @@ export function RequestsPage() {
   const [rows, setRows] = useState<RequisitionRequest[] | null>(null)
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [roleFamilies, setRoleFamilies] = useState<RoleFamily[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -50,6 +52,7 @@ export function RequestsPage() {
     refresh()
     listFacilities().then(setFacilities)
     listRoleFamilies().then(setRoleFamilies)
+    listDepartments().then(setDepartments)
   }, [])
 
   const facName = useMemo(() => new Map(facilities.map((f) => [f.id, f.name])), [facilities])
@@ -236,6 +239,7 @@ export function RequestsPage() {
         <NewRequestModal
           facilities={facilities}
           roleFamilies={roleFamilies}
+          departments={departments}
           onClose={() => setAdding(false)}
           onSaved={() => { setAdding(false); refresh() }}
         />
@@ -247,17 +251,20 @@ export function RequestsPage() {
 function NewRequestModal({
   facilities,
   roleFamilies,
+  departments,
   onClose,
   onSaved,
 }: {
   facilities: Facility[]
   roleFamilies: RoleFamily[]
+  departments: Department[]
   onClose: () => void
   onSaved: () => void
 }) {
   const { toast } = useToast()
   const [title, setTitle] = useState('')
   const [facilityId, setFacilityId] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
   const [roleFamily, setRoleFamily] = useState('')
   const [headcount, setHeadcount] = useState('1')
   const [urgency, setUrgency] = useState<Urgency>('normal')
@@ -265,6 +272,7 @@ function NewRequestModal({
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const facilityDepts = departments.filter((d) => d.facility_id === facilityId)
 
   async function save() {
     if (!title.trim() || !facilityId) {
@@ -276,6 +284,7 @@ function NewRequestModal({
     const { error } = await createRequisitionRequest({
       title: title.trim(),
       facility_id: facilityId,
+      department_id: departmentId || null,
       role_family: roleFamily || null,
       headcount: Math.max(1, parseInt(headcount, 10) || 1),
       urgency,
@@ -305,17 +314,22 @@ function NewRequestModal({
       <div className="space-y-4">
         <Input label="What do you need?" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Night-shift RN, Med/Surg" />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Facility" value={facilityId} onChange={(e) => setFacilityId(e.target.value)} placeholder="Select facility…">
+          <Select label="Facility" value={facilityId} onChange={(e) => { setFacilityId(e.target.value); setDepartmentId('') }} placeholder="Select facility…">
             {facilities.map((f) => (
               <option key={f.id} value={f.id}>{f.name}{f.state ? ` · ${f.state}` : ''}</option>
             ))}
           </Select>
-          <Select label="Role family" value={roleFamily} onChange={(e) => setRoleFamily(e.target.value)} placeholder="Select role…">
-            {roleFamilies.map((rf) => (
-              <option key={rf.code} value={rf.code}>{rf.label}</option>
+          <Select label="Department" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} placeholder={facilityId ? (facilityDepts.length ? 'Select department…' : 'No departments') : 'Pick a facility first'}>
+            {facilityDepts.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </Select>
         </div>
+        <Select label="Role family" value={roleFamily} onChange={(e) => setRoleFamily(e.target.value)} placeholder="Select role…">
+          {roleFamilies.map((rf) => (
+            <option key={rf.code} value={rf.code}>{rf.label}</option>
+          ))}
+        </Select>
         <div className="grid gap-4 sm:grid-cols-3">
           <Input label="Openings" type="number" min={1} value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
           <Select label="Priority" value={urgency} onChange={(e) => setUrgency(e.target.value as Urgency)}>

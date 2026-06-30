@@ -44,6 +44,7 @@ export async function listRequisitionRequests(): Promise<RequisitionRequest[]> {
 export interface RequestInput {
   title: string
   facility_id: string | null
+  department_id?: string | null
   role_family: string | null
   headcount: number
   urgency: Urgency
@@ -89,6 +90,8 @@ export async function deleteRequest(id: string): Promise<{ error: string | null 
 export interface PublicStaffingInput {
   requester_name: string
   requester_email?: string | null
+  facility_id?: string | null
+  department_id?: string | null
   facility_name?: string | null
   title: string
   role_family?: string | null
@@ -103,6 +106,8 @@ export async function submitPublicStaffingRequest(input: PublicStaffingInput): P
   const { data, error } = await v2.rpc('submit_staffing_request', {
     p_requester_name: input.requester_name,
     p_requester_email: input.requester_email ?? null,
+    p_facility_id: input.facility_id ?? null,
+    p_department_id: input.department_id ?? null,
     p_facility_name: input.facility_name ?? null,
     p_title: input.title,
     p_role_family: input.role_family ?? null,

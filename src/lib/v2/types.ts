@@ -49,6 +49,7 @@ export interface Requisition {
   id: string
   org_id: string
   facility_id: string
+  department_id?: string | null
   title: string
   role_family: string
   specialty: string | null

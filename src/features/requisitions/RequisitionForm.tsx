@@ -6,6 +6,7 @@ import type { Facility, OrgUser, RoleFamily, RequisitionRow } from '../../lib/v2
 import { createRequisition, updateRequisition, type ReqInput } from '../../lib/v2/requisitions'
 import { getRequisitionQuestions, setRequisitionQuestions, qid, type ScreeningQuestion } from '../../lib/v2/screenings'
 import { DEFAULT_PRESCREEN } from '../../lib/v2/careers'
+import { listDepartments, type Department } from '../../lib/v2/hierarchy'
 
 export function RequisitionForm({
   existing,
@@ -25,6 +26,8 @@ export function RequisitionForm({
   const { toast } = useToast()
   const [title, setTitle] = useState(existing?.title ?? '')
   const [facilityId, setFacilityId] = useState(existing?.facility_id ?? '')
+  const [departmentId, setDepartmentId] = useState(existing?.department_id ?? '')
+  const [departments, setDepartments] = useState<Department[]>([])
   const [roleFamily, setRoleFamily] = useState(existing?.role_family ?? '')
   const [specialty, setSpecialty] = useState(existing?.specialty ?? '')
   const [headcount, setHeadcount] = useState(String(existing?.headcount ?? 1))
@@ -41,6 +44,10 @@ export function RequisitionForm({
   useEffect(() => {
     if (existing) getRequisitionQuestions(existing.id).then(setQuestions)
   }, [existing])
+  useEffect(() => {
+    listDepartments().then(setDepartments)
+  }, [])
+  const facilityDepts = departments.filter((d) => d.facility_id === facilityId)
 
   function addQuestion() {
     setQuestions((q) => [...q, { id: qid(), question: '' }])
@@ -65,6 +72,7 @@ export function RequisitionForm({
     const input: ReqInput = {
       title: title.trim(),
       facility_id: facilityId,
+      department_id: departmentId || null,
       role_family: roleFamily,
       specialty: specialty.trim() || null,
       headcount: Math.max(1, parseInt(headcount, 10) || 1),
@@ -107,7 +115,7 @@ export function RequisitionForm({
       <div className="space-y-4">
         <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Registered Nurse — Med/Surg" />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Facility" value={facilityId} onChange={(e) => setFacilityId(e.target.value)} placeholder="Select facility…">
+          <Select label="Facility" value={facilityId} onChange={(e) => { setFacilityId(e.target.value); setDepartmentId('') }} placeholder="Select facility…">
             {facilities.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -123,6 +131,18 @@ export function RequisitionForm({
             ))}
           </Select>
         </div>
+        <Select
+          label="Department"
+          value={departmentId}
+          onChange={(e) => setDepartmentId(e.target.value)}
+          placeholder={facilityId ? (facilityDepts.length ? 'Select department…' : 'No departments — add them in Org structure') : 'Pick a facility first'}
+        >
+          {facilityDepts.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </Select>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="Med/Surg, Primary Care…" />
           <Select label="Hiring manager" value={managerId} onChange={(e) => setManagerId(e.target.value)} placeholder="Unassigned">
