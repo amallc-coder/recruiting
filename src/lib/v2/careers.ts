@@ -56,6 +56,42 @@ export async function listPublicRequisitions(): Promise<PublicReq[]> {
   return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')) as PublicReq[]
 }
 
+const REQ_PUBLIC_COLS =
+  'id,title,role_family,facility_id,department_id,specialty,location,description,requirements,employment_type,workplace,salary_min,salary_max,salary_unit,screening_questions, facility:facilities(name,city,state)'
+
+/** A shareable, human-readable URL slug for a posting: `registered-nurse-<uuid>`. */
+export function jobSlug(req: Pick<PublicReq, 'id' | 'title'>): string {
+  const base = (req.title || 'role')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+  return base ? `${base}-${req.id}` : req.id
+}
+
+/** Extract the requisition id from a slug (trailing UUID), or return it as-is. */
+export function reqIdFromSlug(slug: string): string {
+  const m = slug.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+  return m ? m[0] : slug
+}
+
+/** Absolute, shareable URL for a posting (HashRouter, GitHub Pages safe). */
+export function jobUrl(req: Pick<PublicReq, 'id' | 'title'>): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/careers/${jobSlug(req)}`
+}
+
+/** Fetch a single open, public requisition by id (anon) for its dedicated page. */
+export async function getPublicRequisition(id: string): Promise<PublicReq | null> {
+  const { data } = await v2
+    .from('requisitions')
+    .select(REQ_PUBLIC_COLS)
+    .eq('id', id)
+    .eq('is_public', true)
+    .eq('status', 'open')
+    .maybeSingle()
+  return (data as PublicReq | null) ?? null
+}
+
 // ---------------------------------------------------------------------------
 // Transparent AI match scoring for the careers flow. Same token-overlap model as
 // the internal match engine: the share of a requisition's requirement vocabulary

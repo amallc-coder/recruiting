@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, Briefcase, Search, X } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { MapPin, Briefcase, Search, X, Link2, ArrowLeft } from 'lucide-react'
 import { Button, Card, Badge, Input, Modal, useToast } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import {
   listPublicRequisitions,
+  getPublicRequisition,
   applyToRequisition,
   salaryLabel,
   prescreenFor,
   careerMatchScore,
   otherMatchingRoles,
+  jobSlug,
+  jobUrl,
+  reqIdFromSlug,
   CAREER_MATCH_THRESHOLD,
   type PublicReq,
   type RoleMatch,
@@ -16,10 +21,16 @@ import {
 import { getOrgHierarchy, type OrgHierarchy } from '../../lib/v2/hierarchy'
 
 /**
- * PUBLIC careers page (v2). Renders OUTSIDE the authenticated app shell —
- * anonymous visitors browse open postings and apply via the public-intake RPC.
+ * PUBLIC careers page (v2). Renders OUTSIDE the authenticated app shell. With a
+ * `:slug` route param it shows a single shareable job page; otherwise the full
+ * filterable listing.
  */
 export function CareersPage() {
+  const { slug } = useParams<{ slug: string }>()
+  return slug ? <JobDetailPage slug={slug} /> : <CareersList />
+}
+
+function CareersList() {
   const [reqs, setReqs] = useState<PublicReq[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<PublicReq | null>(null)
@@ -165,10 +176,18 @@ export function CareersPage() {
 function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
   const place = [req.facility?.city, req.facility?.state].filter(Boolean).join(', ')
   const salary = salaryLabel(req)
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard?.writeText(jobUrl(req))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
   return (
     <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 space-y-2">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{req.title}</h2>
+        <Link to={`/careers/${jobSlug(req)}`} className="block text-lg font-semibold tracking-tight text-ink hover:text-sage-700 hover:underline">
+          {req.title}
+        </Link>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="sage">{req.role_family}</Badge>
           {req.employment_type && <Badge tone="neutral">{req.employment_type}</Badge>}
@@ -191,12 +210,101 @@ function Posting({ req, onApply }: { req: PublicReq; onApply: () => void }) {
         </div>
         {req.description && <p className="line-clamp-2 max-w-xl text-sm text-muted">{req.description}</p>}
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
+        <button onClick={copy} title="Copy shareable link" className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-2 text-xs text-muted hover:border-ink hover:text-ink">
+          <Link2 size={14} /> {copied ? 'Copied' : 'Link'}
+        </button>
         <Button leftIcon={<Briefcase size={14} />} onClick={onApply}>
           Apply
         </Button>
       </div>
     </Card>
+  )
+}
+
+/** Dedicated, shareable single-job page (#/careers/:slug). */
+function JobDetailPage({ slug }: { slug: string }) {
+  const { toast } = useToast()
+  const [req, setReq] = useState<PublicReq | null | undefined>(undefined)
+  const [allReqs, setAllReqs] = useState<PublicReq[]>([])
+  const [applying, setApplying] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getPublicRequisition(reqIdFromSlug(slug)).then((r) => active && setReq(r))
+    listPublicRequisitions().then((d) => active && setAllReqs(d))
+    return () => {
+      active = false
+    }
+  }, [slug])
+
+  const place = req ? [req.facility?.city, req.facility?.state].filter(Boolean).join(', ') : ''
+  const salary = req ? salaryLabel(req) : null
+
+  return (
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line bg-surface/90 backdrop-blur">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+          <Link to="/careers" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+            <ArrowLeft size={15} /> All openings
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+        {req === undefined ? (
+          <Spinner label="Loading role…" />
+        ) : req === null ? (
+          <EmptyState title="This role isn't available" hint="It may have been filled or closed. Browse our other open roles." />
+        ) : (
+          <Card className="space-y-5 p-6">
+            <div className="space-y-3">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink">{req.title}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="sage">{req.role_family}</Badge>
+                {req.employment_type && <Badge tone="neutral">{req.employment_type}</Badge>}
+                {req.workplace && <Badge tone="clay">{req.workplace}</Badge>}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                {(req.facility?.name || place) && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={14} /> {[req.facility?.name, place].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+                {salary && <span className="font-medium text-ink">{salary}</span>}
+              </div>
+            </div>
+
+            {req.description && (
+              <div>
+                <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">About this role</h2>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.description}</p>
+              </div>
+            )}
+            {req.requirements && (
+              <div>
+                <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted">Requirements</h2>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{req.requirements}</p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+              <Button leftIcon={<Briefcase size={15} />} onClick={() => setApplying(true)}>
+                Apply for this role
+              </Button>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(jobUrl(req)); toast({ tone: 'success', title: 'Link copied', description: 'Share this role anywhere.' }) }}
+                className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+              >
+                <Link2 size={15} /> Copy shareable link
+              </button>
+            </div>
+          </Card>
+        )}
+      </main>
+
+      {applying && req && <ApplyModal req={req} allReqs={allReqs.length ? allReqs : [req]} onClose={() => setApplying(false)} />}
+    </div>
   )
 }
 
