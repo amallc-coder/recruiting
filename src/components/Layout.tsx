@@ -32,6 +32,7 @@ import {
   Gift,
   FilePlus,
   Inbox,
+  Megaphone,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -159,6 +160,7 @@ export function Layout() {
       items: [
         { to: '/analytics', label: 'Analytics', cap: 'view_analytics', icon: BarChart3 },
         { to: '/finance', label: 'Finance', cap: 'view_analytics', icon: Wallet },
+        { to: '/ad-campaigns', label: 'Job ads', cap: 'view_analytics', icon: Megaphone },
       ],
     },
     {
@@ -167,7 +169,7 @@ export function Layout() {
     },
   ]
   // v2-only routes (hidden until v2 is active) and legacy routes hidden under v2.
-  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/inbox', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/handbook']
+  const v2Only = ['/requests', '/requisitions', '/coverage', '/sourcing', '/referrals', '/inbox', '/templates', '/autopilot', '/console', '/screening', '/offers', '/finance', '/ad-campaigns', '/handbook']
   const v2Hidden = useV2 ? ['/jobs'] : []
   const navGroups = navGroupDefs
     .map((g) => ({
