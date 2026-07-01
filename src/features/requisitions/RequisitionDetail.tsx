@@ -19,13 +19,9 @@ import {
   availableActions,
   daysOpen,
   appCount,
-  costOfVacancy,
-  DEFAULT_DAILY_VACANCY_COST,
   type ReqAction,
 } from '../../lib/v2/requisitions'
 import type { RequisitionRow, Facility, OrgUser, RoleFamily } from '../../lib/v2/types'
-
-const RATE_KEY = 'clinilytics.req.dailyVacancyCost'
 
 export function RequisitionDetail() {
   const { id } = useParams()
@@ -37,7 +33,6 @@ export function RequisitionDetail() {
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [users, setUsers] = useState<OrgUser[]>([])
   const [roleFamilies, setRoleFamilies] = useState<RoleFamily[]>([])
-  const [dailyRate, setDailyRate] = useState<number>(() => Number(localStorage.getItem(RATE_KEY)) || DEFAULT_DAILY_VACANCY_COST)
 
   function load() {
     if (!id) return
@@ -65,18 +60,11 @@ export function RequisitionDetail() {
       load()
     }
   }
-  function setRate(v: number) {
-    const n = Math.max(0, v || 0)
-    setDailyRate(n)
-    localStorage.setItem(RATE_KEY, String(n))
-  }
-
   if (loading) return <Spinner label="Loading requisition…" />
   if (!req) return <EmptyState title="Requisition not found" hint="It may have been removed." />
 
   const managerName = req.manager?.full_name ?? 'Unassigned'
   const hmName = req.hiring_manager?.full_name ?? null
-  const vacancy = costOfVacancy(req, dailyRate)
 
   return (
     <div className="space-y-5">
@@ -111,32 +99,15 @@ export function RequisitionDetail() {
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Days open" value={daysOpen(req)} hint={req.filled_at ? 'to fill' : req.opened_at ? 'and counting' : 'not opened yet'} />
         <StatCard label="Candidates" value={appCount(req)} hint={`${req.headcount} opening${req.headcount === 1 ? '' : 's'}`} />
         <StatCard
           label="Approval"
           value={req.approval_status}
           tone={req.approval_status === 'approved' ? 'good' : req.approval_status === 'rejected' ? 'warn' : 'default'}
-          info="Where the requisition sits in the approval chain. 'Approved' = it cleared sign-off and can be opened/published to candidates. (TODO: confirm exact lifecycle wording — pending_approval → approved → open — with recruiting leadership.)"
+          info="Where the requisition sits in the approval chain. 'Approved' = it cleared sign-off and can be opened/published to candidates."
         />
-        <Card className="p-5">
-          <div className="stat-label">Cost of vacancy</div>
-          <div className="mt-1.5 text-3xl font-semibold tracking-tight tnum text-rust-600">${vacancy.toLocaleString()}</div>
-          <div className="mt-1 flex items-center gap-1 text-xs text-muted">
-            <span>{daysOpen(req)}d ×</span>
-            <span>$</span>
-            <input
-              type="number"
-              min={0}
-              value={dailyRate}
-              onChange={(e) => setRate(Number(e.target.value))}
-              aria-label="Daily vacancy cost"
-              className="w-20 rounded border border-line bg-surface px-1.5 py-0.5 text-xs tnum"
-            />
-            <span>/day</span>
-          </div>
-        </Card>
       </div>
 
       {/* Description & requirements */}

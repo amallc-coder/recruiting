@@ -9,7 +9,9 @@ export type RequestStatus = 'requested' | 'approved' | 'declined' | 'converted'
 export type Urgency = 'low' | 'normal' | 'high' | 'urgent'
 export type PositionType = 'new' | 'replacement'
 
-export const REQUEST_URGENCIES: Urgency[] = ['low', 'normal', 'high', 'urgent']
+// 'urgent' remains a valid stored value (older requests keep it) but is no
+// longer offered as a choice on the request forms.
+export const REQUEST_URGENCIES: Urgency[] = ['low', 'normal', 'high']
 
 export interface RequisitionRequest {
   id: string
