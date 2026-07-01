@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, LayoutGrid, Table as TableIcon, Save, Trash2, ArrowUpDown, UserCog } from 'lucide-react'
-import { Button, Card, Input, Select, MultiSelect, Table, THead, TBody, Tr, Th, Td, Badge } from '../../components/primitives'
+import { Button, Card, Input, Select, MultiSelect, Table, THead, TBody, Tr, Th, Td } from '../../components/primitives'
 import { Spinner, EmptyState } from '../../components/ui'
 import { ReqStatusBadge } from './badges'
 import { RequisitionForm } from './RequisitionForm'
@@ -10,6 +10,7 @@ import {
   listFacilities,
   listOrgUsers,
   listRoleFamilies,
+  hiredCountsByReq,
   daysOpen,
   appCount,
   type ReqFilters,
@@ -43,6 +44,7 @@ export function RequisitionsPage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [reqs, setReqs] = useState<RequisitionRow[]>([])
+  const [hired, setHired] = useState<Record<string, number>>({})
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [users, setUsers] = useState<OrgUser[]>([])
   const [roleFamilies, setRoleFamilies] = useState<RoleFamily[]>([])
@@ -62,6 +64,7 @@ export function RequisitionsPage() {
       setDivisions(dv)
       setDepartments(dp)
     })
+    hiredCountsByReq().then(setHired)
   }, [])
 
   function refresh() {
@@ -124,7 +127,7 @@ export function RequisitionsPage() {
             <div className="mt-0.5 truncate text-xs text-muted">
               {r.facility?.division?.name ? `${r.facility.division.name} · ` : ''}
               {r.facility?.name ?? facilityName(r.facility_id)}
-              {r.department?.name ? ` · ${r.department.name}` : ''} · {r.role_family}
+              {r.department?.name ? ` · ${r.department.name}` : ''}
               {r.specialty ? ` · ${r.specialty}` : ''}
             </div>
           </div>
@@ -133,7 +136,7 @@ export function RequisitionsPage() {
         <div className="mt-3 flex items-center gap-3 text-xs text-muted">
           <span className="tnum">{appCount(r)} candidates</span>
           <span className="tnum">{daysOpen(r)}d open</span>
-          <span className="tnum">{r.headcount} opening{r.headcount === 1 ? '' : 's'}</span>
+          <span className="tnum font-medium text-ink">{hired[r.id] ?? 0} of {r.headcount} filled</span>
         </div>
       </button>
     )
@@ -307,10 +310,10 @@ export function RequisitionsPage() {
             <Tr>
               <SortableTh label="Title" k="title" sort={sort} onSort={toggleSort} />
               <SortableTh label="Facility" k="facility" sort={sort} onSort={toggleSort} />
-              <Th>Role</Th>
               <SortableTh label="Status" k="status" sort={sort} onSort={toggleSort} />
               <SortableTh label="Candidates" k="candidates" sort={sort} onSort={toggleSort} />
               <SortableTh label="Days open" k="age" sort={sort} onSort={toggleSort} />
+              <Th>Filled</Th>
             </Tr>
           </THead>
           <TBody>
@@ -319,13 +322,11 @@ export function RequisitionsPage() {
                 <Td className="font-medium">{r.title}</Td>
                 <Td>{r.facility?.name ?? facilityName(r.facility_id)}</Td>
                 <Td>
-                  <Badge tone="neutral">{r.role_family}</Badge>
-                </Td>
-                <Td>
                   <ReqStatusBadge status={r.status} />
                 </Td>
                 <Td className="tnum">{appCount(r)}</Td>
                 <Td className="tnum">{daysOpen(r)}</Td>
+                <Td className="tnum">{hired[r.id] ?? 0} of {r.headcount}</Td>
               </Tr>
             ))}
           </TBody>
