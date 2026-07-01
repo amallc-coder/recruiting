@@ -17,7 +17,10 @@ export interface DashboardSummary {
   /** Openings still unfilled = Σ max(0, headcount − hires) over open reqs. */
   openingsRemaining: number
   interviews: number
-  offers: number
+  /** Offers that reached the candidate (sent/accepted/declined/negotiating/expired). */
+  offersExtended: number
+  offersAccepted: number
+  offersDeclined: number
   byStage: { stage: string; count: number }[]
   recentReqs: { id: string; title: string; status: string; role_family: string }[]
 }
@@ -38,7 +41,7 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     openPositions,
     openingsAgg,
     interviews,
-    offers,
+    offerCounts,
     byStage,
     recentReqs,
   ] = await Promise.all([
@@ -50,7 +53,7 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     sumOpenPositions(),
     loadOpenings(),
     countRows('interviews'),
-    countRows('offers'),
+    countOffersByStatus(),
     loadByStage(),
     loadRecentReqs(),
   ])
@@ -65,10 +68,27 @@ export async function loadDashboard(): Promise<DashboardSummary> {
     openings: openingsAgg.openings,
     openingsRemaining: openingsAgg.remaining,
     interviews,
-    offers,
+    offersExtended: offerCounts.extended,
+    offersAccepted: offerCounts.accepted,
+    offersDeclined: offerCounts.declined,
     byStage,
     recentReqs,
   }
+}
+
+/** Offers grouped by outcome. "Extended" = anything that reached the candidate. */
+async function countOffersByStatus(): Promise<{ extended: number; accepted: number; declined: number }> {
+  const rows = await fetchAll<{ status: string }>('offers', 'status')
+  let extended = 0
+  let accepted = 0
+  let declined = 0
+  for (const r of rows) {
+    if (r.status === 'accepted') { accepted++; extended++ }
+    else if (r.status === 'declined') { declined++; extended++ }
+    else if (r.status === 'sent' || r.status === 'negotiating' || r.status === 'expired') { extended++ }
+    // 'pending' = drafted but not yet sent — not counted as extended.
+  }
+  return { extended, accepted, declined }
 }
 
 async function countRows(table: string): Promise<number> {
