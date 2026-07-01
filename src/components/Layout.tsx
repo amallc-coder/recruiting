@@ -5,7 +5,6 @@ import {
   Briefcase,
   UserRound,
   BarChart3,
-  Building2,
   Sparkles,
   ClipboardList,
   FileText,
@@ -151,7 +150,6 @@ export function Layout() {
       label: 'Plan & setup',
       items: [
         { to: '/coverage', label: 'Coverage', cap: 'view_facilities', icon: Gauge },
-        { to: '/facilities', label: 'Facilities', cap: 'view_facilities', icon: Building2 },
         { to: '/org-structure', label: 'Org structure', cap: 'view_facilities', icon: Network },
         { to: '/positions', label: 'Positions', cap: 'view_positions', icon: ClipboardList },
         { to: '/job-templates', label: 'Job templates', cap: 'view_positions', icon: FileText },
