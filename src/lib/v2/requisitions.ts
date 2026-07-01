@@ -186,6 +186,16 @@ export function appCount(r: RequisitionRow): number {
   return r.applications?.[0]?.count ?? 0
 }
 
+/** Hired-application count per requisition id — powers the "X of Y filled" view. */
+export async function hiredCountsByReq(): Promise<Record<string, number>> {
+  const rows = await fetchAll<{ requisition_id: string | null }>('applications', 'requisition_id', (q) =>
+    q.eq('status', 'hired'),
+  )
+  const m: Record<string, number> = {}
+  for (const r of rows) if (r.requisition_id) m[r.requisition_id] = (m[r.requisition_id] ?? 0) + 1
+  return m
+}
+
 export const DEFAULT_DAILY_VACANCY_COST = 1200
 
 export function costOfVacancy(
